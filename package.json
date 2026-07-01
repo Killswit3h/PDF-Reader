@@ -1,6 +1,6 @@
 {
   "name": "pdf-signer",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Offline Windows desktop app to view PDFs and stamp cosmetic signatures, initials and dates onto them.",
   "main": "src/main.js",
   "author": "",
