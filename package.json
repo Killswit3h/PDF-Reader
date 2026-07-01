@@ -1,0 +1,53 @@
+{
+  "name": "pdf-signer",
+  "version": "1.0.0",
+  "description": "Offline Windows desktop app to view PDFs and stamp cosmetic signatures, initials and dates onto them.",
+  "main": "src/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64",
+    "dist:arm64": "electron-builder --win nsis --arm64",
+    "pack": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.pdfsigner.app",
+    "productName": "PDF Signer",
+    "asar": false,
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PDF Signer"
+    }
+  },
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "3.11.174",
+    "signature_pad": "4.2.0"
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  }
+}
