@@ -7,6 +7,14 @@ const https = require('https');
 const pkg = require('../package.json');
 
 let mainWindow = null;
+// macOS "Open with" delivers files via the 'open-file' event (not argv), and it
+// can fire before the window exists — buffer it until the UI is ready.
+let macOpenFile = null;
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('open-file-path', filePath);
+  else macOpenFile = filePath;
+});
 
 // A file path passed on the command line (e.g. "Open with" on Windows).
 function fileFromArgv(argv) {
@@ -270,8 +278,10 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
 
-    // If launched with a PDF argument, open it once the UI is ready.
-    const initialFile = fileFromArgv(process.argv);
+    // If launched with a PDF argument (Windows/Linux) or via macOS "Open with",
+    // open it once the UI is ready.
+    const initialFile = fileFromArgv(process.argv) || macOpenFile;
+    macOpenFile = null;
     if (initialFile) {
       mainWindow.webContents.send('open-file-path', initialFile);
     }

@@ -1,7 +1,7 @@
-name: Build & Release (Windows)
+name: Build & Release
 
-# Trigger either by pushing a version tag (e.g. v1.0.0) or by clicking
-# "Run workflow" in the Actions tab (uses the version from package.json).
+# Trigger by pushing a version tag (e.g. v1.0.0) or clicking "Run workflow"
+# in the Actions tab (uses the version from package.json).
 on:
   push:
     tags:
@@ -9,35 +9,69 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # needed to create the Release and upload the .exe
+  contents: write # needed to create the Release and upload artifacts
 
 jobs:
+  # ---------------- Windows ----------------
   build-windows:
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - name: Install dependencies
-        # Skip optional deps: pdfjs-dist pulls in native "canvas" (used only for
-        # Node-side rendering, which we never do — the renderer uses the browser
-        # canvas). Building it on Windows needs Visual Studio and fails.
+        # Skip optional deps: pdfjs-dist pulls in native "canvas" (Node-only,
+        # which we never use). Building it on the runner needs a C toolchain.
         run: npm ci --omit=optional
-
       - name: Build Windows installer (NSIS, x64)
         run: npm run dist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: release/PDF-Signer-Setup.exe
 
+  # ---------------- macOS ----------------
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --omit=optional
+      - name: Build macOS app (dmg + zip, universal, unsigned)
+        run: npm run dist:mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Code signing / notarization are skipped unless these secrets exist:
+          #   CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: |
+            release/*.dmg
+            release/*.zip
+
+  # ---------------- Publish combined release ----------------
+  release:
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
       - name: Determine release tag
         id: tag
-        shell: bash
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
@@ -45,7 +79,6 @@ jobs:
             VER=$(node -p "require('./package.json').version")
             echo "tag=v${VER}" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -53,6 +86,8 @@ jobs:
           name: PDF Signer ${{ steps.tag.outputs.tag }}
           draft: false
           prerelease: false
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false
           files: |
-            release/PDF-Signer-Setup.exe
+            dist-artifacts/windows/PDF-Signer-Setup.exe
+            dist-artifacts/mac/*.dmg
+            dist-artifacts/mac/*.zip

@@ -1,8 +1,10 @@
 # PDF Signer
 
-A simple, **offline** Windows desktop app to open a PDF, add a **signature**,
-**initials**, or a **date**, and save a new signed copy. Built with Electron,
-PDF.js (viewing), and pdf-lib (writing/exporting).
+A simple, **offline** desktop app (**Windows + macOS**) to open PDFs, **view**
+large plan sets fast, **mark them up** (arrows, shapes, clouds, ink, text,
+highlight), **measure by scale**, add a **signature / initials / date**, and save.
+Built with Electron, the official PDF.js viewer (virtualized rendering), and
+pdf-lib (writing/exporting).
 
 ## ⬇ Download
 
@@ -11,6 +13,10 @@ PDF.js (viewing), and pdf-lib (writing/exporting).
 Runs on Windows 10/11. Download, run the installer, and launch **PDF Signer**.
 Windows SmartScreen may warn about an "unknown publisher" (the app is not
 code-signed) — click **More info → Run anyway**.
+
+**macOS:** grab the `.dmg` from the [latest release](https://github.com/Killswit3h/PDF-Reader/releases/latest)
+(universal, Intel + Apple Silicon). It's unsigned, so **right-click → Open** the
+first time (or `xattr -dr com.apple.quarantine "/Applications/PDF Signer.app"`).
 
 The installer is built and published automatically on every version tag — see
 [Publishing a release](#publishing-a-release-one-time-setup). The app also checks
@@ -116,6 +122,24 @@ build for local testing:
 ```bash
 npm run pack          # -> release/win-unpacked/
 ```
+
+## Build the macOS app (`.dmg`)
+
+Run **on a Mac**:
+
+```bash
+npm run dist:mac      # universal (Intel + Apple Silicon) -> release/PDF-Signer-<version>-universal.dmg (+ .zip)
+```
+
+The build is **unsigned** by default, so Gatekeeper will block a double-click the
+first time — **right-click the app → Open → Open**, or run
+`xattr -dr com.apple.quarantine "/Applications/PDF Signer.app"`. To ship a signed +
+notarized build, set these before `npm run dist:mac` (Apple Developer account
+required): `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`,
+`APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
+
+Both platforms register **PDF Signer** as a handler for `.pdf` (Open With), and
+macOS "Open with" is handled via the app's `open-file` event.
 
 ## Publishing a release (one-time setup)
 
