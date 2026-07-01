@@ -172,3 +172,4 @@ or built-in form-field handling — all out of scope for this cosmetic signer.
 
 Application code: MIT. Bundled fonts: SIL Open Font License 1.1 (see
 `src/assets/fonts/`).
+# PDF-Reader
