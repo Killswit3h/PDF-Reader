@@ -294,3 +294,97 @@ body.has-banner #viewer-wrap { top: calc(var(--toolbar-h) + 34px); }
   display: flex; justify-content: flex-end; gap: 10px;
   padding: 14px 20px; border-top: 1px solid var(--border);
 }
+
+/* ===================== Toolbar dropdown ===================== */
+.tb-dropdown { position: relative; }
+.tb-menu {
+  position: absolute; top: 38px; left: 0; z-index: 30;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  padding: 6px; min-width: 200px; display: flex; flex-direction: column;
+}
+.tb-menu button {
+  text-align: left; background: none; border: none; color: var(--text);
+  padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.tb-menu button:hover { background: var(--panel-2); }
+.tb-menu button.active { background: var(--accent); }
+.tb-menu-sep { height: 1px; background: var(--border); margin: 5px 4px; }
+
+/* ===================== Scale modal ===================== */
+.scale-tab {
+  padding: 8px 16px; background: transparent; color: var(--text-dim);
+  border: none; border-bottom: 2px solid transparent; cursor: pointer; font-size: 14px;
+}
+.scale-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.scale-panel { padding: 16px 20px; }
+.scale-eq {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0;
+}
+.scale-eq input[type="number"] {
+  width: 80px; height: 36px; padding: 0 8px; font-size: 14px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+.scale-eq .eq { font-size: 18px; color: var(--text-dim); padding: 0 4px; }
+.unit-sel, #scale-preset, #scale-apply-to {
+  height: 36px; padding: 0 8px; font-size: 14px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px;
+}
+#scale-preset { width: 100%; margin-bottom: 4px; }
+.calib-drawn { font-size: 15px; color: var(--text); background: var(--panel-2);
+  padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); }
+.scale-hint { font-size: 12px; color: var(--text-dim); margin: 6px 0 0; }
+.scale-apply { padding: 0 20px 6px; }
+
+/* ===================== Measurements panel ===================== */
+#measure-panel {
+  position: absolute; top: var(--toolbar-h); right: 0; bottom: 0; width: 300px;
+  background: var(--panel); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 18;
+}
+body.has-banner #measure-panel { top: calc(var(--toolbar-h) + 34px); }
+body.has-mpanel #viewer-wrap { right: 300px; }
+.mp-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid var(--border); font-weight: 600;
+}
+.mp-list { flex: 1; overflow-y: auto; padding: 6px; }
+.mp-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 8px;
+  border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.mp-row:hover { background: var(--panel-2); }
+.mp-row.selected { background: #24406e; }
+.mp-swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+.mp-row .mp-type { color: var(--text-dim); width: 62px; flex: 0 0 auto; text-transform: capitalize; }
+.mp-row .mp-val { flex: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.mp-row .mp-pg { color: var(--text-dim); font-size: 11px; }
+.mp-row .mp-del {
+  background: none; border: none; color: var(--danger); cursor: pointer;
+  font-size: 13px; padding: 2px 4px; opacity: 0; }
+.mp-row:hover .mp-del { opacity: 1; }
+.mp-totals { border-top: 1px solid var(--border); padding: 10px 14px; font-size: 12px; color: var(--text-dim); }
+.mp-totals b { color: var(--text); }
+.mp-foot { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.mp-foot .tb-btn { flex: 1; }
+.mp-empty { color: var(--text-dim); font-size: 13px; text-align: center; padding: 24px 12px; }
+
+/* ===================== Measurement overlay (SVG) ===================== */
+.measure-layer {
+  position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: visible;
+}
+.measure-layer .m-shape { fill: none; stroke-width: 1.6; }
+.measure-layer .m-fill { opacity: 0.14; }
+.measure-layer .m-vertex { }
+.measure-layer .m-label {
+  font: 600 12px 'Segoe UI', sans-serif; paint-order: stroke;
+  stroke: #fff; stroke-width: 3px; stroke-linejoin: round;
+}
+.measure-layer .m-shape.selected { stroke-width: 2.6; }
+.measure-layer .m-preview { stroke-dasharray: 5 4; }
+.page-holder.measuring .page-overlay { cursor: crosshair; }
+.m-snap-dot { fill: #ffb000; stroke: #7a5200; stroke-width: 1; }
+.viewport-rect { fill: rgba(255,176,0,0.06); stroke: #ffb000; stroke-width: 1.2; stroke-dasharray: 6 4; }
+.viewport-label { font: 600 11px 'Segoe UI', sans-serif; fill: #b06d00; }

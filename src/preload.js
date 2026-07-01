@@ -14,6 +14,10 @@ contextBridge.exposeInMainWorld('api', {
   savePdfDialog: (defaultName, bytes) =>
     ipcRenderer.invoke('dialog:savePdf', { defaultName, bytes }),
 
+  // Native "Save As" dialog + write a text file (CSV export).
+  saveTextDialog: (defaultName, text) =>
+    ipcRenderer.invoke('dialog:saveText', { defaultName, text }),
+
   // Main process asks us to open a file (command-line / second-instance).
   onOpenFilePath: (cb) =>
     ipcRenderer.on('open-file-path', (_e, filePath) => cb(filePath))

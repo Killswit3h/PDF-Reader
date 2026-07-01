@@ -7,14 +7,19 @@
 
   // ---------- Mode / banner ----------
   App.setMode = function (mode, kind) {
+    const prev = App.state.mode;
     App.state.mode = mode;
     const banner = App.$('#mode-banner');
     const textEl = App.$('#mode-banner-text');
+
+    // leaving measure mode -> commit/clean up any in-progress drawing
+    if (prev === 'measure' && mode !== 'measure' && App.Measure) App.Measure.stop();
 
     // toolbar armed highlight
     App.$('#btn-sign').classList.toggle('armed', mode === 'signature');
     App.$('#btn-initials').classList.toggle('armed', mode === 'initials');
     App.$('#btn-date').classList.toggle('armed', mode === 'date');
+    App.$('#btn-measure').classList.toggle('armed', mode === 'measure');
 
     // remove any previously injected "new" link
     const existing = document.getElementById('mode-new');
@@ -24,6 +29,13 @@
       banner.classList.add('hidden');
       document.body.classList.remove('has-banner');
       App.Placement.disarm();
+      return;
+    }
+
+    if (mode === 'measure') {
+      textEl.textContent = 'Measuring — press Enter to finish a shape, Esc to stop.';
+      banner.classList.remove('hidden');
+      document.body.classList.add('has-banner');
       return;
     }
 
@@ -149,15 +161,20 @@
       }
       if (inEditable(e.target)) return;
 
-      if (e.key === 'Escape') {
-        if (App.state.mode) App.setMode(null);
-        else App.Placement.deselect();
+      if (e.key === 'Enter' && App.state.mode === 'measure') {
+        e.preventDefault();
+        App.Measure.finishDrawing();
         return;
       }
-      if ((e.key === 'Delete' || e.key === 'Backspace') && App.state.selectedId != null) {
-        e.preventDefault();
-        App.Placement.remove(App.state.selectedId);
+      if (e.key === 'Escape') {
+        if (App.state.mode === 'measure' && App.Measure._active) App.Measure.cancelActive();
+        else if (App.state.mode) App.setMode(null);
+        else { App.Placement.deselect(); }
         return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (App.state.selectedId != null) { e.preventDefault(); App.Placement.remove(App.state.selectedId); return; }
+        if (App.state.measureSelectedId != null) { e.preventDefault(); App.Measure.remove(App.state.measureSelectedId); return; }
       }
       if (!App.state.pdfDoc) return;
       if (e.key === '+' || e.key === '=') { App.Viewer.zoomIn(); }
@@ -175,20 +192,62 @@
       if (!overlay) return;
       if (e.target.closest('.placed')) return; // clicks on items handled locally
       const page = parseInt(overlay.dataset.page, 10);
-      if (App.state.mode) {
+      if (App.state.mode === 'measure') {
+        App.Measure.handleClick(page, overlay, e);
+      } else if (App.state.mode) {
         App.Placement.handleOverlayClick(page, overlay, e);
       } else {
         App.Placement.deselect();
       }
     });
+
+    // live preview while measuring
+    container.addEventListener('mousemove', (e) => {
+      if (App.state.mode !== 'measure') return;
+      const overlay = e.target.closest('.page-overlay');
+      if (!overlay) return;
+      App.Measure.handleMove(parseInt(overlay.dataset.page, 10), overlay, e);
+    });
+
+    // double-click finishes a polyline/polygon
+    container.addEventListener('dblclick', (e) => {
+      if (App.state.mode !== 'measure') return;
+      e.preventDefault();
+      App.Measure.finishDrawing();
+    });
   }
 
   // ---------- Boot ----------
+  function setupMeasureMenu() {
+    const btn = App.$('#btn-measure');
+    const menu = App.$('#measure-menu');
+    const close = () => menu.classList.add('hidden');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled) return;
+      menu.classList.toggle('hidden');
+    });
+    menu.querySelectorAll('button[data-mtool]').forEach((b) => {
+      b.addEventListener('click', () => {
+        close();
+        const tool = b.dataset.mtool;
+        if (tool === 'toggle-panel') App.Measure.togglePanel();
+        else App.Measure.startTool(tool);
+      });
+    });
+    // close menu on outside click
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.tb-dropdown')) close();
+    });
+  }
+
   function boot() {
     App.Signature.init();
+    App.Measure.init();
     setupDragDrop();
     setupKeys();
     setupPlacementClicks();
+    setupMeasureMenu();
     App.Viewer.trackScroll();
 
     App.$('#btn-open').addEventListener('click', openViaDialog);

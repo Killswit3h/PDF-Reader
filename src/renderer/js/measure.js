@@ -1,0 +1,556 @@
+'use strict';
+
+/*
+ * Measure-by-scale.
+ *
+ * Geometry is stored in scale-1 viewport points (top-left origin), the same
+ * space as placements — so it renders at `pt * zoom` and exports via
+ * viewport.convertToPdfPoint, reusing this app's existing coordinate model.
+ *
+ * A per-page (or per-viewport) "scale factor" = real-world units per point.
+ *   length_real = pdfLength * factor
+ *   area_real   = pdfArea   * factor^2   (unit^2)
+ *   angle       = geometric, scale-independent
+ */
+(function () {
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const COLORS = {
+    length: '#2f6fed', perimeter: '#7b61ff', area: '#21a366',
+    angle: '#d1348c', count: '#e5a300'
+  };
+  const NEEDS_SCALE = { length: true, perimeter: true, area: true };
+  const SNAP_PX = 10;
+
+  const M = {
+    _tool: null, // 'calibrate'|'length'|'perimeter'|'area'|'angle'|'count'|'viewport'
+    _active: null, // { tool, page, pts:[{vx,vy}], hover:{vx,vy,snap} }
+    _calib: null, // { page, pdfLen }  pending calibration line
+    _scaleTarget: null // { kind:'page', page } | { kind:'viewport', page, rect }
+  };
+
+  /* ---------------- geometry (scale-1 points) ---------------- */
+  const dist = (a, b) => Math.hypot(b.vx - a.vx, b.vy - a.vy);
+  function polyLen(pts) { let s = 0; for (let i = 0; i < pts.length - 1; i++) s += dist(pts[i], pts[i + 1]); return s; }
+  function shoelace(pts) {
+    let s = 0; const n = pts.length;
+    for (let i = 0; i < n; i++) { const j = (i + 1) % n; s += pts[i].vx * pts[j].vy - pts[j].vx * pts[i].vy; }
+    return Math.abs(s) / 2;
+  }
+  function angleAt(A, B, C) {
+    const a = Math.atan2(A.vy - B.vy, A.vx - B.vx);
+    const b = Math.atan2(C.vy - B.vy, C.vx - B.vx);
+    let d = (b - a) * 180 / Math.PI; d = ((d % 360) + 360) % 360;
+    return d > 180 ? 360 - d : d;
+  }
+  function centroid(pts) {
+    let x = 0, y = 0; pts.forEach((p) => { x += p.vx; y += p.vy; });
+    return { vx: x / pts.length, vy: y / pts.length };
+  }
+
+  /* ---------------- scale lookup ---------------- */
+  // Effective scale for a point set on a page (viewport region wins over page).
+  function scaleFor(page, pts) {
+    const c = centroid(pts);
+    const vps = App.state.viewports[page] || [];
+    for (const v of vps) {
+      if (c.vx >= v.vx && c.vx <= v.vx + v.vw && c.vy >= v.vy && c.vy <= v.vy + v.vh) return v;
+    }
+    return App.state.scales[page] || null;
+  }
+
+  function computeValue(type, page, pts) {
+    if (type === 'count') return { value: pts.length, unit: 'ct' };
+    if (type === 'angle') return { value: pts.length >= 3 ? angleAt(pts[0], pts[1], pts[2]) : 0, unit: '°' };
+    const sc = scaleFor(page, pts);
+    if (!sc) return { value: null, unit: null };
+    if (type === 'area') return { value: shoelace(pts) * sc.factor * sc.factor, unit: sc.unit };
+    if (type === 'perimeter') return { value: polyLen(pts) * sc.factor, unit: sc.unit };
+    return { value: polyLen(pts) * sc.factor, unit: sc.unit }; // length
+  }
+
+  // Recompute every measurement's cached value/label (after a scale change).
+  M.recomputeAll = function () {
+    App.state.measurements.forEach((m) => {
+      const { value, unit } = computeValue(m.type, m.page, m.pts);
+      m.value = value; m.unit = unit;
+      m.label = value == null ? '(set scale)' : App.fmtMeasure(m.type, value, unit);
+    });
+    M.repositionAll();
+    M.renderPanel();
+  };
+
+  /* ---------------- tool lifecycle ---------------- */
+  M.startTool = function (tool) {
+    M._commitActive();
+    if (tool === 'calibrate') { M.openScaleModal({ kind: 'page', page: App.state.currentPage }); return; }
+    M._tool = tool;
+    M._active = null;
+    App.setMode('measure');
+    App.$$('.page-holder').forEach((h) => h.classList.add('measuring'));
+    const label = tool === 'viewport' ? 'a scale region (drag a box)' : tool;
+    App.toast(`Measure: click to draw ${label}. Enter to finish, Esc to cancel.`, 'info', 4000);
+  };
+
+  M.stop = function () {
+    M._commitActive();
+    M._tool = null;
+    M._active = null;
+    App.$$('.page-holder').forEach((h) => h.classList.remove('measuring'));
+    M.repositionAll();
+  };
+
+  M.cancelActive = function () {
+    M._active = null;
+    M.repositionAll();
+  };
+
+  // Commit whatever is being drawn if it has enough points; else discard.
+  M._commitActive = function () {
+    const a = M._active;
+    M._active = null;
+    if (!a || M._tool === 'calibrate' || M._tool === 'viewport') return;
+    const need = a.tool === 'area' ? 3 : a.tool === 'angle' ? 3 : a.tool === 'count' ? 1 : 2;
+    if (a.pts.length < need) return;
+    finalize(a);
+  };
+
+  function finalize(a) {
+    const pts = a.pts.slice(0, a.tool === 'angle' ? 3 : undefined);
+    const { value, unit } = computeValue(a.tool, a.page, pts);
+    const m = {
+      id: ++App.state.measureSeq,
+      page: a.page,
+      type: a.tool,
+      pts,
+      value, unit,
+      label: value == null ? '(set scale)' : App.fmtMeasure(a.tool, value, unit)
+    };
+    App.state.measurements.push(m);
+    App.$('#btn-save').disabled = false;
+    if (value == null && NEEDS_SCALE[a.tool]) {
+      App.toast('Set a scale for this page to see the measurement value.', 'info', 4000);
+    }
+    M.renderPanel();
+  }
+
+  /* ---------------- interaction (from app.js delegation) ---------------- */
+  M.handleClick = function (page, overlay, e) {
+    const tool = M._tool;
+    if (!tool) return;
+    const p = pointFromEvent(page, overlay, e);
+
+    if (tool === 'calibrate' || tool === 'viewport') {
+      if (!M._active || M._active.page !== page) M._active = { tool, page, pts: [] };
+      M._active.pts.push({ vx: p.vx, vy: p.vy });
+      if (M._active.pts.length === 2) {
+        const a = M._active; M._active = null;
+        if (tool === 'calibrate') {
+          M._calib = { page, pdfLen: dist(a.pts[0], a.pts[1]) };
+          M.openScaleModal({ kind: 'page', page }, true);
+        } else {
+          const r = rectFrom(a.pts[0], a.pts[1]);
+          M.openScaleModal({ kind: 'viewport', page, rect: r });
+        }
+        App.$$('.page-holder').forEach((h) => h.classList.remove('measuring'));
+        M._tool = null;
+      }
+      M.repositionAll();
+      return;
+    }
+
+    if (!M._active) M._active = { tool, page, pts: [] };
+    if (M._active.page !== page) return; // lock to first page
+    const last = M._active.pts[M._active.pts.length - 1];
+    if (tool !== 'count' && last && dist(last, p) < 1.5) { M.repositionAll(); return; } // dedupe dbl-click
+    M._active.pts.push({ vx: p.vx, vy: p.vy });
+
+    if (tool === 'length' && M._active.pts.length === 2) { const a = M._active; M._active = null; finalize(a); }
+    else if (tool === 'angle' && M._active.pts.length === 3) { const a = M._active; M._active = null; finalize(a); }
+    M.repositionAll();
+  };
+
+  M.handleMove = function (page, overlay, e) {
+    if (!M._active || M._active.page !== page || !M._active.pts.length) return;
+    const p = pointFromEvent(page, overlay, e);
+    M._active.hover = p;
+    M.repositionAll();
+  };
+
+  M.finishDrawing = function () { // Enter / double-click
+    if (!M._active) return;
+    M._commitActive();
+    M.repositionAll();
+  };
+
+  /* ---------------- snapping ---------------- */
+  function pointFromEvent(page, overlay, e) {
+    const rect = overlay.getBoundingClientRect();
+    const z = App.state.zoom;
+    const raw = { vx: (e.clientX - rect.left) / z, vy: (e.clientY - rect.top) / z };
+
+    // 1) snap to nearby existing vertices
+    const snap = snapVertex(page, raw, SNAP_PX / z);
+    if (snap) return { vx: snap.vx, vy: snap.vy, snap: true };
+
+    // 2) ortho constraint on Shift, relative to last active point
+    if (M._active && M._active.pts.length && e.shiftKey) {
+      const a = M._active.pts[M._active.pts.length - 1];
+      const ang = Math.round(Math.atan2(raw.vy - a.vy, raw.vx - a.vx) / (Math.PI / 4)) * (Math.PI / 4);
+      const len = Math.hypot(raw.vx - a.vx, raw.vy - a.vy);
+      return { vx: a.vx + Math.cos(ang) * len, vy: a.vy + Math.sin(ang) * len };
+    }
+    return raw;
+  }
+  function snapVertex(page, raw, thr) {
+    let best = null, bd = thr;
+    const consider = (pt) => { const d = Math.hypot(pt.vx - raw.vx, pt.vy - raw.vy); if (d < bd) { bd = d; best = pt; } };
+    App.state.measurements.forEach((m) => { if (m.page === page) m.pts.forEach(consider); });
+    if (M._active && M._active.page === page) M._active.pts.forEach(consider);
+    return best;
+  }
+
+  /* ---------------- rendering (SVG per page) ---------------- */
+  function ns(tag) { return document.createElementNS(SVGNS, tag); }
+
+  M.repositionAll = function () {
+    const z = App.state.zoom;
+    App.state.pageEls.forEach((pe, i) => {
+      if (!pe) return;
+      const page = i + 1;
+      let layer = pe.holder.querySelector('.measure-layer');
+      if (layer) layer.remove();
+      layer = ns('svg');
+      layer.setAttribute('class', 'measure-layer');
+      layer.setAttribute('width', pe.holder.style.width);
+      layer.setAttribute('height', pe.holder.style.height);
+      pe.holder.appendChild(layer);
+
+      // viewports
+      (App.state.viewports[page] || []).forEach((v) => drawViewport(layer, v, z));
+      // committed measurements
+      App.state.measurements.forEach((m) => { if (m.page === page) drawMeasurement(layer, m, z, m.id === App.state.measureSelectedId); });
+      // in-progress preview
+      if (M._active && M._active.page === page) drawPreview(layer, M._active, z);
+    });
+  };
+
+  function P(pt, z) { return `${pt.vx * z},${pt.vy * z}`; }
+
+  function label(layer, x, y, text, color) {
+    const t = ns('text');
+    t.setAttribute('class', 'm-label');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('fill', color);
+    t.textContent = text;
+    layer.appendChild(t);
+  }
+  function vdot(layer, pt, z, color) {
+    const c = ns('circle');
+    c.setAttribute('class', 'm-vertex');
+    c.setAttribute('cx', pt.vx * z); c.setAttribute('cy', pt.vy * z);
+    c.setAttribute('r', 3); c.setAttribute('fill', color);
+    layer.appendChild(c);
+  }
+
+  function drawMeasurement(layer, m, z, selected) {
+    const color = COLORS[m.type];
+    if (m.type === 'count') {
+      m.pts.forEach((pt, idx) => {
+        const c = ns('circle');
+        c.setAttribute('cx', pt.vx * z); c.setAttribute('cy', pt.vy * z);
+        c.setAttribute('r', 7); c.setAttribute('fill', color); c.setAttribute('fill-opacity', '0.85');
+        c.setAttribute('stroke', '#fff'); c.setAttribute('stroke-width', '1.5');
+        layer.appendChild(c);
+        label(layer, pt.vx * z - 3, pt.vy * z + 4, String(idx + 1), '#3a2a00');
+      });
+      if (m.pts.length) label(layer, m.pts[0].vx * z + 10, m.pts[0].vy * z - 8, `Count: ${m.value}`, color);
+      return;
+    }
+
+    const closed = m.type === 'area';
+    if (closed) {
+      const poly = ns('polygon');
+      poly.setAttribute('class', 'm-shape m-fill' + (selected ? ' selected' : ''));
+      poly.setAttribute('points', m.pts.map((p) => P(p, z)).join(' '));
+      poly.setAttribute('fill', color); poly.setAttribute('stroke', color);
+      layer.appendChild(poly);
+    }
+    const line = ns('polyline');
+    line.setAttribute('class', 'm-shape' + (selected ? ' selected' : ''));
+    const pts = closed ? m.pts.concat([m.pts[0]]) : m.pts;
+    line.setAttribute('points', pts.map((p) => P(p, z)).join(' '));
+    line.setAttribute('stroke', color);
+    layer.appendChild(line);
+    m.pts.forEach((pt) => vdot(layer, pt, z, color));
+
+    const anchor = m.type === 'area' ? centroid(m.pts)
+      : m.type === 'angle' ? m.pts[1]
+        : { vx: (m.pts[0].vx + m.pts[m.pts.length - 1].vx) / 2, vy: (m.pts[0].vy + m.pts[m.pts.length - 1].vy) / 2 };
+    label(layer, anchor.vx * z + 6, anchor.vy * z - 6, m.label, color);
+  }
+
+  function drawPreview(layer, a, z) {
+    const color = COLORS[a.tool] || '#2f6fed';
+    const pts = a.pts.slice();
+    const live = pts.concat(a.hover ? [a.hover] : []);
+    if (live.length >= 2) {
+      const line = ns('polyline');
+      line.setAttribute('class', 'm-shape m-preview');
+      line.setAttribute('points', live.map((p) => P(p, z)).join(' '));
+      line.setAttribute('stroke', color);
+      layer.appendChild(line);
+    }
+    live.forEach((pt) => vdot(layer, pt, z, color));
+    if (a.hover && a.hover.snap) {
+      const c = ns('circle'); c.setAttribute('class', 'm-snap-dot');
+      c.setAttribute('cx', a.hover.vx * z); c.setAttribute('cy', a.hover.vy * z); c.setAttribute('r', 5);
+      layer.appendChild(c);
+    }
+    // live readout
+    if (live.length >= 2) {
+      const prev = livePreviewValue(a, live);
+      const at = live[live.length - 1];
+      if (prev) label(layer, at.vx * z + 10, at.vy * z + 4, prev, color);
+    }
+  }
+  function livePreviewValue(a, live) {
+    if (a.tool === 'count') return `Count: ${a.pts.length}`;
+    if (a.tool === 'angle') return live.length >= 3 ? `${angleAt(live[0], live[1], live[2]).toFixed(1)}°` : null;
+    const type = a.tool === 'area' ? 'area' : a.tool === 'perimeter' ? 'perimeter' : 'length';
+    const pts = a.tool === 'area' ? live : live;
+    const { value, unit } = computeValue(type, a.page, pts);
+    return value == null ? '(set scale)' : App.fmtMeasure(type, value, unit);
+  }
+
+  function drawViewport(layer, v, z) {
+    const r = ns('rect');
+    r.setAttribute('class', 'viewport-rect');
+    r.setAttribute('x', v.vx * z); r.setAttribute('y', v.vy * z);
+    r.setAttribute('width', v.vw * z); r.setAttribute('height', v.vh * z);
+    layer.appendChild(r);
+    const t = ns('text');
+    t.setAttribute('class', 'viewport-label');
+    t.setAttribute('x', v.vx * z + 4); t.setAttribute('y', v.vy * z + 14);
+    t.textContent = `⤢ ${v.label || v.ratioLabel}`;
+    layer.appendChild(t);
+  }
+
+  function rectFrom(a, b) {
+    return { vx: Math.min(a.vx, b.vx), vy: Math.min(a.vy, b.vy), vw: Math.abs(b.vx - a.vx), vh: Math.abs(b.vy - a.vy) };
+  }
+
+  /* ---------------- scale modal ---------------- */
+  M.openScaleModal = function (target, fromCalibrate) {
+    M._scaleTarget = target;
+    const modal = App.$('#scale-modal');
+    App.$('#scale-modal-title').textContent = target.kind === 'viewport' ? 'Set Region Scale' : 'Set Scale';
+    App.$('#scale-apply').textContent = target.kind === 'viewport' ? 'Apply region scale' : 'Apply scale';
+    // apply-to only relevant for page scale
+    App.$('.scale-apply').style.display = target.kind === 'viewport' ? 'none' : '';
+
+    if (fromCalibrate && M._calib) {
+      switchScaleTab('calibrate');
+      const inches = M._calib.pdfLen / 72;
+      App.$('#calib-drawn').textContent = `${inches.toFixed(3)} in on drawing`;
+      App.$('#calib-result').classList.remove('hidden');
+    } else {
+      switchScaleTab('enter');
+      App.$('#calib-result').classList.add('hidden');
+    }
+    modal.classList.remove('hidden');
+  };
+  function closeScaleModal() { App.$('#scale-modal').classList.add('hidden'); }
+
+  function switchScaleTab(tab) {
+    App.$$('.scale-tab').forEach((b) => b.classList.toggle('active', b.dataset.stab === tab));
+    App.$$('.scale-panel').forEach((p) => p.classList.toggle('hidden', p.dataset.spanel !== tab));
+  }
+
+  function applyScale() {
+    const activeTab = App.$('.scale-tab.active').dataset.stab;
+    let factor, unit, ratioLabel;
+
+    if (activeTab === 'calibrate') {
+      if (!M._calib) { App.toast('Draw a calibration line first.', 'error'); return; }
+      const realVal = parseFloat(App.$('#calib-real-val').value);
+      unit = App.$('#calib-real-unit').value;
+      if (!(realVal > 0)) { App.toast('Enter the real length.', 'error'); return; }
+      factor = realVal / M._calib.pdfLen;
+      ratioLabel = `${(M._calib.pdfLen / 72).toFixed(2)}in = ${realVal}${unit}`;
+    } else {
+      const dv = parseFloat(App.$('#enter-draw-val').value);
+      const du = App.$('#enter-draw-unit').value;
+      const rv = parseFloat(App.$('#enter-real-val').value);
+      unit = App.$('#enter-real-unit').value;
+      if (!(dv > 0) || !(rv > 0)) { App.toast('Enter both lengths.', 'error'); return; }
+      const drawPts = dv * App.UNITS[du].perPoint;
+      factor = rv / drawPts;
+      ratioLabel = `${dv}${du} = ${rv}${unit}`;
+    }
+
+    const target = M._scaleTarget;
+    if (target.kind === 'viewport') {
+      const list = App.state.viewports[target.page] || (App.state.viewports[target.page] = []);
+      list.push({ id: ++App.state.viewportSeq, ...target.rect, factor, unit, ratioLabel, label: ratioLabel });
+    } else {
+      const applyTo = App.$('#scale-apply-to').value;
+      const scale = { factor, unit, ratioLabel };
+      if (applyTo === 'all') {
+        for (let p = 1; p <= App.state.numPages; p++) App.state.scales[p] = { ...scale };
+      } else {
+        App.state.scales[target.page] = scale;
+      }
+    }
+    M._calib = null;
+    closeScaleModal();
+    M.recomputeAll();
+    App.toast(`Scale set: ${ratioLabel}`, 'success');
+  };
+
+  /* ---------------- measurements panel ---------------- */
+  M.togglePanel = function () {
+    const panel = App.$('#measure-panel');
+    const open = panel.classList.toggle('hidden');
+    document.body.classList.toggle('has-mpanel', !open);
+    if (!panel.classList.contains('hidden')) M.renderPanel();
+  };
+
+  M.renderPanel = function () {
+    const list = App.$('#mp-list');
+    const ms = App.state.measurements;
+    list.innerHTML = '';
+    if (!ms.length) {
+      list.innerHTML = '<div class="mp-empty">No measurements yet.<br>Use the Measure menu to add some.</div>';
+    } else {
+      ms.forEach((m) => {
+        const row = document.createElement('div');
+        row.className = 'mp-row' + (m.id === App.state.measureSelectedId ? ' selected' : '');
+        row.innerHTML =
+          `<span class="mp-swatch" style="background:${COLORS[m.type]}"></span>` +
+          `<span class="mp-type">${m.type}</span>` +
+          `<span class="mp-val">${m.label}</span>` +
+          `<span class="mp-pg">p${m.page}</span>` +
+          `<button class="mp-del" title="Delete">✕</button>`;
+        row.addEventListener('click', (e) => {
+          if (e.target.classList.contains('mp-del')) { M.remove(m.id); return; }
+          M.select(m.id);
+        });
+        list.appendChild(row);
+      });
+    }
+    // totals per unit for length + area
+    const tot = {};
+    ms.forEach((m) => {
+      if (m.value == null) return;
+      const key = m.type === 'area' ? `area ${m.unit}²` : m.type === 'count' ? 'count' :
+        (m.type === 'length' || m.type === 'perimeter') ? `length ${m.unit}` : null;
+      if (!key) return;
+      tot[key] = (tot[key] || 0) + m.value;
+    });
+    const totEl = App.$('#mp-totals');
+    const parts = Object.keys(tot).map((k) => `${k}: <b>${k.startsWith('count') ? tot[k] : tot[k].toFixed(2)}</b>`);
+    totEl.innerHTML = parts.length ? parts.join('<br>') : '';
+  };
+
+  M.select = function (id) {
+    App.state.measureSelectedId = id;
+    M.repositionAll();
+    M.renderPanel();
+    const m = App.state.measurements.find((x) => x.id === id);
+    if (m) {
+      const pe = App.state.pageEls[m.page - 1];
+      if (pe) pe.holder.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  M.remove = function (id) {
+    App.state.measurements = App.state.measurements.filter((m) => m.id !== id);
+    if (App.state.measureSelectedId === id) App.state.measureSelectedId = null;
+    M.repositionAll();
+    M.renderPanel();
+  };
+
+  M.clearAll = function () {
+    if (!App.state.measurements.length && !Object.keys(App.state.viewports).length) return;
+    App.state.measurements = [];
+    App.state.viewports = {};
+    App.state.measureSelectedId = null;
+    M.repositionAll();
+    M.renderPanel();
+  };
+
+  M.exportCsv = async function () {
+    const ms = App.state.measurements;
+    if (!ms.length) { App.toast('No measurements to export.', 'error'); return; }
+    const rows = [['#', 'Type', 'Page', 'Value', 'Unit', 'Points']];
+    ms.forEach((m, i) => {
+      const unit = m.type === 'area' ? (m.unit ? m.unit + '²' : '') : (m.unit || '');
+      rows.push([i + 1, m.type, m.page, m.value == null ? '' : m.value.toFixed(3), unit, m.pts.length]);
+    });
+    const csv = rows.map((r) => r.map((c) => {
+      const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }).join(',')).join('\r\n');
+    const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
+    const res = await window.api.saveTextDialog(`${base}-measurements.csv`, csv);
+    if (res && res.ok) App.toast(`Saved: ${res.path}`, 'success', 5000);
+    else if (res && res.error) App.toast('Could not save CSV: ' + res.error, 'error');
+  };
+
+  /* ---------------- init ---------------- */
+  M.init = function () {
+    // populate unit selects
+    const units = Object.keys(App.UNITS);
+    ['#enter-draw-unit', '#enter-real-unit', '#calib-real-unit'].forEach((sel) => {
+      const el = App.$(sel);
+      units.forEach((u) => { const o = document.createElement('option'); o.value = u; o.textContent = u; el.appendChild(o); });
+    });
+    App.$('#enter-draw-unit').value = 'in';
+    App.$('#enter-real-unit').value = 'ft';
+    App.$('#calib-real-unit').value = 'ft';
+
+    // presets
+    const presets = [
+      ['1/8" = 1\'-0"', 0.125, 'in', 1, 'ft'],
+      ['1/4" = 1\'-0"', 0.25, 'in', 1, 'ft'],
+      ['1/2" = 1\'-0"', 0.5, 'in', 1, 'ft'],
+      ['1" = 1\'-0"', 1, 'in', 1, 'ft'],
+      ['1" = 10\'', 1, 'in', 10, 'ft'],
+      ['1" = 20\'', 1, 'in', 20, 'ft'],
+      ['1" = 30\'', 1, 'in', 30, 'ft'],
+      ['1" = 50\'', 1, 'in', 50, 'ft'],
+      ['1" = 100\'', 1, 'in', 100, 'ft'],
+      ['1:20 (metric)', 1, 'mm', 0.02, 'm'],
+      ['1:50 (metric)', 1, 'mm', 0.05, 'm'],
+      ['1:100 (metric)', 1, 'mm', 0.1, 'm'],
+      ['1:200 (metric)', 1, 'mm', 0.2, 'm'],
+      ['1:500 (metric)', 1, 'mm', 0.5, 'm'],
+      ['1:1000 (metric)', 1, 'mm', 1, 'm']
+    ];
+    const psel = App.$('#scale-preset');
+    presets.forEach((p, i) => { const o = document.createElement('option'); o.value = i; o.textContent = p[0]; psel.appendChild(o); });
+    psel.addEventListener('change', () => {
+      const p = presets[psel.value]; if (!p) return;
+      App.$('#enter-draw-val').value = p[1]; App.$('#enter-draw-unit').value = p[2];
+      App.$('#enter-real-val').value = p[3]; App.$('#enter-real-unit').value = p[4];
+    });
+
+    App.$$('.scale-tab').forEach((b) => b.addEventListener('click', () => switchScaleTab(b.dataset.stab)));
+    App.$('#scale-close').addEventListener('click', closeScaleModal);
+    App.$('#scale-cancel').addEventListener('click', closeScaleModal);
+    App.$('#scale-apply').addEventListener('click', applyScale);
+    App.$('#calib-draw').addEventListener('click', () => {
+      closeScaleModal();
+      M._tool = 'calibrate'; M._active = null;
+      App.setMode('measure');
+      App.$$('.page-holder').forEach((h) => h.classList.add('measuring'));
+      App.toast('Click two points on a known dimension.', 'info', 4000);
+    });
+
+    // panel
+    App.$('#mp-close').addEventListener('click', M.togglePanel);
+    App.$('#mp-export').addEventListener('click', M.exportCsv);
+    App.$('#mp-clear').addEventListener('click', M.clearAll);
+  };
+
+  App.Measure = M;
+})();

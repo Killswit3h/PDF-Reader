@@ -46,10 +46,22 @@ at runtime. Handwriting fonts are bundled with the app.
   **double-click to edit** the text before saving.
 - **Save** — writes a **new** PDF (`<original>-signed.pdf`) via a native Save
   dialog. The original file on disk is never touched until you explicitly save.
+- **Measure by scale** (Bluebeam-style takeoff) — under the **📐 Measure** menu:
+  - **Set Scale** — calibrate by drawing a line of known length, or enter a
+    ratio / pick a preset (`1/4" = 1'-0"`, `1:100`, …). Scale is stored per page.
+  - **Length, Perimeter, Area, Angle, Count** — draw on the page and get live,
+    real-world values (area in unit², angle in degrees). Snapping to existing
+    vertices; hold **Shift** for orthogonal/45° lines. **Enter** finishes a
+    polyline/polygon, **Esc** cancels.
+  - **Add Scale Region** — a viewport with its own scale, so one sheet can carry
+    multiple scales (measurements inside it use the region's scale).
+  - **Measurements List** — a side panel of every measurement with per-type
+    totals and **Export CSV**.
+  - Measurements are flattened into the saved PDF alongside signatures.
 
 ## Toolbar
 
-`Open · Sign · Initials · Date · Zoom − / + · Fit · Page ▲/▼ (with page box) · Save`
+`Open · Sign · Initials · Date · Measure ▾ · Zoom − / + · Fit · Page ▲/▼ (with page box) · Save`
 
 Keyboard: `Ctrl+O` open · `Ctrl+S` save · `+ / -` zoom · `← / →` page ·
 `Esc` cancel/deselect · `Delete` remove selected.
@@ -138,6 +150,7 @@ PDF Reader/
          ├─ signature.js   # creation modal (type/initials/draw) -> PNG
          ├─ placement.js   # click-to-place, drag/resize, delete, date editing
          ├─ viewer.js      # PDF.js render, zoom, fit, navigation
+         ├─ measure.js     # scale calibration, measurement tools, viewports, CSV
          ├─ save.js        # pdf-lib export + coordinate mapping
          └─ app.js         # toolbar wiring, drag-drop, keyboard, modes
 ```

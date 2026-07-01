@@ -26,6 +26,26 @@
     <div class="tb-sep"></div>
 
     <div class="tb-group">
+      <div class="tb-dropdown">
+        <button id="btn-measure" class="tb-btn" disabled title="Measure tools">📐 Measure ▾</button>
+        <div id="measure-menu" class="tb-menu hidden">
+          <button data-mtool="calibrate">📏 Set Scale…</button>
+          <div class="tb-menu-sep"></div>
+          <button data-mtool="length">➖ Length</button>
+          <button data-mtool="perimeter">〰️ Perimeter</button>
+          <button data-mtool="area">⬛ Area</button>
+          <button data-mtool="angle">📐 Angle</button>
+          <button data-mtool="count">🔢 Count</button>
+          <div class="tb-menu-sep"></div>
+          <button data-mtool="viewport">🗺️ Add Scale Region…</button>
+          <button data-mtool="toggle-panel">📋 Measurements List</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
       <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out">−</button>
       <span id="zoom-label" class="tb-readout">100%</span>
       <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in">+</button>
@@ -125,6 +145,77 @@
     </div>
   </div>
 
+  <!-- ============ Scale / calibration modal ============ -->
+  <div id="scale-modal" class="modal-backdrop hidden">
+    <div class="modal" style="width:560px">
+      <div class="modal-head">
+        <h2 id="scale-modal-title">Set Scale</h2>
+        <button id="scale-close" class="modal-x" title="Close">✕</button>
+      </div>
+
+      <div class="modal-tabs">
+        <button class="scale-tab active" data-stab="enter">Enter scale</button>
+        <button class="scale-tab" data-stab="calibrate">Calibrate by drawing</button>
+      </div>
+
+      <!-- Enter-scale panel -->
+      <div class="scale-panel" data-spanel="enter">
+        <label class="field-label">Common presets</label>
+        <select id="scale-preset"><option value="">— choose a preset —</option></select>
+        <div class="scale-eq">
+          <input id="enter-draw-val" type="number" step="any" value="1" />
+          <select id="enter-draw-unit" class="unit-sel"></select>
+          <span class="eq">=</span>
+          <input id="enter-real-val" type="number" step="any" value="1" />
+          <select id="enter-real-unit" class="unit-sel"></select>
+        </div>
+        <p class="scale-hint">On the drawing, the left length equals the right real-world length.</p>
+      </div>
+
+      <!-- Calibrate panel -->
+      <div class="scale-panel hidden" data-spanel="calibrate">
+        <p id="calib-instr" class="scale-hint">Click “Draw calibration line”, then click two points on a
+          known dimension in the drawing.</p>
+        <button id="calib-draw" class="tb-btn">✏️ Draw calibration line</button>
+        <div id="calib-result" class="hidden">
+          <div class="scale-eq">
+            <span id="calib-drawn" class="calib-drawn">—</span>
+            <span class="eq">=</span>
+            <input id="calib-real-val" type="number" step="any" value="1" />
+            <select id="calib-real-unit" class="unit-sel"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="scale-apply">
+        <label class="field-label">Apply to</label>
+        <select id="scale-apply-to">
+          <option value="page">This page</option>
+          <option value="all">All pages</option>
+        </select>
+      </div>
+
+      <div class="modal-foot">
+        <button id="scale-cancel" class="tb-btn">Cancel</button>
+        <button id="scale-apply" class="tb-btn primary">Apply scale</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Measurements panel ============ -->
+  <aside id="measure-panel" class="hidden">
+    <div class="mp-head">
+      <span>Measurements</span>
+      <button id="mp-close" class="modal-x" title="Close">✕</button>
+    </div>
+    <div id="mp-list" class="mp-list"></div>
+    <div id="mp-totals" class="mp-totals"></div>
+    <div class="mp-foot">
+      <button id="mp-export" class="tb-btn">⤓ Export CSV</button>
+      <button id="mp-clear" class="tb-btn">Clear all</button>
+    </div>
+  </aside>
+
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
   <script src="../../node_modules/pdfjs-dist/legacy/build/pdf.js"></script>
   <script src="../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script>
@@ -135,6 +226,7 @@
   <script src="js/signature.js"></script>
   <script src="js/placement.js"></script>
   <script src="js/viewer.js"></script>
+  <script src="js/measure.js"></script>
   <script src="js/save.js"></script>
   <script src="js/app.js"></script>
 </body>

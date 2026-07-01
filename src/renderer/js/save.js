@@ -37,6 +37,16 @@
   const angleDeg = (p, q) =>
     (Math.atan2(q[1] - p[1], q[0] - p[0]) * 180) / Math.PI;
 
+  const M_COLORS = {
+    length: '#2f6fed', perimeter: '#7b61ff', area: '#21a366',
+    angle: '#d1348c', count: '#e5a300'
+  };
+  function hexRgb(hex) {
+    const { rgb } = window.PDFLib;
+    const n = parseInt(hex.slice(1), 16);
+    return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+  }
+
   // Build the final PDF bytes with all placements flattened onto their pages.
   S.buildBytes = async function () {
     const { PDFDocument, StandardFonts, degrees, rgb } = window.PDFLib;
@@ -87,6 +97,42 @@
             rotate: textRot
           });
         }
+      }
+
+      // ---- measurements ----
+      for (const m of App.state.measurements) {
+        const vp = App.state.baseViewports[m.page - 1];
+        const page = pdfDoc.getPage(m.page - 1);
+        const color = hexRgb(M_COLORS[m.type] || '#2f6fed');
+        // vertices -> PDF user space (rotation-safe)
+        const P = m.pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
+
+        if (m.type === 'count') {
+          P.forEach((c) => page.drawCircle({ x: c[0], y: c[1], size: 5, color, opacity: 0.85 }));
+        } else {
+          const seq = m.type === 'area' ? P.concat([P[0]]) : P; // close polygons
+          for (let i = 0; i < seq.length - 1; i++) {
+            page.drawLine({
+              start: { x: seq[i][0], y: seq[i][1] },
+              end: { x: seq[i + 1][0], y: seq[i + 1][1] },
+              thickness: 1.4, color
+            });
+          }
+        }
+
+        // label near an anchor point
+        let ax, ay;
+        if (m.type === 'area') {
+          ax = P.reduce((s, p) => s + p[0], 0) / P.length;
+          ay = P.reduce((s, p) => s + p[1], 0) / P.length;
+        } else if (m.type === 'angle') {
+          ax = P[1][0]; ay = P[1][1];
+        } else {
+          ax = P[0][0]; ay = P[0][1];
+        }
+        page.drawText(String(m.label), {
+          x: ax + 3, y: ay + 3, size: 9, font: helv, color
+        });
       }
 
       return await pdfDoc.save();

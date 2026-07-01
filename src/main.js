@@ -47,6 +47,41 @@ function createWindow() {
       if (process.env.SMOKE_PDF) {
         setTimeout(() => mainWindow.webContents.send('open-file-path', process.env.SMOKE_PDF), 500);
       }
+      if (process.env.SMOKE_MEASURE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 40 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              const A = App.state;
+              A.scales[2] = { factor: 0.5, unit: 'ft', ratioLabel: '1pt=0.5ft' };
+              A.measurements.push({ id: 1, page: 2, type: 'length', pts: [{vx:100,vy:100},{vx:300,vy:100}] });
+              A.measurements.push({ id: 2, page: 2, type: 'area', pts: [{vx:100,vy:100},{vx:300,vy:100},{vx:300,vy:300},{vx:100,vy:300}] });
+              A.measurements.push({ id: 3, page: 2, type: 'angle', pts: [{vx:100,vy:100},{vx:200,vy:100},{vx:200,vy:200}] });
+              A.measurements.push({ id: 4, page: 2, type: 'count', pts: [{vx:50,vy:50},{vx:60,vy:60},{vx:70,vy:70}] });
+              // viewport with a different scale, plus a length inside it
+              A.viewports[2] = [{ id: 1, vx: 400, vy: 400, vw: 150, vh: 150, factor: 2, unit: 'm', ratioLabel: 'vp' }];
+              A.measurements.push({ id: 5, page: 2, type: 'length', pts: [{vx:420,vy:450},{vx:520,vy:450}] });
+              App.Measure.recomputeAll();
+              const out = A.measurements.map(m => m.type + '=' + m.label);
+              let bytesLen = 0, err = '', b64 = '';
+              try {
+                const b = await App.Save.buildBytes(); bytesLen = b.length;
+                let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+                b64 = btoa(s);
+              } catch (e) { err = e.message; }
+              return JSON.stringify({ out, bytesLen, err, b64 });
+            })()`, true);
+            const parsed = JSON.parse(r);
+            console.log('[measure]', JSON.stringify({ out: parsed.out, bytesLen: parsed.bytesLen, err: parsed.err }));
+            if (process.env.SMOKE_MEASURE !== '1' && parsed.b64) {
+              fs.writeFileSync(process.env.SMOKE_MEASURE, Buffer.from(parsed.b64, 'base64'));
+              console.log('[measure] wrote', process.env.SMOKE_MEASURE);
+            }
+          } catch (e) { console.log('[measure] error', e && e.message); }
+          app.quit();
+        }, 1500);
+        return;
+      }
       if (process.env.SMOKE_DRIVE) {
         setTimeout(async () => {
           try {
@@ -154,6 +189,22 @@ function readPdf(filePath) {
     return { ok: false, error: err.message, path: filePath };
   }
 }
+
+// Show the native save dialog and write a text file (CSV export).
+ipcMain.handle('dialog:saveText', async (_e, { defaultName, text }) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export CSV',
+    defaultPath: defaultName,
+    filters: [{ name: 'CSV', extensions: ['csv'] }, { name: 'All Files', extensions: ['*'] }]
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try {
+    fs.writeFileSync(filePath, text, 'utf8');
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
 
 // Show the native save dialog and write the signed PDF bytes.
 ipcMain.handle('dialog:savePdf', async (_e, { defaultName, bytes }) => {

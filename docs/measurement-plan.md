@@ -1,5 +1,18 @@
 # Measure-by-Scale — Research Report + Build Plan
 
+> **Status (implemented):** Phases 1–5 and 7 are built and verified in
+> `src/renderer/js/measure.js` — calibrate/set-scale (calibrate-by-drawing,
+> ratio/preset), Length, Perimeter, Area (shoelace), Angle, Count, snapping
+> (vertex + Shift-ortho), multi-scale Viewports, the Measurements panel, and CSV
+> export. Measurements flatten into the saved PDF via `save.js`. **Phase 6**
+> (writing spec-compliant `/VP` + `/Measure` + `/NumberFormat` dictionaries so
+> Acrobat/Bluebeam read them as native measurements) is intentionally
+> **deferred** — it's low-level pdf-lib work that needs validation in Acrobat and
+> risks producing malformed output; the current save "bakes" measurements as
+> lines + text, which is reliable and needs no external tool to verify. The
+> design below documents how to add Phase 6 later.
+
+
 How Bluebeam Revu structures its measurement tools, and a concrete plan to add
 "measure by scale" to **this** app (Electron + PDF.js + pdf-lib). Written to slot
 into the existing architecture in `src/renderer/js/` (viewport-point storage,

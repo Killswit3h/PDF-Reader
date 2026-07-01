@@ -77,6 +77,12 @@
     App.state.pageEls = [];
     App.state.placements = [];
     App.state.selectedId = null;
+    // reset measurement state for the new document
+    App.state.scales = {};
+    App.state.viewports = {};
+    App.state.measurements = [];
+    App.state.measureSelectedId = null;
+    if (App.Measure) App.Measure.renderPanel();
     App.setMode && App.setMode(null);
   };
 
@@ -123,8 +129,9 @@
 
     App.$('#zoom-label').textContent = `${Math.round(App.state.zoom * 100)}%`;
 
-    // Re-attach placement overlays after canvases are rebuilt.
+    // Re-attach placement + measurement overlays after canvases are rebuilt.
     if (App.Placement) App.Placement.repositionAll();
+    if (App.Measure) App.Measure.repositionAll();
   };
 
   // ---- Zoom ----
@@ -184,8 +191,8 @@
 
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {
-    ['#btn-sign', '#btn-initials', '#btn-date', '#btn-zoom-out', '#btn-zoom-in',
-     '#btn-fit-width', '#btn-prev', '#btn-next', '#btn-save', '#page-input']
+    ['#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-zoom-out',
+     '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next', '#btn-save', '#page-input']
       .forEach((s) => { App.$(s).disabled = !enabled; });
   };
 

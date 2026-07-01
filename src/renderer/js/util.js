@@ -30,7 +30,43 @@ App.state = {
 
   // Remembered creations for quick re-place
   lastSignature: null, // { dataUrl, aspect }  transparent PNG
-  lastInitials: null // { dataUrl, aspect }
+  lastInitials: null, // { dataUrl, aspect }
+
+  // ---- Measurement feature ----
+  // Per-page scale: { [page]: { factor, unit, ratioLabel } }
+  // factor = real-world units per scale-1 viewport point.
+  scales: {},
+  // Per-page viewports (regions with their own scale):
+  // { [page]: [ { id, vx, vy, vw, vh, factor, unit, ratioLabel, label } ] }
+  viewports: {},
+  // Measurement records (geometry in scale-1 viewport points, top-left origin):
+  // { id, page, type, pts:[{vx,vy}], value, unit, label }
+  measurements: [],
+  measureSeq: 0,
+  viewportSeq: 0,
+  measureSelectedId: null
+};
+
+/* ---------------- Units ----------------
+ * pointsPerUnit = how many PDF points (1/72 in) span one real-world unit at 1:1.
+ * Used to convert an "enter scale" ratio into a factor (real units per point).
+ */
+App.UNITS = {
+  in: { perPoint: 72, label: 'in' },
+  ft: { perPoint: 864, label: 'ft' },
+  yd: { perPoint: 2592, label: 'yd' },
+  mm: { perPoint: 72 / 25.4, label: 'mm' },
+  cm: { perPoint: 72 / 2.54, label: 'cm' },
+  m: { perPoint: 7200 / 2.54, label: 'm' }
+};
+
+// Format a measurement value for display.
+App.fmtMeasure = (type, value, unit) => {
+  if (type === 'count') return `${value}`;
+  if (type === 'angle') return `${value.toFixed(1)}°`;
+  const v = value.toFixed(2);
+  if (type === 'area') return `${v} ${unit}²`;
+  return `${v} ${unit}`; // length / perimeter
 };
 
 App.$ = (sel) => document.querySelector(sel);
