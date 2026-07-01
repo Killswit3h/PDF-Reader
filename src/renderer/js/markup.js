@@ -459,5 +459,69 @@
     syncPropBar();
   };
 
+  /* ---------------- Markups List panel ---------------- */
+  const Panel = {};
+  function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+  Panel.toggle = function () {
+    const p = App.$('#markup-panel');
+    const open = p.classList.toggle('hidden');
+    document.body.classList.toggle('has-mkpanel', !open);
+    if (!p.classList.contains('hidden')) Panel.render();
+  };
+  Panel.render = function () {
+    const list = App.$('#mkp-list'); if (!list) return;
+    const arr = App.state.annotations;
+    list.innerHTML = '';
+    if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
+    arr.forEach((an) => {
+      const row = document.createElement('div');
+      row.className = 'mp-row' + (an.id === App.state.annoSelectedId ? ' selected' : '');
+      row.innerHTML =
+        `<span class="mp-swatch" style="background:${an.style.stroke}"></span>` +
+        `<span class="mp-type">${an.type}</span>` +
+        `<span class="mp-val">${an.text ? esc(an.text) : ''}</span>` +
+        `<span class="mp-pg">p${an.page}</span>` +
+        `<button class="mp-del" title="Delete">✕</button>`;
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('mp-del')) { K.remove(an.id); Panel.render(); return; }
+        K.select(an.id);
+        const pe = App.state.pageEls[an.page - 1];
+        if (pe && pe.pageDiv) pe.pageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      list.appendChild(row);
+    });
+  };
+  Panel.clearAll = function () {
+    if (!App.state.annotations.length) return;
+    snapshot();
+    App.state.annotations = []; App.state.annoSelectedId = null;
+    K.repositionAll(); Panel.render();
+  };
+  Panel.exportCsv = async function () {
+    const arr = App.state.annotations;
+    if (!arr.length) { App.toast('No markups to export.', 'error'); return; }
+    const rows = [['#', 'Type', 'Page', 'Color', 'Text']];
+    arr.forEach((an, i) => rows.push([i + 1, an.type, an.page, an.style.stroke, an.text || '']));
+    const csv = rows.map((r) => r.map((c) => { const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
+    const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
+    const res = await window.api.saveTextDialog(`${base}-markups.csv`, csv);
+    if (res && res.ok) App.toast(`Saved: ${res.path}`, 'success', 5000);
+    else if (res && res.error) App.toast('Could not save CSV: ' + res.error, 'error');
+  };
+  App.MarkupPanel = Panel;
+
+  // wire panel buttons after DOM is ready (init is called at boot)
+  const prevInit = K.init;
+  K.init = function () {
+    prevInit();
+    const b = (id, fn) => { const el = App.$(id); if (el) el.addEventListener('click', fn); };
+    b('#mkp-close', Panel.toggle);
+    b('#mkp-export', Panel.exportCsv);
+    b('#mkp-clear', Panel.clearAll);
+    const chk = App.$('#mkp-annots');
+    if (chk) chk.addEventListener('change', (e) => { App.state.saveAnnots = e.target.checked; });
+  };
+
   App.Markup = K;
 })();

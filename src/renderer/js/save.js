@@ -46,6 +46,87 @@
     const n = parseInt(hex.slice(1), 16);
     return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
   }
+  function hexArr(hex) {
+    const n = parseInt(hex.slice(1), 16);
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  }
+
+  // Write a standard PDF annotation dictionary (interoperable/editable) instead
+  // of flattening. Geometry via convertToPdfPoint. Verified structurally by
+  // re-parsing with PDF.js (subtype + rect); validate visual fidelity in Acrobat.
+  function writeRealAnnot(pdfDoc, page, an, vp) {
+    const { PDFName, PDFArray, PDFNumber, PDFString } = window.PDFLib;
+    const ctx = pdfDoc.context;
+    const s = an.style || {};
+    const P = an.pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
+    const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
+    const rect = [Math.min(...xs) - 2, Math.min(...ys) - 2, Math.max(...xs) + 2, Math.max(...ys) + 2];
+    const col = hexArr(s.stroke || '#e5484d');
+    const width = s.width || 2;
+    const op = s.opacity == null ? 1 : s.opacity;
+    const hasFill = s.fill && s.fill !== 'none';
+    const numArr = (arr) => { const a = PDFArray.withContext(ctx); arr.forEach((n) => a.push(PDFNumber.of(n))); return a; };
+    const nameArr = (arr) => { const a = PDFArray.withContext(ctx); arr.forEach((n) => a.push(PDFName.of(n))); return a; };
+    const d = ctx.obj({});
+    const set = (k, v) => d.set(PDFName.of(k), v);
+    set('Type', PDFName.of('Annot'));
+    set('Rect', numArr(rect));
+    set('C', numArr(col));
+    if (op < 1) set('CA', PDFNumber.of(op));
+    const bs = ctx.obj({}); bs.set(PDFName.of('W'), PDFNumber.of(width)); set('BS', bs);
+
+    switch (an.type) {
+      case 'rect': case 'highlight':
+        set('Subtype', PDFName.of('Square'));
+        if (an.type === 'highlight') { set('IC', numArr(col)); set('CA', PDFNumber.of(0.35)); }
+        else if (hasFill) set('IC', numArr(hexArr(s.fill)));
+        break;
+      case 'ellipse':
+        set('Subtype', PDFName.of('Circle'));
+        if (hasFill) set('IC', numArr(hexArr(s.fill)));
+        break;
+      case 'line': case 'arrow':
+        set('Subtype', PDFName.of('Line'));
+        set('L', numArr([P[0][0], P[0][1], P[1][0], P[1][1]]));
+        if (an.type === 'arrow') set('LE', nameArr(['None', 'OpenArrow']));
+        break;
+      case 'polyline':
+        set('Subtype', PDFName.of('PolyLine'));
+        set('Vertices', numArr([].concat.apply([], P)));
+        break;
+      case 'polygon': case 'cloud':
+        set('Subtype', PDFName.of('Polygon'));
+        set('Vertices', numArr([].concat.apply([], P)));
+        if (hasFill) set('IC', numArr(hexArr(s.fill)));
+        if (an.type === 'cloud') { const be = ctx.obj({}); be.set(PDFName.of('S'), PDFName.of('C')); be.set(PDFName.of('I'), PDFNumber.of(2)); set('BE', be); }
+        break;
+      case 'ink': {
+        set('Subtype', PDFName.of('Ink'));
+        const list = PDFArray.withContext(ctx); list.push(numArr([].concat.apply([], P))); set('InkList', list);
+        break;
+      }
+      case 'text': case 'callout': {
+        set('Subtype', PDFName.of('FreeText'));
+        const size = s.fontSize || 14;
+        set('DA', PDFString.of(`/Helv ${size} Tf ${col[0].toFixed(3)} ${col[1].toFixed(3)} ${col[2].toFixed(3)} rg`));
+        set('Contents', PDFString.of(an.text || ''));
+        if (an.type === 'callout' && P[2]) {
+          set('IT', PDFName.of('FreeTextCallout'));
+          set('CL', numArr([P[2][0], P[2][1], Math.min(P[0][0], P[1][0]), Math.max(P[0][1], P[1][1])]));
+          set('LE', PDFName.of('OpenArrow'));
+        }
+        break;
+      }
+      default: return;
+    }
+    if (an.text && an.type !== 'text' && an.type !== 'callout') set('Contents', PDFString.of(an.text));
+
+    const ref = ctx.register(d);
+    let annots = page.node.Annots();
+    if (!annots) { annots = ctx.obj([]); page.node.set(PDFName.of('Annots'), annots); }
+    annots.push(ref);
+  }
+
   function drawArrowPdf(page, from, to, color, width) {
     const ang = Math.atan2(to[1] - from[1], to[0] - from[0]);
     const len = 10 + width * 2;
@@ -156,11 +237,12 @@
         });
       }
 
-      // ---- markup annotations (flattened) ----
+      // ---- markup annotations: real annotations (interop) or flattened ----
       for (const an of App.state.annotations) {
         const vp = App.state.baseViewports[an.page - 1];
         if (!vp) continue;
         const page = pdfDoc.getPage(an.page - 1);
+        if (App.state.saveAnnots) { writeRealAnnot(pdfDoc, page, an, vp); continue; }
         const s = an.style || {};
         const col = hexRgb(s.stroke || '#e5484d');
         const w = s.width || 2;

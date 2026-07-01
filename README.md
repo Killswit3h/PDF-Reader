@@ -55,8 +55,12 @@ at runtime. Handwriting fonts are bundled with the app.
   rectangle, ellipse, polyline, polygon, revision cloud, freehand ink, text box,
   callout, and highlight**. Select to move/resize, edit properties (stroke color,
   fill, line width, opacity) in the properties bar, **undo/redo** (`Ctrl+Z`/`Ctrl+Y`),
-  and delete. Markups flatten into the saved PDF (editable/interoperable PDF
-  annotations are on the roadmap).
+  and delete. A **Markups List** panel lists every markup (select, delete, export CSV).
+  On save, markups are **flattened** by default, or written as **real, editable PDF
+  annotations** (Square/Circle/Line/PolyLine/Polygon/Ink/FreeText) when you tick
+  *"Save markups as editable PDF annotations"* in the Markups List — interoperable
+  with other PDF tools. (Existing annotations from other apps are displayed and
+  preserved on save; importing them for in-app editing is planned.)
 - **Measure by scale** (Bluebeam-style takeoff) — under the **📐 Measure** menu:
   - **Set Scale** — calibrate by drawing a line of known length, or enter a
     ratio / pick a preset (`1/4" = 1'-0"`, `1:100`, …). Scale is stored per page.

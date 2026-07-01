@@ -313,7 +313,11 @@
       menu.classList.toggle('hidden');
     });
     menu.querySelectorAll('button[data-mk]').forEach((b) => {
-      b.addEventListener('click', () => { close(); App.Markup.startTool(b.dataset.mk); });
+      b.addEventListener('click', () => {
+        close();
+        if (b.dataset.mk === '__list') App.MarkupPanel.toggle();
+        else App.Markup.startTool(b.dataset.mk);
+      });
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
     App.$('#mk-undo').addEventListener('click', () => App.Markup.undo());

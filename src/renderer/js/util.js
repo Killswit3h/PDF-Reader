@@ -52,7 +52,8 @@ App.state = {
   annoSelectedId: null,
   annoStyle: null, // { stroke, fill, width, opacity, fontSize }
   annoUndo: [],
-  annoRedo: []
+  annoRedo: [],
+  saveAnnots: false // true = write real PDF annotations; false = flatten
 };
 
 /* ---------------- Units ----------------

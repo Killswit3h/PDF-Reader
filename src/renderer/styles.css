@@ -413,13 +413,15 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 .scale-apply { padding: 0 20px 6px; }
 
 /* ===================== Measurements panel ===================== */
-#measure-panel {
+#measure-panel, #markup-panel {
   position: absolute; top: var(--toolbar-h); right: 0; bottom: 0; width: 300px;
   background: var(--panel); border-left: 1px solid var(--border);
   display: flex; flex-direction: column; z-index: 18;
 }
-body.has-banner #measure-panel { top: calc(var(--toolbar-h) + 34px); }
-body.has-mpanel #viewer-wrap { right: 300px; }
+body.has-banner #measure-panel, body.has-banner #markup-panel { top: calc(var(--toolbar-h) + 34px); }
+body.has-mpanel #viewer-wrap, body.has-mkpanel #viewer-wrap { right: 300px; }
+body.has-props #markup-panel { top: calc(var(--toolbar-h) + 40px); }
+body.has-banner.has-props #markup-panel { top: calc(var(--toolbar-h) + 74px); }
 .mp-head {
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 14px; border-bottom: 1px solid var(--border); font-weight: 600;

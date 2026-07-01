@@ -61,6 +61,8 @@
           <button data-mk="text">🅃 Text</button>
           <button data-mk="callout">💬 Callout</button>
           <button data-mk="highlight">🖍️ Highlight</button>
+          <div class="tb-menu-sep"></div>
+          <button data-mk="__list">📋 Markups List</button>
         </div>
       </div>
     </div>
@@ -250,6 +252,20 @@
       </div>
     </div>
   </div>
+
+  <!-- ============ Markups List panel ============ -->
+  <aside id="markup-panel" class="hidden">
+    <div class="mp-head">
+      <span>Markups</span>
+      <button id="mkp-close" class="modal-x" title="Close">✕</button>
+    </div>
+    <div id="mkp-list" class="mp-list"></div>
+    <label class="mkp-opt"><input id="mkp-annots" type="checkbox" /> Save markups as editable PDF annotations (else flatten)</label>
+    <div class="mp-foot">
+      <button id="mkp-export" class="tb-btn">⤓ Export CSV</button>
+      <button id="mkp-clear" class="tb-btn">Clear all</button>
+    </div>
+  </aside>
 
   <!-- ============ Measurements panel ============ -->
   <aside id="measure-panel" class="hidden">
