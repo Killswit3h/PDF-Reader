@@ -25,7 +25,10 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # Skip optional deps: pdfjs-dist pulls in native "canvas" (used only for
+        # Node-side rendering, which we never do — the renderer uses the browser
+        # canvas). Building it on Windows needs Visual Studio and fails.
+        run: npm ci --omit=optional
 
       - name: Build Windows installer (NSIS, x64)
         run: npm run dist

@@ -19,6 +19,7 @@
     "appId": "com.pdfsigner.app",
     "productName": "PDF Signer",
     "asar": false,
+    "npmRebuild": false,
     "files": [
       "src/**/*",
       "node_modules/**/*",
