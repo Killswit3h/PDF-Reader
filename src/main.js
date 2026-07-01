@@ -168,6 +168,64 @@ function createWindow() {
         }, 1500);
         return;
       }
+      if (process.env.SMOKE_MARKUP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1200));
+              const A = App.state;
+              const st = () => Object.assign({}, A.markupStyle);
+              const mk = (type, pts, extra) => Object.assign({ id: ++A.annotSeq, page: 1, type, pts, style: st(), author: 'Tester', comment: '', status: '' }, extra || {});
+              A.annotations.push(mk('line', [{vx:60,vy:80},{vx:220,vy:80}]));
+              A.annotations.push(mk('arrow', [{vx:60,vy:110},{vx:220,vy:110}]));
+              A.annotations.push(mk('rect', [{vx:60,vy:140},{vx:220,vy:220}]));
+              A.annotations.push(mk('ellipse', [{vx:260,vy:140},{vx:420,vy:220}]));
+              A.annotations.push(mk('cloud', [{vx:60,vy:260},{vx:200,vy:260},{vx:200,vy:340},{vx:60,vy:340}]));
+              A.annotations.push(mk('polygon', [{vx:260,vy:260},{vx:360,vy:280},{vx:320,vy:360}]));
+              A.annotations.push(mk('polyline', [{vx:60,vy:380},{vx:120,vy:420},{vx:200,vy:390}]));
+              A.annotations.push(mk('ink', [{vx:260,vy:380},{vx:280,vy:400},{vx:300,vy:385},{vx:330,vy:410}]));
+              A.annotations.push(mk('text', [{vx:60,vy:460}], { text: 'Hello markup' }));
+              A.annotations.push(mk('callout', [{vx:260,vy:520},{vx:320,vy:460}], { text: 'Callout' }));
+              A.annotations.push(mk('highlight', [{vx:60,vy:560},{vx:220,vy:576}], { text: 'hl' }));
+              A.annotations.push(mk('underline', [{vx:60,vy:600},{vx:220,vy:616}], { text: 'ul' }));
+              A.annotations.push(mk('strikeout', [{vx:60,vy:640},{vx:220,vy:656}], { text: 'so' }));
+              App.Markup.repositionAll();
+              const typesDrawn = A.annotations.length;
+              // exercise undo/redo (move an item then undo)
+              const before = JSON.stringify(A.annotations);
+              A.annotations[0].pts[0].vx = 999;
+              // simulate a command push by using internal stack via public undo after manual push
+              // easier: remove one via API (records undo), then undo
+              const idToRemove = A.annotations[A.annotations.length - 1].id;
+              App.Markup.remove(idToRemove);
+              const afterRemove = A.annotations.length;
+              App.Markup.undo();
+              const afterUndo = A.annotations.length;
+              App.Markup.redo();
+              const afterRedo = A.annotations.length;
+              // count rendered svg elements
+              const svgItems = document.querySelectorAll('#viewer .markup-layer .markup-svg .mk-item').length;
+              // flatten & re-parse
+              let bytesLen = 0, err = '', b64 = '';
+              try {
+                const b = await App.Save.buildBytes(); bytesLen = b.length;
+                let s = ''; for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+                b64 = btoa(s);
+              } catch (e) { err = String(e && e.message); }
+              return JSON.stringify({ typesDrawn, afterRemove, afterUndo, afterRedo, svgItems, bytesLen, err, b64 });
+            })()`, true);
+            const parsed = JSON.parse(r);
+            console.log('[markup]', JSON.stringify({ typesDrawn: parsed.typesDrawn, afterRemove: parsed.afterRemove, afterUndo: parsed.afterUndo, afterRedo: parsed.afterRedo, svgItems: parsed.svgItems, bytesLen: parsed.bytesLen, err: parsed.err }));
+            if (process.env.SMOKE_MARKUP !== '1' && parsed.b64) {
+              fs.writeFileSync(process.env.SMOKE_MARKUP, Buffer.from(parsed.b64, 'base64'));
+              console.log('[markup] wrote', process.env.SMOKE_MARKUP);
+            }
+          } catch (e) { console.log('[markup] error', e && e.message); }
+          app.quit();
+        }, 1500);
+        return;
+      }
       if (process.env.SMOKE_DRIVE) {
         setTimeout(async () => {
           try {

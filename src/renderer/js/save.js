@@ -58,7 +58,8 @@
       // rasterized, so its scale-1 viewport isn't cached yet. Fetch on demand.
       const pagesWithItems = new Set([
         ...App.state.placements.map((p) => p.page),
-        ...App.state.measurements.map((m) => m.page)
+        ...App.state.measurements.map((m) => m.page),
+        ...App.state.annotations.map((a) => a.page)
       ]);
       for (const pg of pagesWithItems) {
         if (!App.state.baseViewports[pg - 1]) {
@@ -148,8 +149,127 @@
         });
       }
 
+      // ---- markup annotations (flatten as vector graphics) ----
+      await S.flattenAnnotations(pdfDoc, helv);
+
       return await pdfDoc.save();
   };
+
+  // Flatten markup annotations onto their pages as vector graphics.
+  // Geometry maps from scale-1 viewport points to PDF user space via
+  // viewport.convertToPdfPoint (rotation-safe), identical to placements.
+  S.flattenAnnotations = async function (pdfDoc, helv) {
+    const { rgb, degrees } = window.PDFLib;
+    const toRgb = (hex) => hexRgb(hex || '#000000');
+
+    for (const ann of App.state.annotations) {
+      const vp = App.state.baseViewports[ann.page - 1];
+      if (!vp) continue;
+      const page = pdfDoc.getPage(ann.page - 1);
+      const s = ann.style || {};
+      const stroke = toRgb(s.stroke);
+      const fill = toRgb(s.fill);
+      const width = s.width || 2;
+      const opacity = s.opacity == null ? 1 : s.opacity;
+      // map every vertex to PDF user space
+      const P = ann.pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
+      const seg = (a, b, w, col, op) => page.drawLine({
+        start: { x: a[0], y: a[1] }, end: { x: b[0], y: b[1] },
+        thickness: w == null ? width : w, color: col || stroke, opacity: op == null ? opacity : op
+      });
+
+      if (ann.type === 'line' || ann.type === 'arrow') {
+        seg(P[0], P[1]);
+        const wantEnd = ann.type === 'arrow' || s.arrow === 'end' || s.arrow === 'both';
+        if (wantEnd) drawArrowHead(page, P[0], P[1], stroke, width, opacity);
+        if (s.arrow === 'both') drawArrowHead(page, P[1], P[0], stroke, width, opacity);
+      } else if (ann.type === 'rect' || ann.type === 'highlight') {
+        // axis-aligned in viewport space -> map 3 corners
+        const b = bbox2(ann.pts);
+        const A = vp.convertToPdfPoint(b.minx, b.miny);
+        const B = vp.convertToPdfPoint(b.minx, b.maxy);
+        const C = vp.convertToPdfPoint(b.maxx, b.maxy);
+        const w = Math.hypot(C[0] - B[0], C[1] - B[1]);
+        const h = Math.hypot(A[0] - B[0], A[1] - B[1]);
+        const rot = degrees(Math.atan2(C[1] - B[1], C[0] - B[0]) * 180 / Math.PI);
+        if (ann.type === 'highlight') {
+          page.drawRectangle({ x: B[0], y: B[1], width: w, height: h, rotate: rot, color: fill, opacity: 0.4 });
+        } else {
+          page.drawRectangle({
+            x: B[0], y: B[1], width: w, height: h, rotate: rot,
+            borderColor: stroke, borderWidth: width, borderOpacity: opacity,
+            color: fill, opacity: Math.min(0.35, opacity * 0.35)
+          });
+        }
+      } else if (ann.type === 'ellipse') {
+        const b = bbox2(ann.pts);
+        const c = vp.convertToPdfPoint((b.minx + b.maxx) / 2, (b.miny + b.maxy) / 2);
+        const ex = vp.convertToPdfPoint(b.maxx, (b.miny + b.maxy) / 2);
+        const ey = vp.convertToPdfPoint((b.minx + b.maxx) / 2, b.miny);
+        const rx = Math.hypot(ex[0] - c[0], ex[1] - c[1]);
+        const ry = Math.hypot(ey[0] - c[0], ey[1] - c[1]);
+        page.drawEllipse({
+          x: c[0], y: c[1], xScale: rx, yScale: ry,
+          borderColor: stroke, borderWidth: width, borderOpacity: opacity,
+          color: fill, opacity: Math.min(0.35, opacity * 0.35)
+        });
+      } else if (ann.type === 'polyline' || ann.type === 'ink') {
+        for (let i = 0; i < P.length - 1; i++) seg(P[i], P[i + 1]);
+      } else if (ann.type === 'polygon') {
+        for (let i = 0; i < P.length - 1; i++) seg(P[i], P[i + 1]);
+        if (P.length > 2) seg(P[P.length - 1], P[0]);
+      } else if (ann.type === 'cloud') {
+        // approximate the cloud outline with its straight polygon edges
+        const closed = P.concat([P[0]]);
+        for (let i = 0; i < closed.length - 1; i++) seg(closed[i], closed[i + 1]);
+      } else if (ann.type === 'underline' || ann.type === 'strikeout') {
+        const b = bbox2(ann.pts);
+        const yv = ann.type === 'underline' ? b.maxy - 1 : (b.miny + b.maxy) / 2;
+        const a = vp.convertToPdfPoint(b.minx, yv);
+        const c = vp.convertToPdfPoint(b.maxx, yv);
+        seg(a, c, Math.max(1.5, width), stroke, 1);
+      } else if (ann.type === 'text' || ann.type === 'callout') {
+        drawTextBox(page, vp, ann, helv, stroke, width, degrees);
+      }
+    }
+  };
+
+  function bbox2(pts) {
+    let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+    pts.forEach((p) => {
+      if (p.vx < minx) minx = p.vx; if (p.vy < miny) miny = p.vy;
+      if (p.vx > maxx) maxx = p.vx; if (p.vy > maxy) maxy = p.vy;
+    });
+    return { minx, miny, maxx, maxy };
+  }
+
+  function drawArrowHead(page, from, to, color, width, opacity) {
+    const ang = Math.atan2(to[1] - from[1], to[0] - from[0]);
+    const size = 5 + width * 2;
+    const left = [to[0] - size * Math.cos(ang - 0.4), to[1] - size * Math.sin(ang - 0.4)];
+    const right = [to[0] - size * Math.cos(ang + 0.4), to[1] - size * Math.sin(ang + 0.4)];
+    page.drawLine({ start: { x: to[0], y: to[1] }, end: { x: left[0], y: left[1] }, thickness: width, color, opacity });
+    page.drawLine({ start: { x: to[0], y: to[1] }, end: { x: right[0], y: right[1] }, thickness: width, color, opacity });
+  }
+
+  function drawTextBox(page, vp, ann, helv, stroke, width, degrees) {
+    const s = ann.style || {};
+    const box = ann.type === 'callout' ? ann.pts[1] : ann.pts[0];
+    const fontPt = s.fontSize || 14;
+    if (ann.type === 'callout' && ann.pts[0]) {
+      const tip = vp.convertToPdfPoint(ann.pts[0].vx, ann.pts[0].vy);
+      const corner = vp.convertToPdfPoint(box.vx, box.vy);
+      page.drawLine({ start: { x: tip[0], y: tip[1] }, end: { x: corner[0], y: corner[1] }, thickness: width, color: stroke });
+    }
+    const lines = String(ann.text || '').split('\n');
+    lines.forEach((ln, i) => {
+      const baselineY = box.vy + fontPt * (i + 1) * 1.1;
+      const anchor = vp.convertToPdfPoint(box.vx + 3, baselineY);
+      const dir = vp.convertToPdfPoint(box.vx + 4, baselineY);
+      const rot = degrees(Math.atan2(dir[1] - anchor[1], dir[0] - anchor[0]) * 180 / Math.PI);
+      page.drawText(ln, { x: anchor[0], y: anchor[1], size: fontPt, font: helv, color: stroke, rotate: rot });
+    });
+  }
 
   // Save: overwrite the file that was opened, in place, with no dialog.
   // Falls back to Save As when there's no known path (e.g. dropped bytes).

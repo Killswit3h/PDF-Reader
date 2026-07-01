@@ -432,3 +432,54 @@ body.has-mpanel #viewer-wrap { right: 300px; }
 .m-snap-dot { fill: #ffb000; stroke: #7a5200; stroke-width: 1; }
 .viewport-rect { fill: rgba(255,176,0,0.06); stroke: #ffb000; stroke-width: 1.2; stroke-dasharray: 6 4; }
 .viewport-label { font: 600 11px 'Segoe UI', sans-serif; fill: #b06d00; }
+
+/* ===================== Markup / annotation engine ===================== */
+/* SVG layer sits inside .markup-layer, same as measure-layer. */
+.markup-svg {
+  position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: visible;
+}
+.markup-svg .mk-item, .markup-svg .mk-preview { pointer-events: none; }
+.markup-svg text { user-select: none; }
+.markup-svg .mk-hit { pointer-events: all; }
+.markup-svg .mk-handle { fill: var(--accent); stroke: #fff; stroke-width: 1.5; }
+.markup-svg .mk-selbox {
+  fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3;
+}
+body.tool-active #viewerContainer .page.markup-active { cursor: crosshair; }
+
+/* Inline text editor overlay for text boxes / callouts */
+.mk-text-edit {
+  position: absolute; z-index: 30; min-width: 80px; min-height: 24px;
+  background: #fff; color: #111; border: 1px solid var(--accent);
+  border-radius: 3px; padding: 3px 4px; resize: both;
+  font-family: Helvetica, sans-serif; line-height: 1.25;
+}
+
+/* Markup properties bar (below toolbar) */
+#markup-props {
+  position: absolute; top: var(--toolbar-h); left: 0; right: 0; z-index: 17;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 6px 12px; background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+body.has-banner #markup-props { top: calc(var(--toolbar-h) + 34px); }
+body.has-props #viewer-wrap { top: calc(var(--toolbar-h) + 42px); }
+body.has-banner.has-props #viewer-wrap { top: calc(var(--toolbar-h) + 76px); }
+.mk-field {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--text-dim);
+}
+.mk-field input[type="color"] { width: 28px; height: 24px; padding: 0; border: none; background: none; cursor: pointer; }
+.mk-field input[type="number"] { width: 52px; height: 24px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
+.mk-field select { height: 24px; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
+.mk-field input[type="range"] { width: 90px; }
+.mk-spacer { flex: 1; }
+
+/* Markups list panel (reuses .mp-* styles) */
+#markup-panel {
+  position: absolute; top: var(--toolbar-h); right: 0; bottom: 0; width: 300px;
+  background: var(--panel); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; z-index: 18;
+}
+body.has-banner #markup-panel { top: calc(var(--toolbar-h) + 34px); }
+body.has-kpanel #viewer-wrap { right: 300px; }

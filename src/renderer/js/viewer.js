@@ -117,6 +117,7 @@
   function refreshOverlays() {
     App.state.zoom = pdfViewer.currentScale;
     syncPageEls();
+    if (App.Markup) App.Markup.repositionAll();
     if (App.Placement) App.Placement.repositionAll();
     if (App.Measure) App.Measure.repositionAll();
   }
@@ -181,6 +182,8 @@
     App.state.viewports = {};
     App.state.measurements = [];
     App.state.measureSelectedId = null;
+    App.state.annotations = [];
+    App.state.annotSelectedId = null;
     App.setMode && App.setMode(null);
   };
 
@@ -237,7 +240,7 @@
 
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {
-    ['#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-zoom-out',
+    ['#btn-sign', '#btn-initials', '#btn-date', '#btn-markup', '#btn-measure', '#btn-zoom-out',
      '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next', '#btn-save',
      '#btn-save-as', '#page-input']
       .forEach((s) => { App.$(s).disabled = !enabled; });

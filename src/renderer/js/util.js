@@ -44,7 +44,30 @@ App.state = {
   measurements: [],
   measureSeq: 0,
   viewportSeq: 0,
-  measureSelectedId: null
+  measureSelectedId: null,
+
+  // ---- Markup / annotation engine (Phase 2) ----
+  // Annotations are stored in scale-1 viewport points (top-left origin), the
+  // same coordinate model as placements/measurements.
+  //   { id, page, type, pts:[{vx,vy}], style:{stroke,fill,width,opacity,arrow,
+  //     font,fontSize}, text, author, comment, status }
+  // type ∈ line|arrow|rect|ellipse|cloud|polygon|polyline|ink|text|callout|
+  //        highlight|underline|strikeout
+  annotations: [],
+  annotSeq: 0,
+  annotSelectedId: null,
+  // Author stamped onto new annotations (for the Markups List / interop).
+  author: 'User',
+  // Current drawing style (the properties bar mirrors this).
+  markupStyle: {
+    stroke: '#e5342b',
+    fill: '#ffd400',
+    width: 2,
+    opacity: 1,
+    arrow: 'end', // for lines/arrows: none|end|both
+    font: 'Helvetica',
+    fontSize: 14
+  }
 };
 
 /* ---------------- Units ----------------
