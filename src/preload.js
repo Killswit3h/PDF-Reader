@@ -23,5 +23,10 @@ contextBridge.exposeInMainWorld('api', {
 
   // Main process asks us to open a file (command-line / second-instance).
   onOpenFilePath: (cb) =>
-    ipcRenderer.on('open-file-path', (_e, filePath) => cb(filePath))
+    ipcRenderer.on('open-file-path', (_e, filePath) => cb(filePath)),
+
+  // ---- Updates ----
+  getVersion: () => ipcRenderer.invoke('app:version'),
+  checkUpdates: () => ipcRenderer.invoke('app:checkUpdates'),
+  openExternal: (url) => ipcRenderer.invoke('app:openExternal', url)
 });

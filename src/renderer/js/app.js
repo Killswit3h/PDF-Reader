@@ -243,9 +243,63 @@
     });
   }
 
+  // ---------- Updates ----------
+  let latestUpdate = null;
+
+  async function initVersionBadge() {
+    try {
+      const v = await window.api.getVersion();
+      App.$('#btn-updates').textContent = 'v' + v;
+      App.$('#btn-updates').title = `Version ${v} — click to check for updates`;
+    } catch (_) { /* ignore */ }
+  }
+
+  function showUpdateModal(res) {
+    App.$('#upd-msg').textContent =
+      `A new version (v${res.latest}) is available. You have v${res.current}.`;
+    App.$('#upd-notes').textContent = (res.notes || '').trim() || 'No release notes.';
+    App.$('#update-modal').classList.remove('hidden');
+  }
+
+  async function checkForUpdates(manual) {
+    if (manual) App.toast('Checking for updates…', 'info', 1500);
+    const res = await window.api.checkUpdates();
+    if (!res || !res.ok) {
+      if (manual) App.toast('Couldn\'t check for updates (are you online?).', 'error', 5000);
+      return;
+    }
+    if (res.hasUpdate) {
+      latestUpdate = res;
+      const badge = App.$('#btn-updates');
+      badge.classList.add('armed');
+      badge.textContent = '⬆ Update';
+      badge.title = `Update available: v${res.latest}`;
+      showUpdateModal(res);
+    } else if (manual) {
+      App.toast(`You're up to date (v${res.current}).`, 'success', 3500);
+    }
+  }
+
+  function setupUpdates() {
+    App.$('#btn-updates').addEventListener('click', () => {
+      if (latestUpdate) showUpdateModal(latestUpdate);
+      else checkForUpdates(true);
+    });
+    App.$('#upd-close').addEventListener('click', () => App.$('#update-modal').classList.add('hidden'));
+    App.$('#upd-later').addEventListener('click', () => App.$('#update-modal').classList.add('hidden'));
+    App.$('#upd-download').addEventListener('click', () => {
+      if (latestUpdate) window.api.openExternal(latestUpdate.url);
+      App.$('#update-modal').classList.add('hidden');
+    });
+    initVersionBadge();
+    // quiet check shortly after launch
+    setTimeout(() => checkForUpdates(false), 3000);
+  }
+
   function boot() {
     App.Signature.init();
     App.Measure.init();
+    setupUpdates();
     setupDragDrop();
     setupKeys();
     setupPlacementClicks();

@@ -12,10 +12,10 @@ Runs on Windows 10/11. Download, run the installer, and launch **PDF Signer**.
 Windows SmartScreen may warn about an "unknown publisher" (the app is not
 code-signed) — click **More info → Run anyway**.
 
-> **Note:** this link only works for the public once the repository is **public**.
-> While the repo is private, release assets return 404 for anyone not signed in
-> with access. The installer is built and published automatically on every
-> version tag either way — see [Publishing a release](#publishing-a-release-one-time-setup).
+The installer is built and published automatically on every version tag — see
+[Publishing a release](#publishing-a-release-one-time-setup). The app also checks
+for updates on launch and shows a version badge in the toolbar (click it to check
+manually); when a newer release exists it offers a one-click link to download it.
 
 > **Note:** This is a *cosmetic* e-signature tool. Signatures are rendered as
 > images and stamped onto the page. It does **not** create cryptographic /

@@ -69,6 +69,10 @@
       <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
       <button id="btn-save-as" class="tb-btn" disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
     </div>
+
+    <div class="tb-group">
+      <button id="btn-updates" class="tb-btn ghost" title="Version — click to check for updates">v…</button>
+    </div>
   </header>
 
   <!-- ============ Status / mode banner ============ -->
@@ -216,6 +220,24 @@
       <button id="mp-clear" class="tb-btn">Clear all</button>
     </div>
   </aside>
+
+  <!-- ============ Update modal ============ -->
+  <div id="update-modal" class="modal-backdrop hidden">
+    <div class="modal" style="width:520px">
+      <div class="modal-head">
+        <h2 id="upd-title">Update available</h2>
+        <button id="upd-close" class="modal-x" title="Close">✕</button>
+      </div>
+      <div style="padding:16px 20px">
+        <p id="upd-msg"></p>
+        <pre id="upd-notes" class="upd-notes"></pre>
+      </div>
+      <div class="modal-foot">
+        <button id="upd-later" class="tb-btn">Later</button>
+        <button id="upd-download" class="tb-btn primary">Download</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
   <script src="../../node_modules/pdfjs-dist/legacy/build/pdf.js"></script>

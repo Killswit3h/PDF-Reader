@@ -1,8 +1,10 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+const pkg = require('../package.json');
 
 let mainWindow = null;
 
@@ -46,6 +48,20 @@ function createWindow() {
     mainWindow.webContents.once('did-finish-load', () => {
       if (process.env.SMOKE_PDF) {
         setTimeout(() => mainWindow.webContents.send('open-file-path', process.env.SMOKE_PDF), 500);
+      }
+      if (process.env.SMOKE_UPDATE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              const v = await window.api.getVersion();
+              const res = await window.api.checkUpdates();
+              return JSON.stringify({ version: v, res });
+            })()`, true);
+            console.log('[update] ' + r);
+          } catch (e) { console.log('[update] error', e && e.message); }
+          app.quit();
+        }, 800);
+        return;
       }
       if (process.env.SMOKE_SAVE) {
         setTimeout(async () => {
@@ -199,6 +215,79 @@ ipcMain.handle('file:writePdf', async (_e, { filePath, bytes }) => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+/* ------------------------------------------------------------------ */
+/*  IPC: update check (compare app version to latest GitHub release)   */
+/* ------------------------------------------------------------------ */
+
+// owner/repo parsed from package.json's repository url.
+function repoSlug() {
+  const url = (pkg.repository && pkg.repository.url) || '';
+  const m = url.match(/github\.com[/:]([^/]+)\/([^/.]+)/i);
+  return m ? { owner: m[1], repo: m[2] } : null;
+}
+
+// Numeric compare of "x.y.z" version strings. >0 if a is newer than b.
+function semverCmp(a, b) {
+  const pa = String(a).replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b).replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
+    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
+  }
+  return 0;
+}
+
+function fetchLatestRelease(owner, repo) {
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.github.com',
+      path: `/repos/${owner}/${repo}/releases/latest`,
+      method: 'GET',
+      headers: { 'User-Agent': 'PDF-Signer', Accept: 'application/vnd.github+json' }
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => {
+        if (res.statusCode === 200) {
+          try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+        } else {
+          reject(new Error('HTTP ' + res.statusCode));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.setTimeout(10000, () => req.destroy(new Error('Request timed out')));
+    req.end();
+  });
+}
+
+ipcMain.handle('app:version', () => app.getVersion());
+
+ipcMain.handle('app:checkUpdates', async () => {
+  const current = app.getVersion();
+  const slug = repoSlug();
+  if (!slug) return { ok: false, current, error: 'No repository configured' };
+  try {
+    const rel = await fetchLatestRelease(slug.owner, slug.repo);
+    const latest = String(rel.tag_name || '').replace(/^v/, '');
+    return {
+      ok: true,
+      current,
+      latest,
+      hasUpdate: semverCmp(latest, current) > 0,
+      url: rel.html_url || `https://github.com/${slug.owner}/${slug.repo}/releases/latest`,
+      notes: rel.body || ''
+    };
+  } catch (err) {
+    return { ok: false, current, error: err.message };
+  }
+});
+
+ipcMain.handle('app:openExternal', async (_e, url) => {
+  await shell.openExternal(url);
+  return true;
 });
 
 function readPdf(filePath) {
