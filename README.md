@@ -4,6 +4,17 @@ A simple, **offline** Windows desktop app to open a PDF, add a **signature**,
 **initials**, or a **date**, and save a new signed copy. Built with Electron,
 PDF.js (viewing), and pdf-lib (writing/exporting).
 
+## ⬇ Download
+
+### [**Download for Windows (64-bit)**](https://github.com/Killswit3h/PDF-Reader/releases/latest/download/PDF-Signer-Setup.exe)
+
+Runs on Windows 10/11. Download, run the installer, and launch **PDF Signer**.
+Windows SmartScreen may warn about an "unknown publisher" (the app is not
+code-signed) — click **More info → Run anyway**.
+
+> No installer yet? It's published automatically the first time a version tag is
+> pushed — see [Publishing a release](#publishing-a-release-one-time-setup).
+
 > **Note:** This is a *cosmetic* e-signature tool. Signatures are rendered as
 > images and stamped onto the page. It does **not** create cryptographic /
 > certificate-based (PKI) digital signatures.
@@ -76,6 +87,32 @@ build for local testing:
 ```bash
 npm run pack          # -> release/win-unpacked/
 ```
+
+## Publishing a release (one-time setup)
+
+You don't need a Windows machine to publish — a GitHub Actions workflow
+(`.github/workflows/release.yml`) builds the installer on a Windows runner and
+attaches it to a GitHub Release. The **Download for Windows** button above always
+points at the latest release's `PDF-Signer-Setup.exe`.
+
+**To cut a release, push a version tag:**
+
+```bash
+# bump the "version" in package.json first (e.g. 1.0.0), then:
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The workflow builds `PDF-Signer-Setup.exe` and publishes it as release `v1.0.0`.
+Within a few minutes the download button works for everyone.
+
+**Or trigger it manually:** open the repo's **Actions** tab → *Build & Release
+(Windows)* → **Run workflow**. It uses the version from `package.json` for the
+tag.
+
+No secrets to configure — it uses the automatic `GITHUB_TOKEN`. (The build is
+not code-signed, so users get a one-time SmartScreen prompt; add a code-signing
+certificate later if you want to remove it.)
 
 ---
 

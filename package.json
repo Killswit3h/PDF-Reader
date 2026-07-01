@@ -5,6 +5,10 @@
   "main": "src/main.js",
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Killswit3h/PDF-Reader.git"
+  },
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win nsis --x64",
@@ -38,7 +42,8 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "PDF Signer"
+      "shortcutName": "PDF Signer",
+      "artifactName": "PDF-Signer-Setup.exe"
     }
   },
   "dependencies": {
