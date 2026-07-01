@@ -6,6 +6,7 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' blob: data:;" />
   <title>PDF Signer</title>
+  <link rel="stylesheet" href="../../node_modules/pdfjs-dist/web/pdf_viewer.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -94,9 +95,20 @@
       </div>
     </div>
 
-    <!-- Pages are injected here -->
-    <div id="pages-container"></div>
+    <!-- Official PDF.js viewer (virtualized). Pages render on demand. -->
+    <div id="viewerContainer">
+      <div id="viewer" class="pdfViewer"></div>
+    </div>
   </main>
+
+  <!-- Find bar (Ctrl+F) -->
+  <div id="find-bar" class="hidden">
+    <input id="find-input" type="text" placeholder="Find in document…" />
+    <span id="find-count" class="find-count"></span>
+    <button id="find-prev" class="tb-btn icon" title="Previous">▲</button>
+    <button id="find-next" class="tb-btn icon" title="Next">▼</button>
+    <button id="find-close" class="tb-btn icon" title="Close">✕</button>
+  </div>
 
   <!-- Full-window drag-over overlay -->
   <div id="drop-overlay" class="hidden"><div class="drop-msg">Drop PDF to open</div></div>
@@ -240,7 +252,8 @@
   </div>
 
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
-  <script src="../../node_modules/pdfjs-dist/legacy/build/pdf.js"></script>
+  <script src="../../node_modules/pdfjs-dist/build/pdf.js"></script>
+  <script src="../../node_modules/pdfjs-dist/web/pdf_viewer.js"></script>
   <script src="../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script>
   <script src="../../node_modules/signature_pad/dist/signature_pad.umd.min.js"></script>
 

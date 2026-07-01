@@ -49,6 +49,60 @@ function createWindow() {
       if (process.env.SMOKE_PDF) {
         setTimeout(() => mainWindow.webContents.send('open-file-path', process.env.SMOKE_PDF), 500);
       }
+      if (process.env.SMOKE_OVERLAY) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1200));
+              const pg = App.state.currentPage || 1;
+              const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEklEQVR4nGP8z8Dwn4EIwDiqEAAvyQP9vYaMtwAAAABJRU5ErkJggg==';
+              App.state.placements.push({ id: 1, type: 'image', page: pg, vx: 80, vy: 120, vw: 180, vh: 60, dataUrl: png, aspect: 3 });
+              App.Placement.repositionAll();
+              App.state.scales[pg] = { factor: 0.5, unit: 'ft', ratioLabel: 't' };
+              App.state.measurements.push({ id: 1, page: pg, type: 'length', pts: [{vx:100,vy:300},{vx:300,vy:300}], value: 100, unit: 'ft', label: '100.00 ft' });
+              App.Measure.repositionAll();
+              return JSON.stringify({
+                page: pg,
+                placedInLayer: document.querySelectorAll('#viewer .markup-layer .placed').length,
+                measurePolylines: document.querySelectorAll('#viewer .markup-layer .measure-layer polyline').length,
+                measureLabels: document.querySelectorAll('#viewer .markup-layer .measure-layer text').length
+              });
+            })()`, true);
+            console.log('[overlay] ' + r);
+          } catch (e) { console.log('[overlay] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      if (process.env.SMOKE_VIEWER) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              // give the viewer time to render visible pages
+              await new Promise(r => setTimeout(r, 1500));
+              const q = (s) => document.querySelectorAll(s).length;
+              // test find
+              let findOk = false;
+              try { App.Viewer.openFind(); App.Viewer.find('page-77-unique', false); findOk = true; } catch (e) {}
+              return JSON.stringify({
+                numPages: App.state.numPages,
+                pageDivs: q('#viewer .page'),
+                renderedCanvases: q('#viewer .page canvas'),
+                textLayers: q('#viewer .textLayer'),
+                markupLayers: q('#viewer .markup-layer'),
+                zoom: Math.round(App.state.zoom * 100) / 100,
+                baseVpSet: App.state.baseViewports.filter(Boolean).length,
+                findOk
+              });
+            })()`, true);
+            console.log('[viewer] ' + r);
+          } catch (e) { console.log('[viewer] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_UPDATE) {
         setTimeout(async () => {
           try {

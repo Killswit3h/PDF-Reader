@@ -108,10 +108,46 @@ html, body {
 #viewer-wrap {
   position: absolute;
   top: var(--toolbar-h); left: 0; right: 0; bottom: 0;
-  overflow: auto;
+  overflow: hidden;
   background: #1e1e1f;
 }
 body.has-banner #viewer-wrap { top: calc(var(--toolbar-h) + 34px); }
+
+/* Official PDF.js viewer scroll container */
+#viewerContainer {
+  position: absolute; inset: 0;
+  overflow: auto;
+  background: #1e1e1f;
+}
+.pdfViewer .page {
+  margin: 12px auto !important;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
+  background: #fff;
+}
+
+/* Per-page markup overlay (signatures, dates, measurements) */
+.markup-layer {
+  position: absolute; top: 0; left: 0;
+  z-index: 5; pointer-events: none;
+}
+.markup-layer .placed { pointer-events: auto; }
+body.tool-active .markup-layer { pointer-events: auto; }
+body.tool-active #viewerContainer .page { cursor: crosshair; }
+
+/* Find bar */
+#find-bar {
+  position: absolute; top: calc(var(--toolbar-h) + 8px); right: 16px; z-index: 40;
+  display: flex; align-items: center; gap: 6px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 8px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+}
+body.has-banner #find-bar { top: calc(var(--toolbar-h) + 42px); }
+#find-input {
+  width: 220px; height: 30px; padding: 0 10px;
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; font-size: 13px;
+}
+.find-count { font-size: 12px; color: var(--text-dim); min-width: 48px; text-align: center; }
 
 #pages-container {
   display: flex;

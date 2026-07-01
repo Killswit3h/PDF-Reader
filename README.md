@@ -29,8 +29,10 @@ at runtime. Handwriting fonts are bundled with the app.
 ## Features
 
 - **Open & view** — Open button + native dialog, or **drag a `.pdf`** onto the
-  window. All pages render in a scrollable view with page navigation, zoom
-  in/out, fit-to-width, and a live page counter.
+  window. Built on the official **PDF.js viewer** with **virtualized rendering**
+  (only visible pages are rasterized) so large multi-hundred-page plan sets stay
+  responsive. Includes **text selection**, **Find** (`Ctrl+F`), page navigation,
+  zoom in/out, fit-to-width, and a live page counter.
 - **Sign / Initials** — Create a signature three ways in one modal:
   - **Type** your name → rendered in a handwriting font (choose *Dancing Script*
     or *Great Vibes*), with a live preview.

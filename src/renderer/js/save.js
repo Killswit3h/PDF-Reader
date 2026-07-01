@@ -54,6 +54,19 @@
     const pdfDoc = await PDFDocument.load(App.state.pdfBytes);
       const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
+      // Under virtualized rendering a page with items may never have been
+      // rasterized, so its scale-1 viewport isn't cached yet. Fetch on demand.
+      const pagesWithItems = new Set([
+        ...App.state.placements.map((p) => p.page),
+        ...App.state.measurements.map((m) => m.page)
+      ]);
+      for (const pg of pagesWithItems) {
+        if (!App.state.baseViewports[pg - 1]) {
+          const page = await App.state.pdfDoc.getPage(pg);
+          App.state.baseViewports[pg - 1] = page.getViewport({ scale: 1 });
+        }
+      }
+
       // Embed each distinct PNG only once.
       const pngCache = new Map();
       async function getPng(dataUrl) {

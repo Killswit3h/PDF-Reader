@@ -1,68 +1,169 @@
 'use strict';
 
 /*
- * PDF.js viewer: loads a document, renders every page to a canvas, and
- * manages zoom / navigation. Placement geometry is stored in *scale-1
- * viewport points* (see placement.js), so re-rendering at a new zoom only
- * needs to reposition existing items — no data conversion.
+ * Viewer built on the official PDF.js viewer component (pdfjsViewer.PDFViewer).
+ * This gives virtualized rendering (only visible pages are rasterized), a text
+ * layer (selection), and find/search — the foundation for large plan sets.
+ *
+ * Our markup overlays (signatures, dates, measurements) attach a per-page
+ * `.markup-layer` div inside each rendered `.page` div. Geometry stays in
+ * scale-1 viewport points; `App.state.zoom` mirrors the viewer's current scale,
+ * so the existing placement/measure code positions items with `pt * zoom`.
  */
 (function () {
   const pdfjsLib = window.pdfjsLib;
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    '../../node_modules/pdfjs-dist/legacy/build/pdf.worker.js';
+  const pdfjsViewer = window.pdfjsViewer;
+  const VENDOR = '../../node_modules/pdfjs-dist/';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = VENDOR + 'build/pdf.worker.js';
 
-  const ZOOM_MIN = 0.25;
-  const ZOOM_MAX = 4.0;
+  const ZOOM_MIN = 0.1;
+  const ZOOM_MAX = 8.0;
   const ZOOM_STEP = 0.2;
 
   const Viewer = {};
+  let eventBus = null;
+  let pdfViewer = null;
+  let linkService = null;
+  let findController = null;
+  let inited = false;
 
-  // ---- Load a document from an ArrayBuffer ----
+  // ---- One-time setup of the PDFViewer infrastructure ----
+  Viewer.init = function () {
+    if (inited) return;
+    inited = true;
+    const container = App.$('#viewerContainer');
+    const viewerEl = App.$('#viewer');
+
+    eventBus = new pdfjsViewer.EventBus();
+    linkService = new pdfjsViewer.PDFLinkService({ eventBus });
+    findController = new pdfjsViewer.PDFFindController({ eventBus, linkService });
+
+    pdfViewer = new pdfjsViewer.PDFViewer({
+      container,
+      viewer: viewerEl,
+      eventBus,
+      linkService,
+      findController,
+      l10n: pdfjsViewer.NullL10n,
+      textLayerMode: 1, // enable text selection
+      annotationMode: pdfjsLib.AnnotationMode.ENABLE,
+      removePageBorders: true,
+      maxCanvasPixels: 16777216 // cap per-page canvas to bound memory on big pages
+    });
+    linkService.setViewer(pdfViewer);
+    Viewer._pdfViewer = pdfViewer;
+    Viewer._findController = findController;
+    Viewer._eventBus = eventBus;
+
+    eventBus.on('pagesinit', () => {
+      pdfViewer.currentScaleValue = 'page-width';
+      App.state.zoom = pdfViewer.currentScale;
+      updateZoomLabel();
+      Viewer._updateControls(true);
+      App.$('#page-total').textContent = String(App.state.numPages);
+      App.$('#page-input').value = '1';
+    });
+
+    eventBus.on('pagechanging', (e) => {
+      App.state.currentPage = e.pageNumber;
+      App.$('#page-input').value = String(e.pageNumber);
+    });
+
+    eventBus.on('scalechanging', () => {
+      App.state.zoom = pdfViewer.currentScale;
+      updateZoomLabel();
+      refreshOverlays();
+    });
+
+    // A page (re)rendered — (re)build its markup layer and draw its items.
+    eventBus.on('pagerendered', (e) => {
+      const pageNum = e.pageNumber;
+      const pv = pdfViewer.getPageView(pageNum - 1);
+      if (pv && pv.pdfPage && !App.state.baseViewports[pageNum - 1]) {
+        App.state.baseViewports[pageNum - 1] = pv.pdfPage.getViewport({ scale: 1 });
+      }
+      refreshOverlays();
+    });
+
+    eventBus.on('updatefindmatchescount', (e) => showFindCount(e.matchesCount));
+    eventBus.on('updatefindcontrolstate', (e) => showFindCount(e.matchesCount));
+  };
+
+  function updateZoomLabel() {
+    App.$('#zoom-label').textContent = `${Math.round(pdfViewer.currentScale * 100)}%`;
+  }
+
+  // ---- Rebuild pageEls from the currently-rendered pages, then draw overlays ----
+  function syncPageEls() {
+    const viewerEl = App.$('#viewer');
+    App.state.pageEls = [];
+    viewerEl.querySelectorAll('.page').forEach((div) => {
+      const n = parseInt(div.dataset.pageNumber, 10);
+      if (!n) return;
+      const canvas = div.querySelector('canvas');
+      if (!canvas) return; // page not rasterized yet (virtualized away)
+      let layer = div.querySelector('.markup-layer');
+      if (!layer) {
+        layer = document.createElement('div');
+        layer.className = 'markup-layer';
+        div.appendChild(layer);
+      }
+      layer.style.width = canvas.style.width || div.clientWidth + 'px';
+      layer.style.height = canvas.style.height || div.clientHeight + 'px';
+      App.state.pageEls[n - 1] = { holder: layer, overlay: layer, pageDiv: div };
+    });
+  }
+
+  function refreshOverlays() {
+    App.state.zoom = pdfViewer.currentScale;
+    syncPageEls();
+    if (App.Placement) App.Placement.repositionAll();
+    if (App.Measure) App.Measure.repositionAll();
+  }
+  Viewer.refreshOverlays = refreshOverlays;
+
+  // ---- Load a document ----
   Viewer.load = async function (arrayBuffer, name, filePath) {
+    Viewer.init();
     App.showLoading('Opening PDF…');
     try {
-      // Keep a pristine copy for pdf-lib (pdf.js detaches the buffer it gets).
       const original = new Uint8Array(arrayBuffer.byteLength);
       original.set(new Uint8Array(arrayBuffer));
-
       const forPdfJs = new Uint8Array(arrayBuffer.byteLength);
       forPdfJs.set(new Uint8Array(arrayBuffer));
 
-      const task = pdfjsLib.getDocument({ data: forPdfJs });
-      const doc = await task.promise;
+      const doc = await pdfjsLib.getDocument({
+        data: forPdfJs,
+        cMapUrl: VENDOR + 'cmaps/',
+        cMapPacked: true,
+        standardFontDataUrl: VENDOR + 'standard_fonts/'
+      }).promise;
 
-      // Reset state for the new document.
-      Viewer._clear();
+      // reset state for the new document
+      Viewer._clearState();
       App.state.pdfDoc = doc;
       App.state.pdfBytes = original;
       App.state.fileName = name || 'document.pdf';
       App.state.filePath = filePath || null;
       App.state.numPages = doc.numPages;
       App.state.currentPage = 1;
-      App.state.zoom = 1.0;
-
-      // Cache scale-1 viewports (includes each page's rotation).
       App.state.baseViewports = [];
-      for (let i = 1; i <= doc.numPages; i++) {
-        const page = await doc.getPage(i);
-        App.state.baseViewports[i - 1] = page.getViewport({ scale: 1 });
-      }
 
       App.$('#empty-state').classList.add('hidden');
-      App.$('#page-total').textContent = String(doc.numPages);
-      App.$('#page-input').value = '1';
+      App.$('#viewerContainer').classList.add('active');
       document.title = `${App.state.fileName} — PDF Signer`;
 
-      // Fit to width on first open for a friendly default.
-      Viewer._computeFitWidthZoom();
-      await Viewer.renderAll();
-      Viewer._updateControls(true);
+      pdfViewer.setDocument(doc);
+      linkService.setDocument(doc, null);
+
+      if (App.Measure) App.Measure.renderPanel();
       App.toast(`Opened ${App.state.fileName}`, 'success');
     } catch (err) {
       console.error(err);
-      Viewer._clear();
+      Viewer._clearState();
       Viewer._updateControls(false);
       App.$('#empty-state').classList.remove('hidden');
+      App.$('#viewerContainer').classList.remove('active');
       const msg = /password|encrypted/i.test(err.message || '')
         ? 'This PDF is password-protected / encrypted and cannot be opened.'
         : 'Could not open this file. It may be corrupt or not a valid PDF.';
@@ -72,122 +173,67 @@
     }
   };
 
-  Viewer._clear = function () {
-    App.$('#pages-container').innerHTML = '';
+  Viewer._clearState = function () {
     App.state.pageEls = [];
     App.state.placements = [];
     App.state.selectedId = null;
-    // reset measurement state for the new document
     App.state.scales = {};
     App.state.viewports = {};
     App.state.measurements = [];
     App.state.measureSelectedId = null;
-    if (App.Measure) App.Measure.renderPanel();
     App.setMode && App.setMode(null);
   };
 
-  // ---- Render every page at the current zoom ----
-  Viewer.renderAll = async function () {
-    const container = App.$('#pages-container');
-    container.innerHTML = '';
-    App.state.pageEls = [];
-
-    for (let i = 1; i <= App.state.numPages; i++) {
-      const page = await App.state.pdfDoc.getPage(i);
-      const viewport = page.getViewport({ scale: App.state.zoom });
-
-      const holder = document.createElement('div');
-      holder.className = 'page-holder';
-      holder.dataset.page = String(i);
-      holder.style.width = `${viewport.width}px`;
-      holder.style.height = `${viewport.height}px`;
-
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(viewport.width * dpr);
-      canvas.height = Math.floor(viewport.height * dpr);
-      canvas.style.width = `${viewport.width}px`;
-      canvas.style.height = `${viewport.height}px`;
-
-      const overlay = document.createElement('div');
-      overlay.className = 'page-overlay';
-      overlay.dataset.page = String(i);
-
-      holder.appendChild(canvas);
-      holder.appendChild(overlay);
-      container.appendChild(holder);
-
-      App.state.pageEls[i - 1] = { holder, canvas, overlay };
-
-      await page.render({
-        canvasContext: ctx,
-        viewport,
-        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null
-      }).promise;
-    }
-
-    App.$('#zoom-label').textContent = `${Math.round(App.state.zoom * 100)}%`;
-
-    // Re-attach placement + measurement overlays after canvases are rebuilt.
-    if (App.Placement) App.Placement.repositionAll();
-    if (App.Measure) App.Measure.repositionAll();
-  };
-
   // ---- Zoom ----
-  Viewer.setZoom = async function (z) {
-    App.state.zoom = App.clamp(z, ZOOM_MIN, ZOOM_MAX);
-    await Viewer.renderAll();
+  Viewer.setZoom = function (z) {
+    if (!pdfViewer) return;
+    pdfViewer.currentScale = App.clamp(z, ZOOM_MIN, ZOOM_MAX);
   };
-  Viewer.zoomIn = () => Viewer.setZoom(App.state.zoom + ZOOM_STEP);
-  Viewer.zoomOut = () => Viewer.setZoom(App.state.zoom - ZOOM_STEP);
-
-  Viewer._computeFitWidthZoom = function () {
-    const vp = App.state.baseViewports[0];
-    if (!vp) return;
-    const wrap = App.$('#viewer-wrap');
-    const avail = wrap.clientWidth - 56; // padding + a little breathing room
-    App.state.zoom = App.clamp(avail / vp.width, ZOOM_MIN, ZOOM_MAX);
-  };
-
-  Viewer.fitWidth = async function () {
-    Viewer._computeFitWidthZoom();
-    await Viewer.renderAll();
-  };
+  Viewer.zoomIn = () => pdfViewer && (pdfViewer.currentScale = App.clamp(pdfViewer.currentScale + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
+  Viewer.zoomOut = () => pdfViewer && (pdfViewer.currentScale = App.clamp(pdfViewer.currentScale - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
+  Viewer.fitWidth = () => { if (pdfViewer) pdfViewer.currentScaleValue = 'page-width'; };
 
   // ---- Navigation ----
   Viewer.goToPage = function (n) {
+    if (!pdfViewer) return;
     n = App.clamp(Math.round(n), 1, App.state.numPages);
-    App.state.currentPage = n;
-    const el = App.state.pageEls[n - 1];
-    if (el) el.holder.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    pdfViewer.currentPageNumber = n;
     App.$('#page-input').value = String(n);
   };
   Viewer.next = () => Viewer.goToPage(App.state.currentPage + 1);
   Viewer.prev = () => Viewer.goToPage(App.state.currentPage - 1);
 
-  // Track which page is centered in the viewport as the user scrolls.
-  Viewer.trackScroll = function () {
-    const wrap = App.$('#viewer-wrap');
-    let raf = null;
-    wrap.addEventListener('scroll', () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = null;
-        const mid = wrap.scrollTop + wrap.clientHeight / 2;
-        let best = 1;
-        for (let i = 0; i < App.state.pageEls.length; i++) {
-          const h = App.state.pageEls[i].holder;
-          if (h.offsetTop <= mid) best = i + 1;
-          else break;
-        }
-        if (best !== App.state.currentPage) {
-          App.state.currentPage = best;
-          App.$('#page-input').value = String(best);
-        }
-      });
-    });
+  // ---- Find ----
+  Viewer.openFind = function () {
+    App.$('#find-bar').classList.remove('hidden');
+    const inp = App.$('#find-input');
+    inp.focus(); inp.select();
   };
+  Viewer.closeFind = function () {
+    App.$('#find-bar').classList.add('hidden');
+    dispatchFind('', false, false); // clear highlights
+  };
+  Viewer.find = function (query, findPrevious) {
+    dispatchFind(query, true, !!findPrevious);
+  };
+  function dispatchFind(query, highlightAll, findPrevious) {
+    if (!eventBus) return;
+    eventBus.dispatch('find', {
+      source: null, type: query ? 'again' : '', query,
+      caseSensitive: false, entireWord: false,
+      highlightAll, findPrevious
+    });
+  }
+  function showFindCount(mc) {
+    if (!mc) return;
+    const el = App.$('#find-count');
+    if (el && typeof mc.total === 'number') {
+      el.textContent = mc.total ? `${mc.current}/${mc.total}` : 'No results';
+    }
+  }
+
+  // trackScroll kept for boot compatibility; PDFViewer manages scrolling.
+  Viewer.trackScroll = function () { Viewer.init(); };
 
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {

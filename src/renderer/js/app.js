@@ -9,6 +9,7 @@
   App.setMode = function (mode, kind) {
     const prev = App.state.mode;
     App.state.mode = mode;
+    document.body.classList.toggle('tool-active', !!mode);
     const banner = App.$('#mode-banner');
     const textEl = App.$('#mode-banner-text');
 
@@ -161,6 +162,10 @@
         else App.Save.save();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        if (App.state.pdfDoc) { e.preventDefault(); App.Viewer.openFind(); }
+        return;
+      }
       if (inEditable(e.target)) return;
 
       if (e.key === 'Enter' && App.state.mode === 'measure') {
@@ -187,17 +192,26 @@
   }
 
   // ---------- Placement click delegation ----------
+  // Resolve the page number + markup layer for an event inside the viewer.
+  function pageLayerFor(e) {
+    const pageDiv = e.target.closest('.page');
+    if (!pageDiv) return null;
+    const page = parseInt(pageDiv.dataset.pageNumber, 10);
+    const layer = pageDiv.querySelector('.markup-layer');
+    if (!page || !layer) return null;
+    return { page, layer };
+  }
+
   function setupPlacementClicks() {
-    const container = App.$('#pages-container');
+    const container = App.$('#viewer');
     container.addEventListener('click', (e) => {
-      const overlay = e.target.closest('.page-overlay');
-      if (!overlay) return;
       if (e.target.closest('.placed')) return; // clicks on items handled locally
-      const page = parseInt(overlay.dataset.page, 10);
+      const pl = pageLayerFor(e);
+      if (!pl) return;
       if (App.state.mode === 'measure') {
-        App.Measure.handleClick(page, overlay, e);
+        App.Measure.handleClick(pl.page, pl.layer, e);
       } else if (App.state.mode) {
-        App.Placement.handleOverlayClick(page, overlay, e);
+        App.Placement.handleOverlayClick(pl.page, pl.layer, e);
       } else {
         App.Placement.deselect();
       }
@@ -206,9 +220,9 @@
     // live preview while measuring
     container.addEventListener('mousemove', (e) => {
       if (App.state.mode !== 'measure') return;
-      const overlay = e.target.closest('.page-overlay');
-      if (!overlay) return;
-      App.Measure.handleMove(parseInt(overlay.dataset.page, 10), overlay, e);
+      const pl = pageLayerFor(e);
+      if (!pl) return;
+      App.Measure.handleMove(pl.page, pl.layer, e);
     });
 
     // double-click finishes a polyline/polygon
@@ -217,6 +231,18 @@
       e.preventDefault();
       App.Measure.finishDrawing();
     });
+  }
+
+  function setupFind() {
+    const input = App.$('#find-input');
+    input.addEventListener('input', () => App.Viewer.find(input.value, false));
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); App.Viewer.find(input.value, e.shiftKey); }
+      if (e.key === 'Escape') { e.preventDefault(); App.Viewer.closeFind(); }
+    });
+    App.$('#find-next').addEventListener('click', () => App.Viewer.find(input.value, false));
+    App.$('#find-prev').addEventListener('click', () => App.Viewer.find(input.value, true));
+    App.$('#find-close').addEventListener('click', () => App.Viewer.closeFind());
   }
 
   // ---------- Boot ----------
@@ -304,7 +330,8 @@
     setupKeys();
     setupPlacementClicks();
     setupMeasureMenu();
-    App.Viewer.trackScroll();
+    setupFind();
+    App.Viewer.init();
 
     App.$('#btn-open').addEventListener('click', openViaDialog);
     App.$('#btn-open-empty').addEventListener('click', openViaDialog);
