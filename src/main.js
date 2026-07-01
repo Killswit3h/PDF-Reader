@@ -47,6 +47,22 @@ function createWindow() {
       if (process.env.SMOKE_PDF) {
         setTimeout(() => mainWindow.webContents.send('open-file-path', process.env.SMOKE_PDF), 500);
       }
+      if (process.env.SMOKE_SAVE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 40 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEklEQVR4nGP8z8Dwn4EIwDiqEAAvyQP9vYaMtwAAAABJRU5ErkJggg==';
+              App.state.placements.push({ id: 1, type: 'image', page: 1, vx: 80, vy: 700, vw: 200, vh: 60, dataUrl: png, aspect: 2 });
+              await App.Save.save();
+              return App.state.filePath || '(none)';
+            })()`, true);
+            console.log('[save] filePath=' + r);
+          } catch (e) { console.log('[save] error', e && e.message); }
+          setTimeout(() => app.quit(), 400);
+        }, 1500);
+        return;
+      }
       if (process.env.SMOKE_MEASURE) {
         setTimeout(async () => {
           try {
@@ -174,6 +190,16 @@ ipcMain.handle('dialog:openPdf', async () => {
 
 // Read a PDF from an absolute path (drag-drop / command-line open).
 ipcMain.handle('file:readPdf', async (_e, filePath) => readPdf(filePath));
+
+// Overwrite a PDF at a known path (Save — no dialog).
+ipcMain.handle('file:writePdf', async (_e, { filePath, bytes }) => {
+  try {
+    fs.writeFileSync(filePath, Buffer.from(bytes));
+    return { ok: true, path: filePath };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
 
 function readPdf(filePath) {
   try {

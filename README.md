@@ -44,8 +44,11 @@ at runtime. Handwriting fonts are bundled with the app.
   **Delete**).
 - **Date** — inserts today's date (default `MM/DD/YYYY`) at a clicked spot;
   **double-click to edit** the text before saving.
-- **Save** — writes a **new** PDF (`<original>-signed.pdf`) via a native Save
-  dialog. The original file on disk is never touched until you explicitly save.
+- **Save** — overwrites the file you opened, in place, with no dialog
+  (`Ctrl+S`). Nothing is written to disk until you press Save. **Save As…**
+  (`Ctrl+Shift+S`) writes a copy to a location you choose (default
+  `<original>-signed.pdf`). If the document was opened by dropping raw bytes with
+  no file path, Save behaves like Save As the first time, then remembers it.
 - **Measure by scale** (Bluebeam-style takeoff) — under the **📐 Measure** menu:
   - **Set Scale** — calibrate by drawing a line of known length, or enter a
     ratio / pick a preset (`1/4" = 1'-0"`, `1:100`, …). Scale is stored per page.

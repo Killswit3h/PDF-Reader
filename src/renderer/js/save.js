@@ -138,17 +138,35 @@
       return await pdfDoc.save();
   };
 
-  S.save = async function () {
+  // Save: overwrite the file that was opened, in place, with no dialog.
+  // Falls back to Save As when there's no known path (e.g. dropped bytes).
+  S.save = () => doSave(false);
+
+  // Save As: always prompt for a location / name.
+  S.saveAs = () => doSave(true);
+
+  async function doSave(forceDialog) {
     if (!App.state.pdfDoc) return;
     App.showLoading('Saving…');
     try {
       const bytes = await S.buildBytes();
       const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
-      const res = await window.api.savePdfDialog(`${base}-signed.pdf`, bytes);
-      if (res && res.ok) {
-        App.toast(`Saved: ${res.path}`, 'success', 5000);
-      } else if (res && res.error) {
-        App.toast(`Could not save: ${res.error}`, 'error', 6000);
+
+      if (!forceDialog && App.state.filePath) {
+        // Overwrite the opened document in place.
+        const res = await window.api.writePdf(App.state.filePath, bytes);
+        if (res && res.ok) App.toast(`Saved: ${res.path}`, 'success', 4000);
+        else if (res && res.error) App.toast(`Could not save: ${res.error}`, 'error', 6000);
+      } else {
+        const res = await window.api.savePdfDialog(`${base}-signed.pdf`, bytes);
+        if (res && res.ok) {
+          App.toast(`Saved: ${res.path}`, 'success', 5000);
+          // Remember the new location so later Saves overwrite it too.
+          App.state.filePath = res.path;
+          App.state.fileName = res.path.replace(/^.*[\\/]/, '');
+        } else if (res && res.error) {
+          App.toast(`Could not save: ${res.error}`, 'error', 6000);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -156,7 +174,7 @@
     } finally {
       App.hideLoading();
     }
-  };
+  }
 
   App.Save = S;
 })();

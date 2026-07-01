@@ -156,7 +156,9 @@
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        if (!App.$('#btn-save').disabled) App.Save.save();
+        if (App.$('#btn-save').disabled) return;
+        if (e.shiftKey) App.Save.saveAs();
+        else App.Save.save();
         return;
       }
       if (inEditable(e.target)) return;
@@ -256,6 +258,7 @@
     App.$('#btn-initials').addEventListener('click', () => startImagePlacement('initials'));
     App.$('#btn-date').addEventListener('click', startDatePlacement);
     App.$('#btn-save').addEventListener('click', () => App.Save.save());
+    App.$('#btn-save-as').addEventListener('click', () => App.Save.saveAs());
     App.$('#mode-cancel').addEventListener('click', () => App.setMode(null));
 
     App.$('#btn-zoom-in').addEventListener('click', () => App.Viewer.zoomIn());

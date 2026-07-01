@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('api', {
   // Read a PDF by absolute path (drag-drop or "Open with").
   readPdf: (filePath) => ipcRenderer.invoke('file:readPdf', filePath),
 
+  // Overwrite the opened PDF in place (Save — no dialog).
+  writePdf: (filePath, bytes) => ipcRenderer.invoke('file:writePdf', { filePath, bytes }),
+
   // Native "Save As" dialog + write. bytes = Uint8Array of final PDF.
   savePdfDialog: (defaultName, bytes) =>
     ipcRenderer.invoke('dialog:savePdf', { defaultName, bytes }),

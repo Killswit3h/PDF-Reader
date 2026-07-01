@@ -192,7 +192,8 @@
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {
     ['#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-zoom-out',
-     '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next', '#btn-save', '#page-input']
+     '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next', '#btn-save',
+     '#btn-save-as', '#page-input']
       .forEach((s) => { App.$(s).disabled = !enabled; });
   };
 
