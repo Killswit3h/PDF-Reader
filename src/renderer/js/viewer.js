@@ -119,6 +119,7 @@
     syncPageEls();
     if (App.Placement) App.Placement.repositionAll();
     if (App.Measure) App.Measure.repositionAll();
+    if (App.Markup) App.Markup.repositionAll();
   }
   Viewer.refreshOverlays = refreshOverlays;
 
@@ -181,6 +182,10 @@
     App.state.viewports = {};
     App.state.measurements = [];
     App.state.measureSelectedId = null;
+    App.state.annotations = [];
+    App.state.annoSelectedId = null;
+    App.state.annoUndo = [];
+    App.state.annoRedo = [];
     App.setMode && App.setMode(null);
   };
 
@@ -237,9 +242,9 @@
 
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {
-    ['#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-zoom-out',
-     '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next', '#btn-save',
-     '#btn-save-as', '#page-input']
+    ['#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
+     '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next',
+     '#btn-save', '#btn-save-as', '#page-input']
       .forEach((s) => { App.$(s).disabled = !enabled; });
   };
 

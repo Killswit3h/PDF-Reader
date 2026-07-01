@@ -46,6 +46,13 @@
     const n = parseInt(hex.slice(1), 16);
     return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
   }
+  function drawArrowPdf(page, from, to, color, width) {
+    const ang = Math.atan2(to[1] - from[1], to[0] - from[0]);
+    const len = 10 + width * 2;
+    [ang + Math.PI - 0.4, ang + Math.PI + 0.4].forEach((a) => {
+      page.drawLine({ start: { x: to[0], y: to[1] }, end: { x: to[0] + Math.cos(a) * len, y: to[1] + Math.sin(a) * len }, thickness: width, color });
+    });
+  }
 
   // Build the final PDF bytes with all placements flattened onto their pages.
   S.buildBytes = async function () {
@@ -58,7 +65,8 @@
       // rasterized, so its scale-1 viewport isn't cached yet. Fetch on demand.
       const pagesWithItems = new Set([
         ...App.state.placements.map((p) => p.page),
-        ...App.state.measurements.map((m) => m.page)
+        ...App.state.measurements.map((m) => m.page),
+        ...App.state.annotations.map((a) => a.page)
       ]);
       for (const pg of pagesWithItems) {
         if (!App.state.baseViewports[pg - 1]) {
@@ -146,6 +154,59 @@
         page.drawText(String(m.label), {
           x: ax + 3, y: ay + 3, size: 9, font: helv, color
         });
+      }
+
+      // ---- markup annotations (flattened) ----
+      for (const an of App.state.annotations) {
+        const vp = App.state.baseViewports[an.page - 1];
+        if (!vp) continue;
+        const page = pdfDoc.getPage(an.page - 1);
+        const s = an.style || {};
+        const col = hexRgb(s.stroke || '#e5484d');
+        const w = s.width || 2;
+        const op = s.opacity == null ? 1 : s.opacity;
+        const hasFill = s.fill && s.fill !== 'none';
+        const fillCol = hasFill ? hexRgb(s.fill) : null;
+        const P = an.pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
+        const corners = () => {
+          const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
+          return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+        };
+        const polyDraw = (close) => {
+          const seq = close ? P.concat([P[0]]) : P;
+          for (let i = 0; i < seq.length - 1; i++) {
+            page.drawLine({ start: { x: seq[i][0], y: seq[i][1] }, end: { x: seq[i + 1][0], y: seq[i + 1][1] }, thickness: w, color: col, opacity: op });
+          }
+        };
+
+        if (an.type === 'line' || an.type === 'arrow') {
+          page.drawLine({ start: { x: P[0][0], y: P[0][1] }, end: { x: P[1][0], y: P[1][1] }, thickness: w, color: col, opacity: op });
+          if (an.type === 'arrow') drawArrowPdf(page, P[0], P[1], col, w);
+        } else if (an.type === 'rect') {
+          const b = corners();
+          page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined });
+        } else if (an.type === 'highlight') {
+          const b = corners();
+          page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, color: col, opacity: 0.35 });
+        } else if (an.type === 'ellipse') {
+          const b = corners();
+          page.drawEllipse({ x: b.x + b.w / 2, y: b.y + b.h / 2, xScale: b.w / 2, yScale: b.h / 2, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined });
+        } else if (an.type === 'polyline' || an.type === 'ink') {
+          polyDraw(false);
+        } else if (an.type === 'polygon' || an.type === 'cloud') {
+          polyDraw(true);
+        } else if (an.type === 'text' || an.type === 'callout') {
+          const size = s.fontSize || 14;
+          if (an.type === 'callout' && P[2]) {
+            const from = [P[0][0], Math.min(P[0][1], P[1][1])];
+            page.drawLine({ start: { x: from[0], y: from[1] }, end: { x: P[2][0], y: P[2][1] }, thickness: w, color: col });
+            drawArrowPdf(page, from, P[2], col, w);
+          }
+          const bx = Math.min(P[0][0], P[1][0]) + 2;
+          const topY = Math.max(P[0][1], P[1][1]);
+          const lines = String(an.text || '').split('\n');
+          lines.forEach((ln, i) => page.drawText(ln, { x: bx, y: topY - size * (i + 1), size, font: helv, color: col }));
+        }
       }
 
       return await pdfDoc.save();

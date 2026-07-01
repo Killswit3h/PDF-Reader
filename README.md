@@ -51,6 +51,12 @@ at runtime. Handwriting fonts are bundled with the app.
   (`Ctrl+Shift+S`) writes a copy to a location you choose (default
   `<original>-signed.pdf`). If the document was opened by dropping raw bytes with
   no file path, Save behaves like Save As the first time, then remembers it.
+- **Markup tools** (Bluebeam-style) — under the **✏️ Markup** menu: **arrow, line,
+  rectangle, ellipse, polyline, polygon, revision cloud, freehand ink, text box,
+  callout, and highlight**. Select to move/resize, edit properties (stroke color,
+  fill, line width, opacity) in the properties bar, **undo/redo** (`Ctrl+Z`/`Ctrl+Y`),
+  and delete. Markups flatten into the saved PDF (editable/interoperable PDF
+  annotations are on the roadmap).
 - **Measure by scale** (Bluebeam-style takeoff) — under the **📐 Measure** menu:
   - **Set Scale** — calibrate by drawing a line of known length, or enter a
     ratio / pick a preset (`1/4" = 1'-0"`, `1:100`, …). Scale is stored per page.

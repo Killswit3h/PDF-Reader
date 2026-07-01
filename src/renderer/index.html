@@ -47,6 +47,27 @@
     <div class="tb-sep"></div>
 
     <div class="tb-group">
+      <div class="tb-dropdown">
+        <button id="btn-markup" class="tb-btn" disabled title="Markup tools">✏️ Markup ▾</button>
+        <div id="markup-menu" class="tb-menu hidden">
+          <button data-mk="arrow">➷ Arrow</button>
+          <button data-mk="line">╱ Line</button>
+          <button data-mk="rect">▭ Rectangle</button>
+          <button data-mk="ellipse">◯ Ellipse</button>
+          <button data-mk="polyline">〰️ Polyline</button>
+          <button data-mk="polygon">⬠ Polygon</button>
+          <button data-mk="cloud">☁️ Cloud</button>
+          <button data-mk="ink">✒️ Freehand</button>
+          <button data-mk="text">🅃 Text</button>
+          <button data-mk="callout">💬 Callout</button>
+          <button data-mk="highlight">🖍️ Highlight</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
       <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out">−</button>
       <span id="zoom-label" class="tb-readout">100%</span>
       <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in">+</button>
@@ -80,6 +101,17 @@
   <div id="mode-banner" class="hidden">
     <span id="mode-banner-text"></span>
     <button id="mode-cancel" class="link-btn">Cancel</button>
+  </div>
+
+  <!-- ============ Markup properties bar ============ -->
+  <div id="markup-props" class="hidden">
+    <label class="mk-prop">Line <input id="mk-stroke" type="color" value="#e5484d" /></label>
+    <label class="mk-prop"><input id="mk-fill-on" type="checkbox" /> Fill <input id="mk-fill" type="color" value="#ffcc00" /></label>
+    <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" /></label>
+    <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" /></label>
+    <span class="mk-spacer"></span>
+    <button id="mk-undo" class="tb-btn" title="Undo (Ctrl+Z)">↶ Undo</button>
+    <button id="mk-redo" class="tb-btn" title="Redo (Ctrl+Y)">↷ Redo</button>
   </div>
 
   <!-- ================= Viewer ================= -->
@@ -263,6 +295,7 @@
   <script src="js/placement.js"></script>
   <script src="js/viewer.js"></script>
   <script src="js/measure.js"></script>
+  <script src="js/markup.js"></script>
   <script src="js/save.js"></script>
   <script src="js/app.js"></script>
 </body>

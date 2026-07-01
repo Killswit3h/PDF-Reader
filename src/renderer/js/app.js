@@ -13,14 +13,16 @@
     const banner = App.$('#mode-banner');
     const textEl = App.$('#mode-banner-text');
 
-    // leaving measure mode -> commit/clean up any in-progress drawing
+    // leaving measure/markup mode -> commit/clean up any in-progress drawing
     if (prev === 'measure' && mode !== 'measure' && App.Measure) App.Measure.stop();
+    if (prev === 'markup' && mode !== 'markup' && App.Markup) App.Markup.stop();
 
     // toolbar armed highlight
     App.$('#btn-sign').classList.toggle('armed', mode === 'signature');
     App.$('#btn-initials').classList.toggle('armed', mode === 'initials');
     App.$('#btn-date').classList.toggle('armed', mode === 'date');
     App.$('#btn-measure').classList.toggle('armed', mode === 'measure');
+    App.$('#btn-markup').classList.toggle('armed', mode === 'markup');
 
     // remove any previously injected "new" link
     const existing = document.getElementById('mode-new');
@@ -30,13 +32,17 @@
       banner.classList.add('hidden');
       document.body.classList.remove('has-banner');
       App.Placement.disarm();
+      App.refreshChrome();
       return;
     }
 
-    if (mode === 'measure') {
-      textEl.textContent = 'Measuring — press Enter to finish a shape, Esc to stop.';
+    if (mode === 'measure' || mode === 'markup') {
+      textEl.textContent = mode === 'markup'
+        ? 'Markup — draw on the page. Enter finishes a shape, Esc stops.'
+        : 'Measuring — press Enter to finish a shape, Esc to stop.';
       banner.classList.remove('hidden');
       document.body.classList.add('has-banner');
+      App.refreshChrome();
       return;
     }
 
@@ -55,6 +61,14 @@
       link.addEventListener('click', () => openCreateThenArm(mode));
       App.$('#mode-cancel').before(link);
     }
+    App.refreshChrome();
+  };
+
+  // Show the markup properties bar during markup mode or when an item is selected.
+  App.refreshChrome = function () {
+    const show = App.state.mode === 'markup' || App.state.annoSelectedId != null;
+    App.$('#markup-props').classList.toggle('hidden', !show);
+    document.body.classList.toggle('has-props', show);
   };
 
   // ---------- Arm an image (signature/initials) ----------
@@ -166,22 +180,29 @@
         if (App.state.pdfDoc) { e.preventDefault(); App.Viewer.openFind(); }
         return;
       }
-      if (inEditable(e.target)) return;
-
-      if (e.key === 'Enter' && App.state.mode === 'measure') {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
-        App.Measure.finishDrawing();
+        if (e.shiftKey) App.Markup.redo(); else App.Markup.undo();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault(); App.Markup.redo(); return;
+      }
+      if (inEditable(e.target)) return;
+
+      if (e.key === 'Enter' && App.state.mode === 'measure') { e.preventDefault(); App.Measure.finishDrawing(); return; }
+      if (e.key === 'Enter' && App.state.mode === 'markup') { e.preventDefault(); App.Markup.finishDrawing(); return; }
       if (e.key === 'Escape') {
         if (App.state.mode === 'measure' && App.Measure._active) App.Measure.cancelActive();
+        else if (App.state.mode === 'markup' && App.Markup.active) App.Markup.cancelActive();
         else if (App.state.mode) App.setMode(null);
-        else { App.Placement.deselect(); }
+        else { App.Placement.deselect(); App.Markup.deselect(); }
         return;
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (App.state.selectedId != null) { e.preventDefault(); App.Placement.remove(App.state.selectedId); return; }
         if (App.state.measureSelectedId != null) { e.preventDefault(); App.Measure.remove(App.state.measureSelectedId); return; }
+        if (App.state.annoSelectedId != null) { e.preventDefault(); App.Markup.remove(App.state.annoSelectedId); return; }
       }
       if (!App.state.pdfDoc) return;
       if (e.key === '+' || e.key === '=') { App.Viewer.zoomIn(); }
@@ -205,31 +226,44 @@
   function setupPlacementClicks() {
     const container = App.$('#viewer');
     container.addEventListener('click', (e) => {
-      if (e.target.closest('.placed')) return; // clicks on items handled locally
+      if (e.target.closest('.placed') || e.target.closest('.hit') || e.target.closest('.handle')) return;
       const pl = pageLayerFor(e);
       if (!pl) return;
-      if (App.state.mode === 'measure') {
+      if (App.state.mode === 'markup') {
+        App.Markup.handleClick(pl.page, pl.layer, e);
+      } else if (App.state.mode === 'measure') {
         App.Measure.handleClick(pl.page, pl.layer, e);
       } else if (App.state.mode) {
         App.Placement.handleOverlayClick(pl.page, pl.layer, e);
       } else {
         App.Placement.deselect();
+        App.Markup.deselect();
       }
     });
 
-    // live preview while measuring
-    container.addEventListener('mousemove', (e) => {
-      if (App.state.mode !== 'measure') return;
+    // ink press-drag-release
+    container.addEventListener('mousedown', (e) => {
+      if (App.state.mode !== 'markup' || App.Markup.tool !== 'ink') return;
       const pl = pageLayerFor(e);
       if (!pl) return;
-      App.Measure.handleMove(pl.page, pl.layer, e);
+      e.preventDefault();
+      App.Markup.inkStart(pl.page, pl.layer, e);
+    });
+    window.addEventListener('mouseup', () => { if (App.Markup) App.Markup.inkEnd(); });
+
+    // live preview (measure + markup)
+    container.addEventListener('mousemove', (e) => {
+      const pl = pageLayerFor(e);
+      if (!pl) return;
+      if (App.state.mode === 'measure') App.Measure.handleMove(pl.page, pl.layer, e);
+      else if (App.state.mode === 'markup') App.Markup.handleMove(pl.page, pl.layer, e);
     });
 
     // double-click finishes a polyline/polygon
     container.addEventListener('dblclick', (e) => {
-      if (App.state.mode !== 'measure') return;
       e.preventDefault();
-      App.Measure.finishDrawing();
+      if (App.state.mode === 'measure') App.Measure.finishDrawing();
+      else if (App.state.mode === 'markup') App.Markup.finishDrawing();
     });
   }
 
@@ -267,6 +301,23 @@
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.tb-dropdown')) close();
     });
+  }
+
+  function setupMarkupMenu() {
+    const btn = App.$('#btn-markup');
+    const menu = App.$('#markup-menu');
+    const close = () => menu.classList.add('hidden');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled) return;
+      menu.classList.toggle('hidden');
+    });
+    menu.querySelectorAll('button[data-mk]').forEach((b) => {
+      b.addEventListener('click', () => { close(); App.Markup.startTool(b.dataset.mk); });
+    });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
+    App.$('#mk-undo').addEventListener('click', () => App.Markup.undo());
+    App.$('#mk-redo').addEventListener('click', () => App.Markup.redo());
   }
 
   // ---------- Updates ----------
@@ -325,11 +376,13 @@
   function boot() {
     App.Signature.init();
     App.Measure.init();
+    App.Markup.init();
     setupUpdates();
     setupDragDrop();
     setupKeys();
     setupPlacementClicks();
     setupMeasureMenu();
+    setupMarkupMenu();
     setupFind();
     App.Viewer.init();
 

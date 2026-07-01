@@ -44,7 +44,15 @@ App.state = {
   measurements: [],
   measureSeq: 0,
   viewportSeq: 0,
-  measureSelectedId: null
+  measureSelectedId: null,
+
+  // ---- Markup / annotation feature ----
+  annotations: [],
+  annoSeq: 0,
+  annoSelectedId: null,
+  annoStyle: null, // { stroke, fill, width, opacity, fontSize }
+  annoUndo: [],
+  annoRedo: []
 };
 
 /* ---------------- Units ----------------

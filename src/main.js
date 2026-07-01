@@ -49,6 +49,40 @@ function createWindow() {
       if (process.env.SMOKE_PDF) {
         setTimeout(() => mainWindow.webContents.send('open-file-path', process.env.SMOKE_PDF), 500);
       }
+      if (process.env.SMOKE_MARKUP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1200));
+              const A = App.state, pg = 1;
+              const st = () => ({ stroke:'#e5484d', fill:'none', width:2, opacity:1, fontSize:14 });
+              const add = (o) => { A.annoSeq=(A.annoSeq||0)+1; A.annotations.push(Object.assign({id:A.annoSeq,page:pg,style:st()},o)); };
+              add({type:'arrow', pts:[{vx:60,vy:60},{vx:200,vy:120}]});
+              add({type:'line', pts:[{vx:60,vy:150},{vx:200,vy:150}]});
+              add({type:'rect', pts:[{vx:250,vy:60},{vx:360,vy:140}], style:{stroke:'#2f6fed',fill:'#ffcc00',width:2,opacity:1}});
+              add({type:'ellipse', pts:[{vx:400,vy:60},{vx:500,vy:140}]});
+              add({type:'polyline', pts:[{vx:60,vy:200},{vx:120,vy:240},{vx:200,vy:200}]});
+              add({type:'polygon', pts:[{vx:250,vy:200},{vx:340,vy:210},{vx:300,vy:280}]});
+              add({type:'cloud', pts:[{vx:380,vy:200},{vx:500,vy:210},{vx:460,vy:300}]});
+              add({type:'ink', pts:[{vx:60,vy:320},{vx:80,vy:340},{vx:110,vy:320},{vx:140,vy:350}]});
+              add({type:'text', pts:[{vx:250,vy:320},{vx:400,vy:364}], text:'Note'});
+              add({type:'callout', pts:[{vx:250,vy:400},{vx:400,vy:444},{vx:200,vy:380}], text:'Callout'});
+              add({type:'highlight', pts:[{vx:60,vy:420},{vx:200,vy:445}], style:{stroke:'#ffd400',fill:'none',width:2,opacity:1}});
+              try { App.Markup.repositionAll(); } catch(e) { return JSON.stringify({ fatal: 'repositionAll: ' + e.message, stack: (e.stack||'').split('\\n').slice(0,4).join(' | ') }); }
+              const q = (s) => document.querySelectorAll('#viewer .markup-svg ' + s).length;
+              let bytesLen=0, err='', b64='';
+              try { const b = await App.Save.buildBytes(); bytesLen=b.length; let s=''; for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); b64=btoa(s); } catch(e){ err=e.message; }
+              return JSON.stringify({ annCount:A.annotations.length, lines:q('line'), polylines:q('polyline'), polygons:q('polygon'), rects:q('rect'), ellipses:q('ellipse'), paths:q('path'), texts:q('foreignObject'), bytesLen, err, b64 });
+            })()`, true);
+            const parsed = JSON.parse(r);
+            console.log('[markup] ' + JSON.stringify(Object.assign({}, parsed, { b64: undefined })));
+            if (process.env.SMOKE_MARKUP !== '1' && parsed.b64) { fs.writeFileSync(process.env.SMOKE_MARKUP, Buffer.from(parsed.b64, 'base64')); console.log('[markup] wrote ' + process.env.SMOKE_MARKUP); }
+          } catch (e) { console.log('[markup] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_OVERLAY) {
         setTimeout(async () => {
           try {
