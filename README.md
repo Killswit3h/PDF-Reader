@@ -87,6 +87,9 @@ at runtime. Handwriting fonts are bundled with the app.
 Keyboard: `Ctrl+O` open · `Ctrl+S` save · `+ / -` zoom · `← / →` page ·
 `Esc` cancel/deselect · `Delete` remove selected.
 
+Zoom: trackpad **pinch-to-zoom** (macOS & Windows precision trackpads) and
+**`Ctrl`/`Cmd` + scroll wheel** zoom toward the pointer.
+
 ---
 
 ## Prerequisites
