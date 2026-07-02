@@ -87,7 +87,34 @@
 
     eventBus.on('updatefindmatchescount', (e) => showFindCount(e.matchesCount));
     eventBus.on('updatefindcontrolstate', (e) => showFindCount(e.matchesCount));
+
+    setupWheelZoom(container);
   };
+
+  // ---- Trackpad pinch + Ctrl/Cmd + scroll-wheel zoom ----
+  // In Chromium (Electron) a trackpad pinch is delivered as a `wheel` event
+  // with `ctrlKey` set — the same shape as a real Ctrl+wheel — so one handler
+  // covers pinch-to-zoom on macOS and Windows precision trackpads as well as
+  // Ctrl/Cmd + mouse-wheel. We zoom toward the pointer and swallow the event so
+  // the browser's own page zoom / scroll doesn't also fire.
+  function setupWheelZoom(container) {
+    container.addEventListener('wheel', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return; // plain scroll → let it through
+      if (!App.state.pdfDoc) return;
+      e.preventDefault();
+
+      // Normalize delta across wheel modes (0=pixel, 1=line, 2=page). Pinch
+      // gestures report small pixel deltas; a mouse notch reports ~100px.
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 16;       // lines → px
+      else if (e.deltaMode === 2) delta *= container.clientHeight; // pages → px
+
+      // Exponential so zoom feels consistent at every scale. Negative delta
+      // (scroll up / pinch out) zooms in.
+      const factor = Math.exp(-delta * 0.0025);
+      Viewer.zoomByAt(factor, e.clientX, e.clientY);
+    }, { passive: false });
+  }
 
   function updateZoomLabel() {
     App.$('#zoom-label').textContent = `${Math.round(pdfViewer.currentScale * 100)}%`;
@@ -197,6 +224,38 @@
   Viewer.zoomIn = () => pdfViewer && (pdfViewer.currentScale = App.clamp(pdfViewer.currentScale + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
   Viewer.zoomOut = () => pdfViewer && (pdfViewer.currentScale = App.clamp(pdfViewer.currentScale - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
   Viewer.fitWidth = () => { if (pdfViewer) pdfViewer.currentScaleValue = 'page-width'; };
+
+  // Zoom to an absolute scale while keeping the content point under (clientX,
+  // clientY) visually fixed. Used by trackpad pinch / Ctrl+wheel so the page
+  // zooms toward the cursor instead of the top-left corner.
+  Viewer.zoomToAt = function (targetScale, clientX, clientY) {
+    if (!pdfViewer) return;
+    const container = App.$('#viewerContainer');
+    const oldScale = pdfViewer.currentScale;
+    const newScale = App.clamp(targetScale, ZOOM_MIN, ZOOM_MAX);
+    if (newScale === oldScale) return;
+
+    // Anchor point in scrollable-content coordinates (pre-zoom).
+    const rect = container.getBoundingClientRect();
+    const offsetX = (clientX == null ? rect.width / 2 : clientX - rect.left);
+    const offsetY = (clientY == null ? rect.height / 2 : clientY - rect.top);
+    const contentX = container.scrollLeft + offsetX;
+    const contentY = container.scrollTop + offsetY;
+
+    pdfViewer.currentScale = newScale;
+
+    // After scaling, the same content grows by ratio; shift scroll so the
+    // anchor stays under the cursor.
+    const ratio = pdfViewer.currentScale / oldScale;
+    container.scrollLeft = contentX * ratio - offsetX;
+    container.scrollTop = contentY * ratio - offsetY;
+  };
+
+  // Multiply the current scale by `factor`, anchored at the cursor.
+  Viewer.zoomByAt = function (factor, clientX, clientY) {
+    if (!pdfViewer) return;
+    Viewer.zoomToAt(pdfViewer.currentScale * factor, clientX, clientY);
+  };
 
   // ---- Navigation ----
   Viewer.goToPage = function (n) {
