@@ -409,6 +409,11 @@
 
     // "Open with" / command-line file.
     window.api.onOpenFilePath((p) => openFromPath(p));
+
+    // Now that the listener above is wired up, tell the main process we're ready.
+    // It will deliver any file the app was launched to open (which may have
+    // arrived before this listener existed).
+    window.api.notifyReady();
   }
 
   if (document.readyState === 'loading') {
