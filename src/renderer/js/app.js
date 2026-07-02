@@ -410,10 +410,41 @@
     // "Open with" / command-line file.
     window.api.onOpenFilePath((p) => openFromPath(p));
 
+    // Launch diagnostics: surface how the app was launched so a user can see
+    // (and screenshot) whether the OS actually passed a file path.
+    if (window.api.onLaunchDebug) window.api.onLaunchDebug(showLaunchDebug);
+
     // Now that the listener above is wired up, tell the main process we're ready.
     // It will deliver any file the app was launched to open (which may have
     // arrived before this listener existed).
     window.api.notifyReady();
+  }
+
+  // Render the launch diagnostics into the empty-state so they stay visible
+  // until a document loads. Also mirrored to the devtools console.
+  function showLaunchDebug(info) {
+    try {
+      console.log('[launch-debug]', JSON.stringify(info));
+      const inner = App.$('#empty-state .empty-inner');
+      if (!inner) return;
+      const hadFile = info && (info.resolvedFile || info.openFileFired || info.pendingFile);
+      const box = document.createElement('details');
+      box.id = 'launch-debug';
+      box.style.cssText =
+        'margin-top:18px;max-width:560px;font-size:11px;color:#8a8a90;text-align:left;';
+      const summary = document.createElement('summary');
+      summary.style.cssText = 'cursor:pointer;color:#9aa;';
+      summary.textContent = hadFile
+        ? 'Launch diagnostics (app was given a file)'
+        : 'Launch diagnostics (no file was passed to the app)';
+      const pre = document.createElement('pre');
+      pre.style.cssText =
+        'white-space:pre-wrap;word-break:break-all;margin:8px 0 0;color:#8a8a90;';
+      pre.textContent = JSON.stringify(info, null, 2);
+      box.appendChild(summary);
+      box.appendChild(pre);
+      inner.appendChild(box);
+    } catch (_) { /* diagnostics must never break the app */ }
   }
 
   if (document.readyState === 'loading') {

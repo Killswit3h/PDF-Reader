@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('api', {
   // be sent before this listener exists (and silently dropped).
   notifyReady: () => ipcRenderer.send('renderer-ready'),
 
+  // Launch diagnostics (argv, resolved file, log path) for troubleshooting
+  // "Open with" / file-association launches.
+  onLaunchDebug: (cb) =>
+    ipcRenderer.on('launch-debug', (_e, info) => cb(info)),
+
   // ---- Updates ----
   getVersion: () => ipcRenderer.invoke('app:version'),
   checkUpdates: () => ipcRenderer.invoke('app:checkUpdates'),

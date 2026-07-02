@@ -8,6 +8,37 @@ const pkg = require('../package.json');
 
 let mainWindow = null;
 
+/* ------------------------------------------------------------------ */
+/*  Launch diagnostics                                                 */
+/*                                                                     */
+/*  Records how the app was launched (command-line argv + macOS        */
+/*  'open-file' events) and whether the file path reached the          */
+/*  renderer. Written to <userData>/launch.log and also surfaced in    */
+/*  the app's empty-state so a user can screenshot it. This makes it   */
+/*  possible to tell whether the OS actually passed a file path or the */
+/*  handoff to the renderer failed.                                    */
+/* ------------------------------------------------------------------ */
+const launchEvents = [];
+let openFileFired = false;
+let logFlushed = false;
+function launchLogPath() {
+  return path.join(app.getPath('userData'), 'launch.log');
+}
+function logLaunch(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}`;
+  launchEvents.push(line);
+  if (logFlushed) {
+    try { fs.appendFileSync(launchLogPath(), line + '\n'); } catch (_) { /* best-effort */ }
+  }
+}
+function flushLaunchLog() {
+  try {
+    fs.writeFileSync(launchLogPath(), launchEvents.join('\n') + '\n');
+    logFlushed = true;
+  } catch (_) { /* best-effort */ }
+}
+logLaunch('main.js loaded; platform=' + process.platform + ' argv=' + JSON.stringify(process.argv));
+
 // Opening a PDF via "Open with" / a file association launches the app and needs
 // the renderer to load it. The renderer only starts listening for the
 // 'open-file-path' message once its scripts (incl. the large PDF.js bundles)
@@ -21,7 +52,11 @@ let pendingFile = null;
 // Hand a file path to the renderer, or buffer it until the renderer is ready.
 function openInRenderer(filePath) {
   if (!filePath) return;
-  if (rendererReady && mainWindow && mainWindow.webContents) {
+  const canSend = rendererReady && mainWindow && mainWindow.webContents;
+  logLaunch('openInRenderer file=' + JSON.stringify(filePath) +
+    ' -> ' + (canSend ? 'sent' : 'buffered') +
+    ' (rendererReady=' + rendererReady + ', hasWindow=' + !!(mainWindow && mainWindow.webContents) + ')');
+  if (canSend) {
     mainWindow.webContents.send('open-file-path', filePath);
   } else {
     pendingFile = filePath;
@@ -32,6 +67,8 @@ function openInRenderer(filePath) {
 // can fire before the window (or the renderer) exists — buffer it.
 app.on('open-file', (event, filePath) => {
   event.preventDefault();
+  openFileFired = true;
+  logLaunch('open-file event: ' + JSON.stringify(filePath));
   openInRenderer(filePath);
 });
 
@@ -304,6 +341,7 @@ function createWindow() {
     // once the renderer reports it is ready (see the 'renderer-ready' handler),
     // which guarantees the renderer is already listening for the file path.
     const initialFile = fileFromArgv(process.argv);
+    logLaunch('ready-to-show; fileFromArgv=' + JSON.stringify(initialFile));
     if (initialFile) openInRenderer(initialFile);
   });
 
@@ -325,7 +363,11 @@ if (!gotLock) {
     }
   });
 
-  app.whenReady().then(createWindow);
+  app.whenReady().then(() => {
+    flushLaunchLog();
+    logLaunch('app ready');
+    createWindow();
+  });
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
@@ -355,6 +397,21 @@ ipcMain.handle('dialog:openPdf', async () => {
 // Flush any file that arrived before the renderer was ready.
 ipcMain.on('renderer-ready', (e) => {
   rendererReady = true;
+  logLaunch('renderer-ready received; pendingFile=' + JSON.stringify(pendingFile));
+
+  // Hand the renderer a snapshot of how the app was launched, so it can be
+  // shown in-app (and pointed at the log) when a file fails to open.
+  let logPath = null;
+  try { logPath = launchLogPath(); } catch (_) { /* ignore */ }
+  e.sender.send('launch-debug', {
+    platform: process.platform,
+    argv: process.argv,
+    resolvedFile: fileFromArgv(process.argv),
+    openFileFired,
+    pendingFile,
+    logPath
+  });
+
   if (pendingFile) {
     const f = pendingFile;
     pendingFile = null;
@@ -451,6 +508,7 @@ ipcMain.handle('app:openExternal', async (_e, url) => {
 function readPdf(filePath) {
   try {
     const data = fs.readFileSync(filePath);
+    logLaunch('readPdf ok: ' + JSON.stringify(filePath) + ' (' + data.length + ' bytes)');
     return {
       ok: true,
       path: filePath,
@@ -459,6 +517,7 @@ function readPdf(filePath) {
       data: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
     };
   } catch (err) {
+    logLaunch('readPdf FAILED: ' + JSON.stringify(filePath) + ' -> ' + err.message);
     return { ok: false, error: err.message, path: filePath };
   }
 }
