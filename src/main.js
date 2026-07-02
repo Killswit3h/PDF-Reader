@@ -7,13 +7,32 @@ const https = require('https');
 const pkg = require('../package.json');
 
 let mainWindow = null;
+
+// Opening a PDF via "Open with" / a file association launches the app and needs
+// the renderer to load it. The renderer only starts listening for the
+// 'open-file-path' message once its scripts (incl. the large PDF.js bundles)
+// have parsed and boot() has run. If the main process sends the path before
+// then, the message is dropped and the user is left staring at an empty viewer
+// (a "black screen"). To avoid that race we buffer the initial file and only
+// deliver it after the renderer signals it is ready.
+let rendererReady = false;
+let pendingFile = null;
+
+// Hand a file path to the renderer, or buffer it until the renderer is ready.
+function openInRenderer(filePath) {
+  if (!filePath) return;
+  if (rendererReady && mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('open-file-path', filePath);
+  } else {
+    pendingFile = filePath;
+  }
+}
+
 // macOS "Open with" delivers files via the 'open-file' event (not argv), and it
-// can fire before the window exists — buffer it until the UI is ready.
-let macOpenFile = null;
+// can fire before the window (or the renderer) exists — buffer it.
 app.on('open-file', (event, filePath) => {
   event.preventDefault();
-  if (mainWindow && mainWindow.webContents) mainWindow.webContents.send('open-file-path', filePath);
-  else macOpenFile = filePath;
+  openInRenderer(filePath);
 });
 
 // A file path passed on the command line (e.g. "Open with" on Windows).
@@ -25,6 +44,9 @@ function fileFromArgv(argv) {
 }
 
 function createWindow() {
+  // A fresh renderer hasn't reported readiness yet; wait for its signal before
+  // pushing any file path so we don't send to a window that isn't listening.
+  rendererReady = false;
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 900,
@@ -278,13 +300,11 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
 
-    // If launched with a PDF argument (Windows/Linux) or via macOS "Open with",
-    // open it once the UI is ready.
-    const initialFile = fileFromArgv(process.argv) || macOpenFile;
-    macOpenFile = null;
-    if (initialFile) {
-      mainWindow.webContents.send('open-file-path', initialFile);
-    }
+    // If launched with a PDF argument (Windows/Linux), queue it. It is delivered
+    // once the renderer reports it is ready (see the 'renderer-ready' handler),
+    // which guarantees the renderer is already listening for the file path.
+    const initialFile = fileFromArgv(process.argv);
+    if (initialFile) openInRenderer(initialFile);
   });
 
   mainWindow.on('closed', () => {
@@ -301,8 +321,7 @@ if (!gotLock) {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
-      const f = fileFromArgv(argv);
-      if (f) mainWindow.webContents.send('open-file-path', f);
+      openInRenderer(fileFromArgv(argv));
     }
   });
 
@@ -330,6 +349,17 @@ ipcMain.handle('dialog:openPdf', async () => {
   });
   if (canceled || !filePaths.length) return null;
   return readPdf(filePaths[0]);
+});
+
+// The renderer has finished booting and is now listening for 'open-file-path'.
+// Flush any file that arrived before the renderer was ready.
+ipcMain.on('renderer-ready', (e) => {
+  rendererReady = true;
+  if (pendingFile) {
+    const f = pendingFile;
+    pendingFile = null;
+    e.sender.send('open-file-path', f);
+  }
 });
 
 // Read a PDF from an absolute path (drag-drop / command-line open).

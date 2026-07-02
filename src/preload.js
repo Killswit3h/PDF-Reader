@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld('api', {
   onOpenFilePath: (cb) =>
     ipcRenderer.on('open-file-path', (_e, filePath) => cb(filePath)),
 
+  // Tell the main process the renderer is ready to receive an initial file.
+  // This closes the race where a launch-time "Open with" path would otherwise
+  // be sent before this listener exists (and silently dropped).
+  notifyReady: () => ipcRenderer.send('renderer-ready'),
+
   // ---- Updates ----
   getVersion: () => ipcRenderer.invoke('app:version'),
   checkUpdates: () => ipcRenderer.invoke('app:checkUpdates'),
