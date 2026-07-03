@@ -409,6 +409,33 @@ function createWindow() {
     if (initialFile) openInRenderer(initialFile);
   });
 
+  // Prompt to save unsaved edits before the window closes.
+  mainWindow.on('close', async (e) => {
+    if (mainWindow._forceClose || process.env.SMOKE_TEST) return;
+    e.preventDefault();
+    let dirty = false;
+    try {
+      dirty = await mainWindow.webContents.executeJavaScript(
+        '!!(window.App && App.state && App.state.dirty)');
+    } catch (_) { /* renderer gone → just close */ }
+    if (!dirty) { mainWindow._forceClose = true; mainWindow.close(); return; }
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      message: 'Do you want to save the changes you made to this PDF?',
+      detail: "Your changes will be lost if you don't save them."
+    });
+    if (response === 2) return;                       // Cancel → stay open
+    if (response === 1) { mainWindow._forceClose = true; mainWindow.close(); return; } // Don't Save
+
+    let ok = false;                                   // Save → save, then close if it worked
+    try { ok = await mainWindow.webContents.executeJavaScript('App.Save.saveForClose()'); } catch (_) {}
+    if (ok) { mainWindow._forceClose = true; mainWindow.close(); }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
   });

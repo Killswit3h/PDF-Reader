@@ -51,19 +51,22 @@
       undo.push(capture());
       if (undo.length > CAP) undo.shift();
       redo = [];
+      App.state.dirty = true; // unsaved edits exist (drives save-on-close prompt)
     },
     undo() {
       if (!undo.length) return;
       redo.push(capture());
       apply(undo.pop());
+      App.state.dirty = true;
     },
     redo() {
       if (!redo.length) return;
       undo.push(capture());
       apply(redo.pop());
+      App.state.dirty = true;
     },
     // Drop all history (e.g. when a new document loads).
-    reset() { undo = []; redo = []; },
+    reset() { undo = []; redo = []; App.state.dirty = false; },
     canUndo() { return undo.length > 0; },
     canRedo() { return redo.length > 0; }
   };

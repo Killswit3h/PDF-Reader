@@ -301,9 +301,19 @@
   // Save As: always prompt for a location / name.
   S.saveAs = () => doSave(true);
 
+  // Save triggered by the "save before closing?" dialog: skip the overwrite
+  // confirm (the close dialog already asked) and report whether it succeeded so
+  // the main process knows whether it may proceed to close.
+  S.saveForClose = function () {
+    if (App.state.filePath) S._ackedPath = App.state.filePath;
+    return doSave(!App.state.filePath); // no path yet → force Save As
+  };
+
+  // Returns true if bytes were written, false if cancelled/failed.
   async function doSave(forceDialog) {
-    if (!App.state.pdfDoc) return;
+    if (!App.state.pdfDoc) return false;
     App.showLoading('Saving…');
+    let saved = false;
     try {
       const bytes = await S.buildBytes();
       const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
@@ -325,7 +335,7 @@
         }
         // Overwrite the opened document in place.
         const res = await window.api.writePdf(App.state.filePath, bytes);
-        if (res && res.ok) App.toast(`Saved: ${res.path}`, 'success', 4000);
+        if (res && res.ok) { App.toast(`Saved: ${res.path}`, 'success', 4000); saved = true; }
         else if (res && res.error) App.toast(`Could not save: ${res.error}`, 'error', 6000);
       } else {
         const res = await window.api.savePdfDialog(`${base}-signed.pdf`, bytes);
@@ -334,16 +344,19 @@
           // Remember the new location so later Saves overwrite it too.
           App.state.filePath = res.path;
           App.state.fileName = res.path.replace(/^.*[\\/]/, '');
+          saved = true;
         } else if (res && res.error) {
           App.toast(`Could not save: ${res.error}`, 'error', 6000);
         }
       }
+      if (saved) App.state.dirty = false; // changes are now on disk
     } catch (err) {
       console.error(err);
       App.toast('Failed to save the PDF. ' + (err.message || ''), 'error', 6000);
     } finally {
       App.hideLoading();
     }
+    return saved;
   }
 
   App.Save = S;

@@ -13,6 +13,17 @@
  */
 (function () {
   const DATE_FONT_FAMILY = "'Segoe UI', system-ui, sans-serif";
+  // Keep at least this many points of an item on the page so it can't be lost,
+  // but otherwise allow it to sit at (and overhang) the edges — signatures and
+  // dates often belong on a signature line right at the margin.
+  const EDGE_KEEP = 16;
+
+  // Clamp one axis, permitting overhang past both edges while keeping a sliver
+  // visible. `size` = item extent on this axis, `extent` = page extent.
+  function clampAxis(v, size, extent) {
+    const keep = Math.min(EDGE_KEEP, size);
+    return App.clamp(v, keep - size, extent - keep);
+  }
 
   const P = {
     pending: null // { type:'image'|'date', dataUrl, aspect, kind }
@@ -51,8 +62,8 @@
         id: ++App.state.placementSeq,
         type: 'image',
         page,
-        vx: App.clamp(cx - vw / 2, 0, vpWidth - vw),
-        vy: App.clamp(cy - vh / 2, 0, vpHeight - vh),
+        vx: clampAxis(cx - vw / 2, vw, vpWidth),
+        vy: clampAxis(cy - vh / 2, vh, vpHeight),
         vw, vh,
         dataUrl: P.pending.dataUrl,
         aspect: P.pending.aspect
@@ -66,8 +77,8 @@
         id: ++App.state.placementSeq,
         type: 'date',
         page,
-        vx: App.clamp(cx, 0, vpWidth - vw),
-        vy: App.clamp(cy - vh / 2, 0, vpHeight - vh),
+        vx: clampAxis(cx, vw, vpWidth),
+        vy: clampAxis(cy - vh / 2, vh, vpHeight),
         vw, vh,
         text,
         fontPt
@@ -194,8 +205,8 @@
     if (!p) return;
     App.History.snapshot();
     const vp = App.state.baseViewports[p.page - 1];
-    p.vx = App.clamp(p.vx + dx, 0, vp.width - p.vw);
-    p.vy = App.clamp(p.vy + dy, 0, vp.height - p.vh);
+    p.vx = clampAxis(p.vx + dx, p.vw, vp.width);
+    p.vy = clampAxis(p.vy + dy, p.vh, vp.height);
     P.repositionAll();
   };
 
@@ -228,8 +239,8 @@
       let dy = (ev.clientY - startY) / z;
       // Shift → orthogonal drag (lock to the dominant axis).
       if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
-      p.vx = App.clamp(ox + dx, 0, vp.width - p.vw);
-      p.vy = App.clamp(oy + dy, 0, vp.height - p.vh);
+      p.vx = clampAxis(ox + dx, p.vw, vp.width);
+      p.vy = clampAxis(oy + dy, p.vh, vp.height);
       el.style.left = `${p.vx * z}px`;
       el.style.top = `${p.vy * z}px`;
     }
@@ -259,13 +270,12 @@
       if (!snapped) { App.History.snapshot(); snapped = true; }
       const dx = (ev.clientX - startX) / z;
       if (p.type === 'image') {
-        let w = App.clamp(startW + dx, 24, vp.width - p.vx);
-        let h = w / p.aspect;
-        if (p.vy + h > vp.height) { h = vp.height - p.vy; w = h * p.aspect; }
-        p.vw = w; p.vh = h;
+        // Size freely (may overhang the edge); just keep it sane.
+        const w = App.clamp(startW + dx, 24, vp.width * 2);
+        p.vw = w; p.vh = w / p.aspect;
       } else {
-        // Date: width drives font size; keep text fully visible.
-        const w = App.clamp(startW + dx, 20, vp.width - p.vx);
+        // Date: width drives font size.
+        const w = App.clamp(startW + dx, 20, vp.width * 2);
         const scale = w / startW;
         p.fontPt = App.clamp(startFont * scale, 6, 96);
         p.vw = measureTextPt(p.text, p.fontPt);

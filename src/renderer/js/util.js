@@ -53,7 +53,11 @@ App.state = {
   annoStyle: null, // { stroke, fill, width, opacity, fontSize }
   annoUndo: [],
   annoRedo: [],
-  saveAnnots: false // true = write real PDF annotations; false = flatten
+  saveAnnots: false, // true = write real PDF annotations; false = flatten
+
+  // Unsaved-changes flag — set on every edit (via App.History.snapshot), cleared
+  // on save. Drives the "save before closing?" prompt in the main process.
+  dirty: false
 };
 
 /* Units (App.UNITS), measurement formatting (App.fmtMeasure / App.computeValue),
