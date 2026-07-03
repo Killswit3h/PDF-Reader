@@ -1,6 +1,13 @@
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
+
+// Disable Chromium's native pinch / "smart" zoom. While it's enabled, Electron
+// consumes trackpad-pinch and Ctrl/Cmd+wheel gestures as native page zoom, so
+// the renderer's own `wheel` handler either never fires or sees `ctrlKey`
+// stripped (electron/electron#12436). Pinning the visual-zoom limits to 1×
+// releases those events to the DOM, where viewer.js turns them into PDF zoom.
+try { webFrame.setVisualZoomLevelLimits(1, 1); } catch (_) { /* older Electron */ }
 
 // Minimal, explicit surface exposed to the renderer. No raw node access.
 contextBridge.exposeInMainWorld('api', {

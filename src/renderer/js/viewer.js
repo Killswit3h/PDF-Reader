@@ -95,12 +95,18 @@
   // In Chromium (Electron) a trackpad pinch is delivered as a `wheel` event
   // with `ctrlKey` set — the same shape as a real Ctrl+wheel — so one handler
   // covers pinch-to-zoom on macOS and Windows precision trackpads as well as
-  // Ctrl/Cmd + mouse-wheel. We zoom toward the pointer and swallow the event so
-  // the browser's own page zoom / scroll doesn't also fire.
+  // Ctrl/Cmd + mouse-wheel. Native visual zoom (which would otherwise swallow
+  // these gestures) is disabled in preload.js via setVisualZoomLevelLimits.
+  //
+  // Listen on `window` in the capture phase so we see the event no matter which
+  // inner element (canvas, text layer, annotation layer) is under the cursor,
+  // then zoom toward the pointer and swallow the event so no scroll/zoom
+  // default also fires.
   function setupWheelZoom(container) {
-    container.addEventListener('wheel', (e) => {
+    window.addEventListener('wheel', (e) => {
       if (!(e.ctrlKey || e.metaKey)) return; // plain scroll → let it through
       if (!App.state.pdfDoc) return;
+      if (!container.contains(e.target)) return; // only over the page area
       e.preventDefault();
 
       // Normalize delta across wheel modes (0=pixel, 1=line, 2=page). Pinch
@@ -113,7 +119,7 @@
       // (scroll up / pinch out) zooms in.
       const factor = Math.exp(-delta * 0.0025);
       Viewer.zoomByAt(factor, e.clientX, e.clientY);
-    }, { passive: false });
+    }, { passive: false, capture: true });
   }
 
   function updateZoomLabel() {

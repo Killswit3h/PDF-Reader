@@ -125,12 +125,25 @@ function createWindow() {
             const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
               for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
               await new Promise(r=>setTimeout(r,400));
-              const before=App.Viewer._pdfViewer.currentScale;
+              const V=App.Viewer._pdfViewer;
+              const before=V.currentScale;
               App.Viewer.zoomByAt(1.5, 400, 400);
-              const afterIn=App.Viewer._pdfViewer.currentScale;
+              const afterIn=V.currentScale;
               App.Viewer.zoomByAt(0.5, 400, 400);
-              const afterOut=App.Viewer._pdfViewer.currentScale;
-              return JSON.stringify({before:+before.toFixed(3), afterIn:+afterIn.toFixed(3), afterOut:+afterOut.toFixed(3), zoomedIn: afterIn>before, zoomedOut: afterOut<afterIn});
+              const afterOut=V.currentScale;
+              // real synthetic wheel gesture (ctrlKey) over a page element — exercises
+              // the window/capture handler + container.contains guard (the PR #3 fix)
+              const target = document.querySelector('#viewer .page canvas') || document.querySelector('#viewer .page');
+              const wheelBefore=V.currentScale;
+              target.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,ctrlKey:true,clientX:400,clientY:400,bubbles:true,cancelable:true}));
+              await new Promise(r=>setTimeout(r,50));
+              const wheelAfter=V.currentScale;
+              // a plain wheel (no ctrl) must NOT zoom
+              const plainBefore=V.currentScale;
+              target.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,ctrlKey:false,clientX:400,clientY:400,bubbles:true,cancelable:true}));
+              await new Promise(r=>setTimeout(r,50));
+              const plainAfter=V.currentScale;
+              return JSON.stringify({before:+before.toFixed(3), afterIn:+afterIn.toFixed(3), afterOut:+afterOut.toFixed(3), zoomedIn: afterIn>before, zoomedOut: afterOut<afterIn, wheelZoomed: wheelAfter>wheelBefore, plainIgnored: plainAfter===plainBefore});
             })()`, true);
             console.log('[zoom] ' + r);
           } catch (e) { console.log('[zoom] error', e && e.message); }
