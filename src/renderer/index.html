@@ -6,29 +6,73 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' blob: data:;" />
   <title>PDF Signer</title>
+  <!-- Apply the saved (or OS-preferred) theme before first paint to avoid a flash.
+       External (not inline) to satisfy the CSP; runs synchronously in <head>. -->
+  <script src="js/theme-boot.js"></script>
   <link rel="stylesheet" href="../../node_modules/pdfjs-dist/web/pdf_viewer.css" />
+  <link rel="stylesheet" href="styles/tokens.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- ================= Toolbar ================= -->
+  <!-- ================= Top bar ================= -->
   <header id="toolbar">
+    <div class="tb-group brand">
+      <span class="brand-mark" aria-hidden="true">◲</span>
+      <span class="brand-name">PDF Signer</span>
+    </div>
+
     <div class="tb-group">
       <button id="btn-open" class="tb-btn primary" title="Open a PDF (Ctrl+O)">📂 Open</button>
     </div>
 
-    <div class="tb-sep"></div>
+    <div class="tb-spacer"></div>
 
     <div class="tb-group">
-      <button id="btn-sign" class="tb-btn" disabled title="Place a signature">✒️ Sign</button>
-      <button id="btn-initials" class="tb-btn" disabled title="Place initials">🅰️ Initials</button>
-      <button id="btn-date" class="tb-btn" disabled title="Place today's date">📅 Date</button>
+      <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out (−)">−</button>
+      <span id="zoom-label" class="tb-readout">100%</span>
+      <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in (+)">+</button>
+      <button id="btn-fit-width" class="tb-btn" disabled title="Fit to width">↔ Fit</button>
     </div>
 
     <div class="tb-sep"></div>
 
     <div class="tb-group">
+      <button id="btn-prev" class="tb-btn icon" disabled title="Previous page">▲</button>
+      <span class="tb-readout">
+        <input id="page-input" type="number" min="1" value="1" disabled />
+        / <span id="page-total">0</span>
+      </span>
+      <button id="btn-next" class="tb-btn icon" disabled title="Next page">▼</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
+      <button id="btn-save-as" class="tb-btn" disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button id="btn-theme" class="tb-btn icon ghost" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
+      <button id="btn-updates" class="tb-btn ghost" title="Version — click to check for updates">v…</button>
+    </div>
+  </header>
+
+  <!-- ================= Left tool rail ================= -->
+  <aside id="tool-rail" aria-label="Tools">
+    <div class="rail-group">
+      <button id="btn-sign" class="tb-btn rail-btn" disabled title="Place a signature">✒️ Sign</button>
+      <button id="btn-initials" class="tb-btn rail-btn" disabled title="Place initials">🅰️ Initials</button>
+      <button id="btn-date" class="tb-btn rail-btn" disabled title="Place today's date">📅 Date</button>
+    </div>
+
+    <div class="rail-sep"></div>
+
+    <div class="rail-group">
       <div class="tb-dropdown">
-        <button id="btn-measure" class="tb-btn" disabled title="Measure tools">📐 Measure ▾</button>
+        <button id="btn-measure" class="tb-btn rail-btn" disabled title="Measure tools">📐 Measure ▾</button>
         <div id="measure-menu" class="tb-menu hidden">
           <button data-mtool="calibrate">📏 Set Scale…</button>
           <div class="tb-menu-sep"></div>
@@ -42,13 +86,8 @@
           <button data-mtool="toggle-panel">📋 Measurements List</button>
         </div>
       </div>
-    </div>
-
-    <div class="tb-sep"></div>
-
-    <div class="tb-group">
       <div class="tb-dropdown">
-        <button id="btn-markup" class="tb-btn" disabled title="Markup tools">✏️ Markup ▾</button>
+        <button id="btn-markup" class="tb-btn rail-btn" disabled title="Markup tools">✏️ Markup ▾</button>
         <div id="markup-menu" class="tb-menu hidden">
           <button data-mk="arrow">➷ Arrow</button>
           <button data-mk="line">╱ Line</button>
@@ -66,38 +105,7 @@
         </div>
       </div>
     </div>
-
-    <div class="tb-sep"></div>
-
-    <div class="tb-group">
-      <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out">−</button>
-      <span id="zoom-label" class="tb-readout">100%</span>
-      <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in">+</button>
-      <button id="btn-fit-width" class="tb-btn" disabled title="Fit to width">↔ Fit</button>
-    </div>
-
-    <div class="tb-sep"></div>
-
-    <div class="tb-group">
-      <button id="btn-prev" class="tb-btn icon" disabled title="Previous page">▲</button>
-      <span class="tb-readout">
-        <input id="page-input" type="number" min="1" value="1" disabled />
-        / <span id="page-total">0</span>
-      </span>
-      <button id="btn-next" class="tb-btn icon" disabled title="Next page">▼</button>
-    </div>
-
-    <div class="tb-spacer"></div>
-
-    <div class="tb-group">
-      <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
-      <button id="btn-save-as" class="tb-btn" disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
-    </div>
-
-    <div class="tb-group">
-      <button id="btn-updates" class="tb-btn ghost" title="Version — click to check for updates">v…</button>
-    </div>
-  </header>
+  </aside>
 
   <!-- ============ Status / mode banner ============ -->
   <div id="mode-banner" class="hidden">
@@ -127,6 +135,12 @@
         <p>Open a PDF to view and sign it.</p>
         <button id="btn-open-empty" class="tb-btn primary large">📂 Open PDF</button>
         <p class="hint">…or drag a <b>.pdf</b> file anywhere onto this window.</p>
+        <div class="kbd-row">
+          <span><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
+          <span><kbd>Ctrl</kbd>+<kbd>F</kbd> Find</span>
+          <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> Undo</span>
+          <span><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> Zoom</span>
+        </div>
       </div>
     </div>
 

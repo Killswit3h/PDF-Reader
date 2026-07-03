@@ -1,0 +1,130 @@
+/* =============================================================================
+ * Design tokens — three tiers: primitives → semantic → (legacy aliases).
+ * Themed via html[data-theme="dark" | "light"]. Components reference only the
+ * semantic names (--bg-*, --text-*, --accent*, --shadow-*, --r-*, --sp-*), never
+ * raw primitives, so re-theming is a single-file change.
+ *
+ * The legacy aliases (--bg, --panel, --panel-2, --accent, --text, --border,
+ * --danger) are kept so the existing component CSS keeps working while the app
+ * gains full light/dark theming.
+ * ========================================================================== */
+
+:root {
+  /* ---- Primitives: neutral ramp ---- */
+  --gray-50:  #f7f8fa;
+  --gray-100: #eef0f3;
+  --gray-200: #e2e5ea;
+  --gray-300: #cbd0d8;
+  --gray-400: #a3a8b2;
+  --gray-500: #71767f;
+  --gray-600: #4b505a;
+  --gray-700: #33363d;
+  --gray-800: #24262b;
+  --gray-850: #1e2024;
+  --gray-900: #16171a;
+  --gray-950: #101114;
+
+  /* ---- Primitives: accent (blue) ---- */
+  --blue-400: #5b9bff;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+
+  /* ---- Primitives: status ---- */
+  --red-500:   #ef4444;
+  --red-600:   #dc2626;
+  --green-500: #22c55e;
+  --green-600: #16a34a;
+  --amber-500: #f59e0b;
+
+  /* ---- Radius / spacing / type / motion (theme-independent) ---- */
+  --r-sm: 6px;  --r-md: 9px;  --r-lg: 13px;  --r-pill: 999px;
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 16px;  --sp-5: 24px;  --sp-6: 32px;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --fs-xl: 18px; --fs-2xl: 24px;
+  --dur-fast: 0.12s; --dur-med: 0.22s;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --toolbar-h: 52px;
+  --rail-w: 132px;
+}
+
+/* ============================== DARK ============================== */
+html[data-theme="dark"] {
+  --bg-app:      var(--gray-900);
+  --bg-canvas:   #1a1b1e;   /* PDF scroll area behind pages */
+  --bg-surface:  var(--gray-850);
+  --bg-raised:   var(--gray-800);
+  --bg-input:    #2c2f35;
+  --bg-hover:    #34383f;
+
+  --text:        #eef0f3;
+  --text-dim:    var(--gray-400);
+  --text-faint:  var(--gray-500);
+
+  --border:        var(--gray-700);
+  --border-strong: var(--gray-600);
+
+  --accent:        var(--blue-500);
+  --accent-hover:  var(--blue-400);
+  --accent-quiet:  rgba(59, 130, 246, 0.18);
+  --on-accent:     #ffffff;
+
+  --danger:  var(--red-500);
+  --success: var(--green-500);
+  --warning: var(--amber-500);
+
+  --focus-ring: rgba(91, 155, 255, 0.55);
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.45);
+  --shadow-2: 0 6px 18px rgba(0, 0, 0, 0.50);
+  --shadow-3: 0 14px 44px rgba(0, 0, 0, 0.60);
+
+  /* legacy aliases */
+  --bg: var(--bg-app);
+  --panel: var(--bg-surface);
+  --panel-2: var(--bg-input);
+  color-scheme: dark;
+}
+
+/* ============================== LIGHT ============================== */
+html[data-theme="light"] {
+  --bg-app:      var(--gray-100);
+  --bg-canvas:   #dfe3ea;
+  --bg-surface:  #ffffff;
+  --bg-raised:   #ffffff;
+  --bg-input:    #ffffff;
+  --bg-hover:    var(--gray-100);
+
+  --text:        #191c21;
+  --text-dim:    var(--gray-600);
+  --text-faint:  var(--gray-500);
+
+  --border:        var(--gray-200);
+  --border-strong: var(--gray-300);
+
+  --accent:        var(--blue-600);
+  --accent-hover:  var(--blue-700);
+  --accent-quiet:  rgba(37, 99, 235, 0.10);
+  --on-accent:     #ffffff;
+
+  --danger:  var(--red-600);
+  --success: var(--green-600);
+  --warning: var(--amber-500);
+
+  --focus-ring: rgba(37, 99, 235, 0.45);
+
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.10);
+  --shadow-2: 0 6px 18px rgba(16, 24, 40, 0.12);
+  --shadow-3: 0 14px 44px rgba(16, 24, 40, 0.18);
+
+  /* legacy aliases */
+  --bg: var(--bg-app);
+  --panel: var(--bg-surface);
+  --panel-2: var(--bg-input);
+  color-scheme: light;
+}
+
+/* Respect the OS reduced-motion setting. */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation-duration: 0.001ms !important; }
+}

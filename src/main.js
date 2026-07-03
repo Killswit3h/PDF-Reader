@@ -56,7 +56,7 @@ function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    backgroundColor: '#2b2b2b',
+    backgroundColor: '#16171a',
     show: false,
     title: 'PDF Signer',
     webPreferences: {
@@ -370,6 +370,28 @@ function createWindow() {
           }
           app.quit();
         }, 1500);
+        return;
+      }
+      // Capture a screenshot of the loaded window (for visual QA of the UI).
+      // SMOKE_SHOT=<out.png>, optional SMOKE_SHOT_THEME=light|dark.
+      if (process.env.SMOKE_SHOT) {
+        setTimeout(async () => {
+          try {
+            await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1200));
+              const t = ${JSON.stringify(process.env.SMOKE_SHOT_THEME || '')};
+              if (t) document.documentElement.setAttribute('data-theme', t);
+              // only enter markup mode when a doc is open (else show empty state)
+              if (App.state.numPages) { try { App.Markup.startTool('rect'); } catch (e) {} }
+            })()`, true);
+            await new Promise((r) => setTimeout(r, 500));
+            const img = await mainWindow.webContents.capturePage();
+            fs.writeFileSync(process.env.SMOKE_SHOT, img.toPNG());
+            console.log('[shot] wrote ' + process.env.SMOKE_SHOT);
+          } catch (e) { console.log('[shot] error', e && e.message); }
+          app.quit();
+        }, 1200);
         return;
       }
       setTimeout(() => { console.log('[smoke] done'); app.quit(); },

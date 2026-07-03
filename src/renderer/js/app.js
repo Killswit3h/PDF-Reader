@@ -351,6 +351,27 @@
     App.$('#mk-redo').addEventListener('click', () => App.Markup.redo());
   }
 
+  // ---------- Theme ----------
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    const btn = App.$('#btn-theme');
+    if (btn) {
+      btn.textContent = theme === 'light' ? '☀' : '☾';
+      btn.title = `Theme: ${theme} — click for ${theme === 'light' ? 'dark' : 'light'}`;
+    }
+  }
+  function setupTheme() {
+    // The inline <head> bootstrap already set data-theme before paint; mirror it
+    // into the toggle button, then persist on change.
+    const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+    applyTheme(current);
+    App.$('#btn-theme').addEventListener('click', () => {
+      const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+      applyTheme(next);
+      if (App.Prefs) App.Prefs.set('theme', next);
+    });
+  }
+
   // ---------- Updates ----------
   let latestUpdate = null;
 
@@ -405,6 +426,7 @@
   }
 
   function boot() {
+    setupTheme();
     App.Signature.init();
     App.Measure.init();
     App.Markup.init();
