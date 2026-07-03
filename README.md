@@ -79,13 +79,31 @@ at runtime. Handwriting fonts are bundled with the app.
   - **Measurements List** — a side panel of every measurement with per-type
     totals and **Export CSV**.
   - Measurements are flattened into the saved PDF alongside signatures.
+- **Light & dark themes** — a cohesive design-token system with a **persisted
+  theme toggle** (☾ / ☀) in the top bar; defaults to your OS preference and
+  applies before first paint (no flash).
+- **Editing safety & precision** — **unified undo/redo** across signatures,
+  measurements *and* markups (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`);
+  **arrow-key nudging** of the selected item (hold **Shift** for ×10);
+  **confirm dialogs** before "Clear all" and before the first overwrite of a
+  file (offering *Save a copy…*); **snap-to-vertex** and Shift-orthogonal while
+  dragging markups.
+- **Preferences that stick** — your markup style defaults (color / fill / width /
+  opacity), the *editable-annotations* toggle, snapping, and theme are
+  remembered between launches.
+- **Find & filter** — filter inputs in the Markups and Measurements panels
+  narrow long lists by type / value / page.
 
-## Toolbar
+## Layout & keyboard
 
-`Open · Sign · Initials · Date · Measure ▾ · Zoom − / + · Fit · Page ▲/▼ (with page box) · Save`
+The **top bar** carries Open · zoom · page navigation · Save / Save As · theme ·
+version. A **left tool rail** holds the creation tools: **Sign · Initials · Date ·
+Measure ▾ · Markup ▾**.
 
-Keyboard: `Ctrl+O` open · `Ctrl+S` save · `+ / -` zoom · `← / →` page ·
-`Esc` cancel/deselect · `Delete` remove selected.
+Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+F` find ·
+`Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `+ / − / 0` zoom (0 = 100%) · `← / →` page ·
+**arrow keys** nudge the selected item (**Shift** = ×10) · `Esc` cancel / close a
+modal / deselect · `Delete` remove selected.
 
 Zoom: trackpad **pinch-to-zoom** (macOS & Windows precision trackpads) and
 **`Ctrl`/`Cmd` + scroll wheel** zoom toward the pointer.
@@ -110,6 +128,31 @@ npm install
 ```bash
 npm start
 ```
+
+## Testing
+
+Two layers, both runnable before pushing:
+
+```bash
+npm test          # vitest unit tests over the shared pure logic
+npm run test:e2e  # end-to-end smoke suite driving the real Electron app
+npm run verify    # both, in sequence — the pre-push gate
+```
+
+- **Unit tests** (`test/unit/`) cover the extracted pure logic in `src/shared/`
+  — geometry (length/area/angle/snap/arrow), measurement math + unit
+  conversion, semver / repo-slug / launch-argv parsing, date formatting, and
+  preferences. No Electron required; runs in milliseconds.
+- **E2E smoke suite** (`test/e2e/run.js`) launches the real app headlessly via
+  the `SMOKE_*` harness in `main.js` against committed fixtures
+  (`test/fixtures/`, regenerate with `npm run fixtures`) and asserts nine
+  scenarios: cold-start "Open with", warm document swap, trackpad/Ctrl-wheel
+  zoom, virtualized rendering + find, all markup tools, scaled measurements,
+  editable annotations, overlay rendering, and PDF save/flatten.
+- CI (`.github/workflows/ci.yml`) runs the unit tests on Linux/Windows/macOS and
+  the E2E suite headlessly (xvfb) on every push and PR; the release workflow
+  gates every build on the same tests. A local `scripts/prepush.sh` runs
+  `npm run verify` — symlink it as a `pre-push` hook if you like.
 
 ## Build the Windows installer (`.exe`)
 
@@ -180,21 +223,35 @@ PDF Reader/
 ├─ build/
 │  ├─ icon.ico             # app/installer icon (256x256)
 │  └─ make-icon.js         # regenerates the icon (pure Node)
-└─ src/
-   ├─ main.js              # Electron main: window, file dialogs, fs bridge
-   ├─ preload.js           # contextBridge IPC surface (no raw node in renderer)
-   ├─ assets/fonts/        # bundled OFL fonts + license files
-   └─ renderer/
-      ├─ index.html        # single-window UI + toolbar + modal
-      ├─ styles.css
-      └─ js/
-         ├─ util.js        # shared state + helpers (toast, loading)
-         ├─ signature.js   # creation modal (type/initials/draw) -> PNG
-         ├─ placement.js   # click-to-place, drag/resize, delete, date editing
-         ├─ viewer.js      # PDF.js render, zoom, fit, navigation
-         ├─ measure.js     # scale calibration, measurement tools, viewports, CSV
-         ├─ save.js        # pdf-lib export + coordinate mapping
-         └─ app.js         # toolbar wiring, drag-drop, keyboard, modes
+├─ src/
+│  ├─ main.js              # Electron main: window, file dialogs, fs bridge
+│  ├─ preload.js           # contextBridge IPC surface (no raw node in renderer)
+│  ├─ shared/              # pure logic — dual browser/Node export, unit-tested
+│  │  ├─ geometry.js       # dist/polyLen/shoelace/angleAt/ortho/snap/arrowhead
+│  │  ├─ measure-math.js   # units, fmtMeasure, computeValue, ratio→factor
+│  │  ├─ date-util.js      # todayFormatted
+│  │  ├─ prefs.js          # localStorage-backed App.Prefs (injectable store)
+│  │  └─ update-utils.js   # semverCmp / repoSlug / fileFromArgv (main process)
+│  ├─ assets/fonts/        # bundled OFL fonts + license files
+│  └─ renderer/
+│     ├─ index.html        # top bar + left tool rail + panels + modals
+│     ├─ styles/tokens.css # design tokens + light/dark themes
+│     ├─ styles.css        # component styles (token-driven)
+│     └─ js/
+│        ├─ theme-boot.js  # pre-paint theme apply (CSP-safe, runs in <head>)
+│        ├─ util.js        # shared state + helpers (toast, loading, confirm)
+│        ├─ history.js     # App.History: unified undo/redo across all layers
+│        ├─ signature.js   # creation modal (type/initials/draw) -> PNG
+│        ├─ placement.js   # click-to-place, drag/resize, nudge, date editing
+│        ├─ viewer.js      # PDF.js render, zoom, fit, navigation
+│        ├─ measure.js     # scale calibration, measurement tools, viewports, CSV
+│        ├─ markup.js      # Bluebeam-style markup engine + Markups List panel
+│        ├─ save.js        # pdf-lib export + coordinate mapping
+│        └─ app.js         # toolbar/rail wiring, drag-drop, keyboard, theme, modes
+└─ test/
+   ├─ unit/                # vitest suites over src/shared/*
+   ├─ e2e/run.js           # headless Electron smoke suite (SMOKE_* harness)
+   └─ fixtures/            # committed sample.pdf + big.pdf (make-fixtures.js)
 ```
 
 Libraries are loaded from `node_modules` as local UMD builds (offline). `asar`
