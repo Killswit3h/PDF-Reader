@@ -1,6 +1,6 @@
 {
   "name": "pdf-signer",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Offline desktop app (Windows + macOS) to view large PDFs, mark them up, measure by scale, and add cosmetic signatures/initials/dates.",
   "main": "src/main.js",
   "author": "",
@@ -42,15 +42,27 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico"
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["universal"] },
-        { "target": "zip", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity",

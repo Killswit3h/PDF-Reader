@@ -76,6 +76,68 @@ function createWindow() {
     mainWindow.webContents.on('render-process-gone', (_e, d) =>
       console.log('[render-process-gone]', JSON.stringify(d)));
     mainWindow.webContents.once('did-finish-load', () => {
+      // SMOKE_LAUNCH: verify the REAL launch path (file passed via argv/open-file
+      // → buffered → flushed on 'renderer-ready'). Deliberately does NOT push the
+      // path itself, so it exercises the actual "Open with" cold-start fix.
+      if (process.env.SMOKE_LAUNCH) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 80 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 600));
+              return JSON.stringify({
+                numPages: App.state.numPages || 0,
+                fileName: App.state.fileName || null,
+                emptyHidden: App.$('#empty-state').classList.contains('hidden'),
+                canvases: document.querySelectorAll('#viewer .page canvas').length
+              });
+            })()`, true);
+            console.log('[launch] ' + r);
+          } catch (e) { console.log('[launch] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_WARM: open one file via argv (cold), then deliver a SECOND file the
+      // way second-instance / macOS re-open does (immediate send while running) —
+      // verifies the warm delivery path and that the doc switches.
+      if (process.env.SMOKE_WARM) {
+        setTimeout(async () => {
+          try {
+            await mainWindow.webContents.executeJavaScript(
+              `(async()=>{for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));})()`, true);
+            const first = await mainWindow.webContents.executeJavaScript('JSON.stringify({numPages:App.state.numPages,name:App.state.fileName})', true);
+            // second file arrives while running (same mechanism as second-instance/open-file)
+            mainWindow.webContents.send('open-file-path', process.env.SMOKE_WARM);
+            await mainWindow.webContents.executeJavaScript(
+              `(async()=>{for(let i=0;i<80;i++){await new Promise(r=>setTimeout(r,100));if(App.state.fileName==='big.pdf')break;}})()`, true);
+            const second = await mainWindow.webContents.executeJavaScript('JSON.stringify({numPages:App.state.numPages,name:App.state.fileName})', true);
+            console.log('[warm] first=' + first + ' second=' + second);
+          } catch (e) { console.log('[warm] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_ZOOM: verify trackpad/ctrl-wheel zoom changes the scale.
+      if (process.env.SMOKE_ZOOM) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const before=App.Viewer._pdfViewer.currentScale;
+              App.Viewer.zoomByAt(1.5, 400, 400);
+              const afterIn=App.Viewer._pdfViewer.currentScale;
+              App.Viewer.zoomByAt(0.5, 400, 400);
+              const afterOut=App.Viewer._pdfViewer.currentScale;
+              return JSON.stringify({before:+before.toFixed(3), afterIn:+afterIn.toFixed(3), afterOut:+afterOut.toFixed(3), zoomedIn: afterIn>before, zoomedOut: afterOut<afterIn});
+            })()`, true);
+            console.log('[zoom] ' + r);
+          } catch (e) { console.log('[zoom] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_PDF) {
         setTimeout(() => mainWindow.webContents.send('open-file-path', process.env.SMOKE_PDF), 500);
       }
