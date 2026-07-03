@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci --omit=optional
+      - run: npm ci
       - run: npm test
 
   e2e:
@@ -32,7 +32,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci --omit=optional
+      - run: npm ci
       # Electron needs a display + a few system libs on Linux CI.
       - name: Install headless display + Electron libs
         run: |

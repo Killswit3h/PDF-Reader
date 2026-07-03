@@ -21,7 +21,16 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci --omit=optional
+      # Full install (NOT --omit=optional): vitest's rolldown binding is an
+      # optional platform dep. A failing optional canvas build is tolerated.
+      - run: npm ci
+      - name: Install headless display + Electron libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libgtk-3-0 libgbm1 libasound2t64 || \
+          sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libgtk-3-0 libgbm1 libasound2
       - name: Unit tests
         run: npm test
       - name: E2E smoke tests (headless via xvfb)
