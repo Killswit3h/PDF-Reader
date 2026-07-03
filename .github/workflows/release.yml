@@ -59,6 +59,10 @@ jobs:
           # Code signing / notarization are skipped unless these secrets exist:
           #   CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Universal builds hard-link the icon into each per-arch temp app; on a
+          # clean runner the target already exists and the link fails with
+          # "EEXIST ... icon.icns". Force copy-with-overwrite instead of linking.
+          USE_HARD_LINKS: false
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
