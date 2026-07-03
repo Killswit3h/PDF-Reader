@@ -6,6 +6,14 @@ const path = require('path');
 const https = require('https');
 const pkg = require('../package.json');
 
+// Disable Chromium's native pinch-zoom at the browser level. On macOS a trackpad
+// pinch is otherwise consumed as native page zoom and never reaches the DOM, so
+// viewer.js can't turn it into PDF zoom. This is a second, independent guard
+// alongside webFrame.setVisualZoomLevelLimits(1,1) in preload.js — the switch
+// stops the gesture at the Chromium layer, the webFrame limit releases whatever
+// remains to the DOM as ctrl/⌘+wheel events. Must be set before app is ready.
+app.commandLine.appendSwitch('disable-pinch');
+
 let mainWindow = null;
 
 // Opening a PDF via "Open with" / a file association launches the app and needs
@@ -76,6 +84,7 @@ function createWindow() {
     mainWindow.webContents.on('render-process-gone', (_e, d) =>
       console.log('[render-process-gone]', JSON.stringify(d)));
     mainWindow.webContents.once('did-finish-load', () => {
+      console.log('[env] disable-pinch=' + app.commandLine.hasSwitch('disable-pinch'));
       // SMOKE_LAUNCH: verify the REAL launch path (file passed via argv/open-file
       // → buffered → flushed on 'renderer-ready'). Deliberately does NOT push the
       // path itself, so it exercises the actual "Open with" cold-start fix.
