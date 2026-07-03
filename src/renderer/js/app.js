@@ -427,6 +427,9 @@
 
   function boot() {
     setupTheme();
+    // Stamp today's date into the empty-state title block.
+    const tbDate = App.$('#tb-date');
+    if (tbDate) tbDate.textContent = App.todayFormatted();
     App.Signature.init();
     App.Measure.init();
     App.Markup.init();

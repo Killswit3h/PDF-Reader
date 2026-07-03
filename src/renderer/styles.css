@@ -19,7 +19,7 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   color: var(--text);
   background: var(--bg);
   user-select: none;
@@ -537,7 +537,7 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
 
 /* ---- Empty state: card + keyboard cheat sheet ---- */
 /* Sit above #viewerContainer (opaque canvas bg, later in DOM) until a doc loads. */
-#empty-state { z-index: 10; }
+#empty-state { z-index: 10; flex-direction: column; gap: var(--sp-4); }
 .empty-inner {
   background: var(--bg-surface); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: var(--sp-6) var(--sp-6) var(--sp-5);
@@ -565,3 +565,95 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
 }
 #viewerContainer::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 #viewerContainer::-webkit-scrollbar-track { background: transparent; }
+
+/* =============================================================================
+ * DRAFTING-TABLE IDENTITY — the subject-grounded layer.
+ * Engineering graph-paper canvas, monospace instrument readouts, engraved
+ * labels, and a title-block empty state. Comes last so it refines the base.
+ * ========================================================================== */
+
+/* ---- The canvas is a drafting table: graph paper behind the sheets ---- */
+#viewerContainer {
+  background-color: var(--bg-canvas);
+  background-image:
+    linear-gradient(var(--grid-fine) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-fine) 1px, transparent 1px),
+    linear-gradient(var(--grid-heavy) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-heavy) 1px, transparent 1px);
+  background-size:
+    var(--grid-size) var(--grid-size), var(--grid-size) var(--grid-size),
+    var(--grid-major) var(--grid-major), var(--grid-major) var(--grid-major);
+}
+
+/* ---- Monospace "instrument" readouts: every number is set in the mono face ---- */
+.tb-readout, #zoom-label, #page-input, #page-total, #btn-updates,
+.mp-val, .mp-totals, .calib-drawn, .viewport-label {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+}
+#zoom-label { min-width: 46px; letter-spacing: -0.01em; }
+
+/* ---- Brand wordmark: engraved, tracked-out mono ---- */
+.brand-name {
+  font-family: var(--font-mono);
+  font-weight: 600; font-size: var(--fs-md);
+  letter-spacing: 0.14em; text-transform: uppercase;
+}
+.brand-mark { color: var(--accent); font-size: 17px; }
+
+/* ---- Engraved section labels on the tool rail (encode the tool grouping) ---- */
+.rail-label {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 var(--sp-1) var(--sp-1);
+}
+.rail-btn { font-weight: 500; }
+/* Armed tool reads like a set square on the board: solid accent + a base tick. */
+.rail-btn.armed { box-shadow: inset 0 -3px 0 rgba(255, 255, 255, 0.35); }
+
+/* ---- Mode banner + props bar: hairline drafting rules ---- */
+#mode-banner { border-bottom: 1px solid var(--accent); }
+
+/* ---- Keyboard keys: mono, engraved ---- */
+.kbd-row { gap: var(--sp-2) var(--sp-4); }
+.kbd-row kbd { font-family: var(--font-mono); font-weight: 600; font-size: 11px; }
+
+/* ---- Empty state as a drawing TITLE BLOCK (the signature element) ---- */
+.title-block {
+  width: 468px; max-width: 90vw;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 2px;              /* title blocks are square, not rounded */
+  box-shadow: var(--shadow-2);
+  overflow: hidden; text-align: left;
+  animation: tb-rise var(--dur-med) var(--ease) both;
+}
+@keyframes tb-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.tb-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; border-bottom: 1.5px solid var(--border-strong);
+}
+.tb-head .tb-rev {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+  color: var(--text-faint); text-transform: uppercase;
+}
+.tb-body { padding: 26px 24px 22px; text-align: center; }
+.tb-body .empty-icon { font-size: 40px; margin-bottom: var(--sp-2); }
+.tb-body h1 { margin: 0 0 6px; font-size: var(--fs-xl); color: var(--text); letter-spacing: -0.01em; }
+.tb-body p { margin: 0; color: var(--text-dim); font-size: var(--fs-md); }
+.tb-body .tb-cta { margin: 18px 0 6px; }
+.tb-body .hint { margin-top: 10px; color: var(--text-faint); }
+.tb-fields {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border-top: 1.5px solid var(--border-strong);
+}
+.tb-field { padding: 9px 12px; border-right: 1px solid var(--border); }
+.tb-field:last-child { border-right: none; }
+.tb-field .lbl {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint);
+}
+.tb-field .val { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+/* Cheat sheet sits below the block, like a drawing note. */
+#empty-state .kbd-row { max-width: 468px; }
