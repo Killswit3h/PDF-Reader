@@ -10,18 +10,8 @@
   font-weight: normal;
 }
 
-:root {
-  --bg: #2b2b2b;
-  --panel: #3a3a3c;
-  --panel-2: #47474a;
-  --accent: #2f6fed;
-  --accent-hover: #4a83f2;
-  --text: #f2f2f4;
-  --text-dim: #b8b8bd;
-  --border: #55555a;
-  --danger: #e5484d;
-  --toolbar-h: 52px;
-}
+/* Design tokens (colors, spacing, radius, shadows, theming) live in
+ * styles/tokens.css, linked ahead of this file. */
 
 * { box-sizing: border-box; }
 
@@ -29,7 +19,7 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   color: var(--text);
   background: var(--bg);
   user-select: none;
@@ -94,22 +84,23 @@ html, body {
   height: 34px;
   display: flex; align-items: center; gap: 12px;
   padding: 0 14px;
-  background: #24406e;
+  background: var(--accent-quiet);
+  color: var(--text);
   border-bottom: 1px solid var(--border);
   font-size: 13px;
   z-index: 15;
 }
 .link-btn {
-  background: none; border: none; color: #a9c4ff;
+  background: none; border: none; color: var(--accent);
   cursor: pointer; font-size: 13px; text-decoration: underline;
 }
 
 /* ===================== Viewer ===================== */
 #viewer-wrap {
   position: absolute;
-  top: var(--toolbar-h); left: 0; right: 0; bottom: 0;
+  top: var(--toolbar-h); left: var(--rail-w); right: 0; bottom: 0;
   overflow: hidden;
-  background: #1e1e1f;
+  background: var(--bg-canvas);
 }
 body.has-banner #viewer-wrap { top: calc(var(--toolbar-h) + 34px); }
 
@@ -117,7 +108,7 @@ body.has-banner #viewer-wrap { top: calc(var(--toolbar-h) + 34px); }
 #viewerContainer {
   position: absolute; inset: 0;
   overflow: auto;
-  background: #1e1e1f;
+  background: var(--bg-canvas);
 }
 .pdfViewer .page {
   margin: 12px auto !important;
@@ -464,3 +455,205 @@ body.has-banner.has-props #markup-panel { top: calc(var(--toolbar-h) + 74px); }
 .m-snap-dot { fill: #ffb000; stroke: #7a5200; stroke-width: 1; }
 .viewport-rect { fill: rgba(255,176,0,0.06); stroke: #ffb000; stroke-width: 1.2; stroke-dasharray: 6 4; }
 .viewport-label { font: 600 11px 'Segoe UI', sans-serif; fill: #b06d00; }
+
+/* =============================================================================
+ * DESIGN-SYSTEM OVERHAUL — token-driven refinements, left tool rail, theming.
+ * Rules here intentionally come last so they refine the base styles above.
+ * ========================================================================== */
+
+/* ---- Elevation + focus + button polish ---- */
+#toolbar { box-shadow: var(--shadow-1); gap: var(--sp-2); }
+.tb-btn {
+  border-radius: var(--r-md);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+              box-shadow var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+.tb-btn:hover:not(:disabled) { background: var(--bg-hover); border-color: var(--border-strong); }
+.tb-btn.primary { color: var(--on-accent); }
+.tb-btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.tb-btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.tb-btn.danger:hover:not(:disabled) { filter: brightness(1.08); }
+.tb-btn.armed { box-shadow: 0 0 0 2px var(--accent-quiet); }
+
+/* Keyboard focus ring (mouse clicks stay clean via :focus-visible) */
+.tb-btn:focus-visible, .tb-menu button:focus-visible, .modal-x:focus-visible,
+.sig-tab:focus-visible, .scale-tab:focus-visible, .link-btn:focus-visible,
+input:focus-visible, select:focus-visible, [contenteditable]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+/* ---- Brand ---- */
+.tb-group.brand { gap: var(--sp-2); padding-right: var(--sp-2); }
+.brand-mark { font-size: 20px; color: var(--accent); line-height: 1; }
+.brand-name { font-weight: 700; font-size: var(--fs-lg); letter-spacing: -0.01em; color: var(--text); }
+#btn-theme { font-size: 15px; }
+
+/* ---- Left tool rail ---- */
+#tool-rail {
+  position: absolute;
+  top: var(--toolbar-h); left: 0; width: var(--rail-w); bottom: 0;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-2);
+  z-index: 19;
+}
+body.has-banner #tool-rail { top: calc(var(--toolbar-h) + 34px); }
+body.has-props #tool-rail { top: calc(var(--toolbar-h) + 40px); }
+body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
+.rail-group { display: flex; flex-direction: column; gap: var(--sp-1); }
+.rail-sep { height: 1px; background: var(--border); margin: var(--sp-1) var(--sp-1); }
+.rail-btn {
+  width: 100%; height: 38px; justify-content: flex-start; text-align: left;
+  display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md);
+}
+/* Dropdowns fly out to the right of the rail */
+#tool-rail .tb-menu { top: 0; left: calc(100% + 8px); box-shadow: var(--shadow-2); }
+
+/* ---- Menus / panels / modals elevation via tokens ---- */
+.tb-menu { box-shadow: var(--shadow-2); border-radius: var(--r-md); }
+.tb-menu button { border-radius: var(--r-sm); transition: background var(--dur-fast) var(--ease); }
+.tb-menu button:hover { background: var(--bg-hover); }
+/* Panel rows: theme-aware hover + selection (was hardcoded dark) */
+.mp-row:hover { background: var(--bg-hover); }
+.mp-row.selected { background: var(--accent-quiet); }
+.modal { box-shadow: var(--shadow-3); border-radius: var(--r-lg); }
+.modal-backdrop { backdrop-filter: blur(2px); }
+
+/* ---- Panel filter input + richer empty state ---- */
+.mp-filter {
+  margin: var(--sp-2) var(--sp-3) 0; padding: 0 var(--sp-3); height: 32px;
+  background: var(--bg-input); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-sm); font-size: var(--fs-md);
+}
+.mp-filter::placeholder { color: var(--text-faint); }
+.mp-empty-ico { font-size: 30px; opacity: 0.5; margin-bottom: var(--sp-2); }
+
+/* ---- Confirm dialog ---- */
+#confirm-modal .modal.confirm { width: 440px; }
+.confirm-body { padding: var(--sp-4) var(--sp-5); }
+.confirm-body p { margin: 0; white-space: pre-wrap; line-height: 1.55; color: var(--text-dim); }
+
+/* ---- Empty state: card + keyboard cheat sheet ---- */
+/* Sit above #viewerContainer (opaque canvas bg, later in DOM) until a doc loads. */
+#empty-state { z-index: 10; flex-direction: column; gap: var(--sp-4); }
+.empty-inner {
+  background: var(--bg-surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--sp-6) var(--sp-6) var(--sp-5);
+  box-shadow: var(--shadow-2); max-width: 480px;
+}
+.kbd-row {
+  display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+  justify-content: center; margin-top: var(--sp-5);
+  font-size: var(--fs-sm); color: var(--text-faint);
+}
+.kbd-row kbd {
+  display: inline-block; min-width: 16px; padding: 2px 6px; margin: 0 1px;
+  background: var(--bg-input); color: var(--text-dim);
+  border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: var(--r-sm); font: 600 11px 'Segoe UI', monospace;
+}
+
+/* ---- Themed scrollbars ---- */
+#viewerContainer::-webkit-scrollbar, .mp-list::-webkit-scrollbar,
+.upd-notes::-webkit-scrollbar { width: 12px; height: 12px; }
+#viewerContainer::-webkit-scrollbar-thumb, .mp-list::-webkit-scrollbar-thumb,
+.upd-notes::-webkit-scrollbar-thumb {
+  background: var(--border-strong); border-radius: var(--r-pill);
+  border: 3px solid transparent; background-clip: padding-box;
+}
+#viewerContainer::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+#viewerContainer::-webkit-scrollbar-track { background: transparent; }
+
+/* =============================================================================
+ * DRAFTING-TABLE IDENTITY — the subject-grounded layer.
+ * Engineering graph-paper canvas, monospace instrument readouts, engraved
+ * labels, and a title-block empty state. Comes last so it refines the base.
+ * ========================================================================== */
+
+/* ---- The canvas is a drafting table: graph paper behind the sheets ---- */
+#viewerContainer {
+  background-color: var(--bg-canvas);
+  background-image:
+    linear-gradient(var(--grid-fine) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-fine) 1px, transparent 1px),
+    linear-gradient(var(--grid-heavy) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-heavy) 1px, transparent 1px);
+  background-size:
+    var(--grid-size) var(--grid-size), var(--grid-size) var(--grid-size),
+    var(--grid-major) var(--grid-major), var(--grid-major) var(--grid-major);
+}
+
+/* ---- Monospace "instrument" readouts: every number is set in the mono face ---- */
+.tb-readout, #zoom-label, #page-input, #page-total, #btn-updates,
+.mp-val, .mp-totals, .calib-drawn, .viewport-label {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+}
+#zoom-label { min-width: 46px; letter-spacing: -0.01em; }
+
+/* ---- Brand wordmark: engraved, tracked-out mono ---- */
+.brand-name {
+  font-family: var(--font-mono);
+  font-weight: 600; font-size: var(--fs-md);
+  letter-spacing: 0.14em; text-transform: uppercase;
+}
+.brand-mark { color: var(--accent); font-size: 17px; }
+
+/* ---- Engraved section labels on the tool rail (encode the tool grouping) ---- */
+.rail-label {
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 0 var(--sp-1) var(--sp-1);
+}
+.rail-btn { font-weight: 500; }
+/* Armed tool reads like a set square on the board: solid accent + a base tick. */
+.rail-btn.armed { box-shadow: inset 0 -3px 0 rgba(255, 255, 255, 0.35); }
+
+/* ---- Mode banner + props bar: hairline drafting rules ---- */
+#mode-banner { border-bottom: 1px solid var(--accent); }
+
+/* ---- Keyboard keys: mono, engraved ---- */
+.kbd-row { gap: var(--sp-2) var(--sp-4); }
+.kbd-row kbd { font-family: var(--font-mono); font-weight: 600; font-size: 11px; }
+
+/* ---- Empty state as a drawing TITLE BLOCK (the signature element) ---- */
+.title-block {
+  width: 468px; max-width: 90vw;
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-strong);
+  border-radius: 2px;              /* title blocks are square, not rounded */
+  box-shadow: var(--shadow-2);
+  overflow: hidden; text-align: left;
+  animation: tb-rise var(--dur-med) var(--ease) both;
+}
+@keyframes tb-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.tb-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; border-bottom: 1.5px solid var(--border-strong);
+}
+.tb-head .tb-rev {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em;
+  color: var(--text-faint); text-transform: uppercase;
+}
+.tb-body { padding: 26px 24px 22px; text-align: center; }
+.tb-body .empty-icon { font-size: 40px; margin-bottom: var(--sp-2); }
+.tb-body h1 { margin: 0 0 6px; font-size: var(--fs-xl); color: var(--text); letter-spacing: -0.01em; }
+.tb-body p { margin: 0; color: var(--text-dim); font-size: var(--fs-md); }
+.tb-body .tb-cta { margin: 18px 0 6px; }
+.tb-body .hint { margin-top: 10px; color: var(--text-faint); }
+.tb-fields {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border-top: 1.5px solid var(--border-strong);
+}
+.tb-field { padding: 9px 12px; border-right: 1px solid var(--border); }
+.tb-field:last-child { border-right: none; }
+.tb-field .lbl {
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 600;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-faint);
+}
+.tb-field .val { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+/* Cheat sheet sits below the block, like a drawing note. */
+#empty-state .kbd-row { max-width: 468px; }

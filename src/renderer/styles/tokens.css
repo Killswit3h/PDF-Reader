@@ -1,0 +1,118 @@
+/* =============================================================================
+ * Design tokens — "Drafting table" identity.
+ *
+ * PDF Signer is a precision instrument for reading, measuring, redlining and
+ * signing construction/architectural plan sets. The visual language is drawn
+ * from that world: a graphite-blueprint workspace, an engineering graph-paper
+ * canvas, blueprint-blue as the interactive accent, and the drawing's own
+ * secondary colors — vermilion redline and amber scale. Numbers are set in a
+ * monospace "instrument" face because precision numerics are the subject.
+ *
+ * Three tiers: primitives → semantic → legacy aliases. Themed via
+ * html[data-theme="dark" | "light"]. Components reference only semantic names.
+ * ========================================================================== */
+
+:root {
+  /* ---- Type roles (offline/CSP: system fonts only, used deliberately) ---- */
+  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono',
+               'Roboto Mono', Menlo, Consolas, monospace;
+
+  /* ---- Radius / spacing / type / motion (theme-independent) ---- */
+  /* Drafting instruments have tight, precise corners — small radii on purpose. */
+  --r-sm: 4px;  --r-md: 6px;  --r-lg: 9px;  --r-pill: 999px;
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 16px;  --sp-5: 24px;  --sp-6: 32px;
+  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --fs-xl: 18px; --fs-2xl: 24px;
+  --dur-fast: 0.1s; --dur-med: 0.2s;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --toolbar-h: 52px;
+  --rail-w: 148px;
+  --grid-size: 16px;   /* fine graph-paper pitch */
+  --grid-major: 96px;  /* heavy line every 6 squares */
+}
+
+/* ===================== DARK — "drafting table at night" ===================== */
+html[data-theme="dark"] {
+  --bg-app:      #0e1621;   /* graphite navy-black (blue-tinted, not neutral) */
+  --bg-canvas:   #101a26;   /* graph-paper substrate behind the pages */
+  --bg-surface:  #15212e;   /* chrome: top bar, rail, panels */
+  --bg-raised:   #1b2a3a;
+  --bg-input:    #1f3040;
+  --bg-hover:    #26394c;
+
+  --text:        #e8eff5;
+  --text-dim:    #93a6b8;
+  --text-faint:  #5e7286;
+
+  --border:        #26384a;
+  --border-strong: #3a5069;
+
+  --accent:        #3e9be0;   /* blueprint blue — interactive */
+  --accent-hover:  #5fb0ee;
+  --accent-quiet:  rgba(62, 155, 224, 0.16);
+  --on-accent:     #06121d;
+
+  --redline:  #e5473b;   /* markup / redline / destructive */
+  --measure:  #e7a33e;   /* scale + measurement */
+  --danger:   var(--redline);
+  --success:  #34c07a;
+  --warning:  var(--measure);
+
+  --grid-fine:  rgba(96, 148, 190, 0.07);
+  --grid-heavy: rgba(96, 148, 190, 0.13);
+
+  --focus-ring: rgba(95, 176, 238, 0.55);
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-2: 0 8px 22px rgba(0, 0, 0, 0.55);
+  --shadow-3: 0 18px 50px rgba(0, 0, 0, 0.62);
+
+  --bg: var(--bg-app); --panel: var(--bg-surface); --panel-2: var(--bg-input);
+  color-scheme: dark;
+}
+
+/* ===================== LIGHT — "blueprint vellum" ===================== */
+html[data-theme="light"] {
+  --bg-app:      #e7ecf1;   /* cool drafting paper */
+  --bg-canvas:   #dce3ea;
+  --bg-surface:  #ffffff;
+  --bg-raised:   #ffffff;
+  --bg-input:    #ffffff;
+  --bg-hover:    #eef2f6;
+
+  --text:        #16232f;
+  --text-dim:    #52657a;
+  --text-faint:  #8496a6;
+
+  --border:        #d3dce4;
+  --border-strong: #b7c4d0;
+
+  --accent:        #1e6fb8;   /* deeper blueprint blue for light contrast */
+  --accent-hover:  #175a97;
+  --accent-quiet:  rgba(30, 111, 184, 0.10);
+  --on-accent:     #ffffff;
+
+  --redline:  #c9382c;
+  --measure:  #b9781e;
+  --danger:   var(--redline);
+  --success:  #1a8f57;
+  --warning:  var(--measure);
+
+  --grid-fine:  rgba(40, 90, 140, 0.06);
+  --grid-heavy: rgba(40, 90, 140, 0.11);
+
+  --focus-ring: rgba(30, 111, 184, 0.42);
+
+  --shadow-1: 0 1px 2px rgba(16, 32, 48, 0.10);
+  --shadow-2: 0 8px 22px rgba(16, 32, 48, 0.13);
+  --shadow-3: 0 18px 50px rgba(16, 32, 48, 0.20);
+
+  --bg: var(--bg-app); --panel: var(--bg-surface); --panel-2: var(--bg-input);
+  color-scheme: light;
+}
+
+/* Respect the OS reduced-motion setting. */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+}

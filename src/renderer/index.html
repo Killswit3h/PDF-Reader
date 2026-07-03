@@ -6,29 +6,75 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' blob: data:;" />
   <title>PDF Signer</title>
+  <!-- Apply the saved (or OS-preferred) theme before first paint to avoid a flash.
+       External (not inline) to satisfy the CSP; runs synchronously in <head>. -->
+  <script src="js/theme-boot.js"></script>
   <link rel="stylesheet" href="../../node_modules/pdfjs-dist/web/pdf_viewer.css" />
+  <link rel="stylesheet" href="styles/tokens.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- ================= Toolbar ================= -->
+  <!-- ================= Top bar ================= -->
   <header id="toolbar">
+    <div class="tb-group brand">
+      <span class="brand-mark" aria-hidden="true">◲</span>
+      <span class="brand-name">PDF Signer</span>
+    </div>
+
     <div class="tb-group">
       <button id="btn-open" class="tb-btn primary" title="Open a PDF (Ctrl+O)">📂 Open</button>
     </div>
 
-    <div class="tb-sep"></div>
+    <div class="tb-spacer"></div>
 
     <div class="tb-group">
-      <button id="btn-sign" class="tb-btn" disabled title="Place a signature">✒️ Sign</button>
-      <button id="btn-initials" class="tb-btn" disabled title="Place initials">🅰️ Initials</button>
-      <button id="btn-date" class="tb-btn" disabled title="Place today's date">📅 Date</button>
+      <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out (−)">−</button>
+      <span id="zoom-label" class="tb-readout">100%</span>
+      <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in (+)">+</button>
+      <button id="btn-fit-width" class="tb-btn" disabled title="Fit to width">↔ Fit</button>
     </div>
 
     <div class="tb-sep"></div>
 
     <div class="tb-group">
+      <button id="btn-prev" class="tb-btn icon" disabled title="Previous page">▲</button>
+      <span class="tb-readout">
+        <input id="page-input" type="number" min="1" value="1" disabled />
+        / <span id="page-total">0</span>
+      </span>
+      <button id="btn-next" class="tb-btn icon" disabled title="Next page">▼</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
+      <button id="btn-save-as" class="tb-btn" disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
+    </div>
+
+    <div class="tb-sep"></div>
+
+    <div class="tb-group">
+      <button id="btn-theme" class="tb-btn icon ghost" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
+      <button id="btn-updates" class="tb-btn ghost" title="Version — click to check for updates">v…</button>
+    </div>
+  </header>
+
+  <!-- ================= Left tool rail ================= -->
+  <aside id="tool-rail" aria-label="Tools">
+    <div class="rail-label">Stamp</div>
+    <div class="rail-group">
+      <button id="btn-sign" class="tb-btn rail-btn" disabled title="Place a signature">✒️ Sign</button>
+      <button id="btn-initials" class="tb-btn rail-btn" disabled title="Place initials">🅰️ Initials</button>
+      <button id="btn-date" class="tb-btn rail-btn" disabled title="Place today's date">📅 Date</button>
+    </div>
+
+    <div class="rail-sep"></div>
+
+    <div class="rail-label">Take-off</div>
+    <div class="rail-group">
       <div class="tb-dropdown">
-        <button id="btn-measure" class="tb-btn" disabled title="Measure tools">📐 Measure ▾</button>
+        <button id="btn-measure" class="tb-btn rail-btn" disabled title="Measure tools">📐 Measure ▾</button>
         <div id="measure-menu" class="tb-menu hidden">
           <button data-mtool="calibrate">📏 Set Scale…</button>
           <div class="tb-menu-sep"></div>
@@ -42,13 +88,8 @@
           <button data-mtool="toggle-panel">📋 Measurements List</button>
         </div>
       </div>
-    </div>
-
-    <div class="tb-sep"></div>
-
-    <div class="tb-group">
       <div class="tb-dropdown">
-        <button id="btn-markup" class="tb-btn" disabled title="Markup tools">✏️ Markup ▾</button>
+        <button id="btn-markup" class="tb-btn rail-btn" disabled title="Markup tools">✏️ Markup ▾</button>
         <div id="markup-menu" class="tb-menu hidden">
           <button data-mk="arrow">➷ Arrow</button>
           <button data-mk="line">╱ Line</button>
@@ -66,38 +107,7 @@
         </div>
       </div>
     </div>
-
-    <div class="tb-sep"></div>
-
-    <div class="tb-group">
-      <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out">−</button>
-      <span id="zoom-label" class="tb-readout">100%</span>
-      <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in">+</button>
-      <button id="btn-fit-width" class="tb-btn" disabled title="Fit to width">↔ Fit</button>
-    </div>
-
-    <div class="tb-sep"></div>
-
-    <div class="tb-group">
-      <button id="btn-prev" class="tb-btn icon" disabled title="Previous page">▲</button>
-      <span class="tb-readout">
-        <input id="page-input" type="number" min="1" value="1" disabled />
-        / <span id="page-total">0</span>
-      </span>
-      <button id="btn-next" class="tb-btn icon" disabled title="Next page">▼</button>
-    </div>
-
-    <div class="tb-spacer"></div>
-
-    <div class="tb-group">
-      <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
-      <button id="btn-save-as" class="tb-btn" disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
-    </div>
-
-    <div class="tb-group">
-      <button id="btn-updates" class="tb-btn ghost" title="Version — click to check for updates">v…</button>
-    </div>
-  </header>
+  </aside>
 
   <!-- ============ Status / mode banner ============ -->
   <div id="mode-banner" class="hidden">
@@ -111,6 +121,7 @@
     <label class="mk-prop"><input id="mk-fill-on" type="checkbox" /> Fill <input id="mk-fill" type="color" value="#ffcc00" /></label>
     <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" /></label>
     <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" /></label>
+    <label class="mk-prop" title="Snap to nearby vertices while dragging"><input id="mk-snap" type="checkbox" checked /> Snap</label>
     <span class="mk-spacer"></span>
     <button id="mk-undo" class="tb-btn" title="Undo (Ctrl+Z)">↶ Undo</button>
     <button id="mk-redo" class="tb-btn" title="Redo (Ctrl+Y)">↷ Redo</button>
@@ -118,14 +129,31 @@
 
   <!-- ================= Viewer ================= -->
   <main id="viewer-wrap">
-    <!-- Empty state / drop target -->
+    <!-- Empty state / drop target — styled as a drawing title block -->
     <div id="empty-state">
-      <div class="empty-inner">
-        <div class="empty-icon">📄</div>
-        <h1>PDF Signer</h1>
-        <p>Open a PDF to view and sign it.</p>
-        <button id="btn-open-empty" class="tb-btn primary large">📂 Open PDF</button>
-        <p class="hint">…or drag a <b>.pdf</b> file anywhere onto this window.</p>
+      <div class="empty-inner title-block">
+        <div class="tb-head">
+          <span class="brand-name">PDF Signer</span>
+          <span class="tb-rev">Rev —</span>
+        </div>
+        <div class="tb-body">
+          <div class="empty-icon">▦</div>
+          <h1>Open a drawing to begin</h1>
+          <p>View, measure, redline, and sign — offline.</p>
+          <div class="tb-cta"><button id="btn-open-empty" class="tb-btn primary large">📂 Open PDF</button></div>
+          <p class="hint">…or drag a <b>.pdf</b> anywhere onto this window.</p>
+        </div>
+        <div class="tb-fields">
+          <div class="tb-field"><div class="lbl">Scale</div><div class="val">—</div></div>
+          <div class="tb-field"><div class="lbl">Sheet</div><div class="val">—</div></div>
+          <div class="tb-field"><div class="lbl">Date</div><div class="val" id="tb-date">—</div></div>
+        </div>
+      </div>
+      <div class="kbd-row">
+        <span><kbd>Ctrl</kbd>+<kbd>O</kbd> Open</span>
+        <span><kbd>Ctrl</kbd>+<kbd>F</kbd> Find</span>
+        <span><kbd>Ctrl</kbd>+<kbd>Z</kbd> Undo</span>
+        <span><kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> Zoom</span>
       </div>
     </div>
 
@@ -259,6 +287,7 @@
       <span>Markups</span>
       <button id="mkp-close" class="modal-x" title="Close">✕</button>
     </div>
+    <input id="mkp-filter" class="mp-filter" type="text" placeholder="Filter markups…" />
     <div id="mkp-list" class="mp-list"></div>
     <label class="mkp-opt"><input id="mkp-annots" type="checkbox" /> Save markups as editable PDF annotations (else flatten)</label>
     <div class="mp-foot">
@@ -273,6 +302,7 @@
       <span>Measurements</span>
       <button id="mp-close" class="modal-x" title="Close">✕</button>
     </div>
+    <input id="mp-filter" class="mp-filter" type="text" placeholder="Filter measurements…" />
     <div id="mp-list" class="mp-list"></div>
     <div id="mp-totals" class="mp-totals"></div>
     <div class="mp-foot">
@@ -299,14 +329,33 @@
     </div>
   </div>
 
+  <!-- ============ Confirm dialog (destructive actions) ============ -->
+  <div id="confirm-modal" class="modal-backdrop hidden">
+    <div class="modal confirm">
+      <div class="modal-head"><h2 id="confirm-title">Confirm</h2></div>
+      <div class="confirm-body"><p id="confirm-msg"></p></div>
+      <div class="modal-foot">
+        <button id="confirm-no" class="tb-btn">Cancel</button>
+        <button id="confirm-yes" class="tb-btn primary">OK</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
   <script src="../../node_modules/pdfjs-dist/build/pdf.js"></script>
   <script src="../../node_modules/pdfjs-dist/web/pdf_viewer.js"></script>
   <script src="../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script>
   <script src="../../node_modules/signature_pad/dist/signature_pad.umd.min.js"></script>
 
+  <!-- ======= Shared, unit-tested pure logic (load before app modules) ======= -->
+  <script src="../shared/geometry.js"></script>
+  <script src="../shared/measure-math.js"></script>
+  <script src="../shared/date-util.js"></script>
+  <script src="../shared/prefs.js"></script>
+
   <!-- ======= App modules ======= -->
   <script src="js/util.js"></script>
+  <script src="js/history.js"></script>
   <script src="js/signature.js"></script>
   <script src="js/placement.js"></script>
   <script src="js/viewer.js"></script>

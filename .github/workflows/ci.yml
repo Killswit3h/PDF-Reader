@@ -1,0 +1,45 @@
+name: CI
+
+# Run the test suite on every push and pull request so main stays green.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  unit:
+    name: Unit tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --omit=optional
+      - run: npm test
+
+  e2e:
+    name: E2E smoke (headless)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --omit=optional
+      # Electron needs a display + a few system libs on Linux CI.
+      - name: Install headless display + Electron libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libgtk-3-0 libgbm1 libasound2t64 || \
+          sudo apt-get install -y xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 \
+            libcups2 libgtk-3-0 libgbm1 libasound2
+      - name: E2E smoke tests
+        run: xvfb-run --auto-servernum npm run test:e2e

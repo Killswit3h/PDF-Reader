@@ -28,34 +28,21 @@
   };
 
   function ns(t) { return document.createElementNS(SVGNS, t); }
-  const dist = (a, b) => Math.hypot(b.vx - a.vx, b.vy - a.vy);
+  // Geometry is shared + unit-tested (src/shared/geometry.js).
+  const { dist, bbox } = App.Geom;
 
   /* ---------------- model + undo/redo ---------------- */
   function defaults() {
-    return App.state.annoStyle ||
-      (App.state.annoStyle = { stroke: '#e5484d', fill: 'none', width: 2, opacity: 1, fontSize: 14 });
+    if (App.state.annoStyle) return App.state.annoStyle;
+    const saved = App.Prefs ? App.Prefs.get('annoStyle', null) : null;
+    return (App.state.annoStyle = saved ||
+      { stroke: '#e5484d', fill: 'none', width: 2, opacity: 1, fontSize: 14 });
   }
-  function snapshot() {
-    App.state.annoUndo = App.state.annoUndo || [];
-    App.state.annoUndo.push(JSON.stringify(App.state.annotations));
-    if (App.state.annoUndo.length > 60) App.state.annoUndo.shift();
-    App.state.annoRedo = [];
-  }
-  K.undo = function () {
-    const u = App.state.annoUndo || [];
-    if (!u.length) return;
-    (App.state.annoRedo = App.state.annoRedo || []).push(JSON.stringify(App.state.annotations));
-    App.state.annotations = JSON.parse(u.pop());
-    App.state.annoSelectedId = null;
-    K.repositionAll();
-  };
-  K.redo = function () {
-    const r = App.state.annoRedo || [];
-    if (!r.length) return;
-    App.state.annoUndo.push(JSON.stringify(App.state.annotations));
-    App.state.annotations = JSON.parse(r.pop());
-    K.repositionAll();
-  };
+  // Undo/redo is now unified across all layers (see js/history.js). markup
+  // keeps calling snapshot() before each mutation; the stack is shared.
+  function snapshot() { App.History.snapshot(); }
+  K.undo = function () { App.History.undo(); };
+  K.redo = function () { App.History.redo(); };
 
   /* ---------------- tool lifecycle ---------------- */
   K.startTool = function (type) {
@@ -104,12 +91,9 @@
     const rect = layer.getBoundingClientRect();
     const z = App.state.zoom;
     let p = { vx: (e.clientX - rect.left) / z, vy: (e.clientY - rect.top) / z };
-    // ortho on Shift for 2-point tools
+    // ortho on Shift, relative to the last placed point
     if (K.active && K.active.pts.length && e.shiftKey) {
-      const a = K.active.pts[K.active.pts.length - 1];
-      const ang = Math.round(Math.atan2(p.vy - a.vy, p.vx - a.vx) / (Math.PI / 4)) * (Math.PI / 4);
-      const len = Math.hypot(p.vx - a.vx, p.vy - a.vy);
-      p = { vx: a.vx + Math.cos(ang) * len, vy: a.vy + Math.sin(ang) * len };
+      p = App.Geom.ortho(K.active.pts[K.active.pts.length - 1], p);
     }
     return p;
   }
@@ -186,17 +170,21 @@
   function annoById(id) { return App.state.annotations.find((a) => a.id === id); }
   K.select = function (id) { App.state.annoSelectedId = id; K.repositionAll(); if (App.MarkupPanel) App.MarkupPanel.render(); syncPropBar(); App.refreshChrome && App.refreshChrome(); };
   K.deselect = function () { if (App.state.annoSelectedId != null) { App.state.annoSelectedId = null; K.repositionAll(); App.refreshChrome && App.refreshChrome(); } };
+  // Keyboard nudge (arrow keys) for the selected annotation.
+  K.nudge = function (dx, dy) {
+    const an = annoById(App.state.annoSelectedId);
+    if (!an) return;
+    snapshot();
+    an.pts = an.pts.map((pt) => ({ vx: pt.vx + dx, vy: pt.vy + dy }));
+    K.repositionAll();
+  };
+
   K.remove = function (id) {
     snapshot();
     App.state.annotations = App.state.annotations.filter((a) => a.id !== id);
     if (App.state.annoSelectedId === id) App.state.annoSelectedId = null;
     K.repositionAll();
   };
-
-  function bbox(pts) {
-    const xs = pts.map((p) => p.vx), ys = pts.map((p) => p.vy);
-    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
-  }
 
   function startDrag(an, e) {
     e.preventDefault(); e.stopPropagation();
@@ -205,13 +193,25 @@
     const orig = an.pts.map((p) => ({ vx: p.vx, vy: p.vy }));
     snapshot();
     function move(ev) {
-      const dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+      let dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+      // Shift → orthogonal (lock to the dominant axis).
+      if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+      // Snap the anchor point onto a nearby vertex of another shape.
+      if (snapEnabled()) {
+        const cand = [];
+        App.state.annotations.forEach((o) => { if (o.id !== an.id && o.page === an.page) cand.push(...o.pts); });
+        const moved0 = { vx: orig[0].vx + dx, vy: orig[0].vy + dy };
+        const s = App.Geom.nearestVertex(cand, moved0, 8 / z);
+        if (s) { dx += s.vx - moved0.vx; dy += s.vy - moved0.vy; }
+      }
       an.pts = orig.map((p) => ({ vx: p.vx + dx, vy: p.vy + dy }));
       K.repositionAll();
     }
     function up() { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); }
     window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
   }
+
+  function snapEnabled() { return App.Prefs ? App.Prefs.get('snap', true) : true; }
 
   function startResize(an, e) {
     e.preventDefault(); e.stopPropagation();
@@ -252,14 +252,10 @@
   function pts2str(pts, z) { return pts.map((p) => `${p.vx * z},${p.vy * z}`).join(' '); }
 
   function arrowHead(svg, from, to, z, color, width) {
-    const ang = Math.atan2(to.vy - from.vy, to.vx - from.vx);
-    const len = 10 + width * 2;
-    const a1 = ang + Math.PI - 0.4, a2 = ang + Math.PI + 0.4;
+    const [w1, w2] = App.Geom.arrowHeadPoints(from, to, width);
     const p = ns('polygon');
     p.setAttribute('points',
-      `${to.vx * z},${to.vy * z} ` +
-      `${(to.vx + Math.cos(a1) * len) * z},${(to.vy + Math.sin(a1) * len) * z} ` +
-      `${(to.vx + Math.cos(a2) * len) * z},${(to.vy + Math.sin(a2) * len) * z}`);
+      `${to.vx * z},${to.vy * z} ${w1.vx * z},${w1.vy * z} ${w2.vx * z},${w2.vy * z}`);
     p.setAttribute('fill', color);
     svg.appendChild(p);
   }
@@ -445,6 +441,7 @@
     const an = annoById(App.state.annoSelectedId);
     if (an) { snapshot(); Object.assign(an.style, patch); K.repositionAll(); }
     Object.assign(defaults(), patch); // also update defaults for new items
+    if (App.Prefs) App.Prefs.set('annoStyle', App.state.annoStyle); // persist across restarts
   }
 
   K.init = function () {
@@ -456,6 +453,12 @@
     wire('#mk-fill-on', 'change', (e) => applyStyle({ fill: e.target.checked ? App.$('#mk-fill').value : 'none' }));
     wire('#mk-width', 'input', (e) => applyStyle({ width: parseFloat(e.target.value) }));
     wire('#mk-opacity', 'input', (e) => applyStyle({ opacity: App.clamp(parseInt(e.target.value, 10) / 100, 0.1, 1) }));
+    // Snap toggle — persisted; drives snapEnabled().
+    const snap = App.$('#mk-snap');
+    if (snap) {
+      snap.checked = App.Prefs ? App.Prefs.get('snap', true) : true;
+      snap.addEventListener('change', (e) => { if (App.Prefs) App.Prefs.set('snap', e.target.checked); });
+    }
     syncPropBar();
   };
 
@@ -471,9 +474,14 @@
   };
   Panel.render = function () {
     const list = App.$('#mkp-list'); if (!list) return;
-    const arr = App.state.annotations;
+    const all = App.state.annotations;
+    const q = ((App.$('#mkp-filter') && App.$('#mkp-filter').value) || '').trim().toLowerCase();
+    const arr = q
+      ? all.filter((an) => an.type.includes(q) || (an.text || '').toLowerCase().includes(q) || ('p' + an.page).includes(q))
+      : all;
     list.innerHTML = '';
-    if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
+    if (!all.length) { list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">✏️</div>No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
+    if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups match “' + esc(q) + '”.</div>'; return; }
     arr.forEach((an) => {
       const row = document.createElement('div');
       row.className = 'mp-row' + (an.id === App.state.annoSelectedId ? ' selected' : '');
@@ -492,8 +500,12 @@
       list.appendChild(row);
     });
   };
-  Panel.clearAll = function () {
+  Panel.clearAll = async function () {
     if (!App.state.annotations.length) return;
+    const ok = await App.confirm(
+      'Delete all markups? You can undo this with Ctrl+Z.',
+      { title: 'Clear markups', okLabel: 'Clear all', danger: true });
+    if (!ok) return;
     snapshot();
     App.state.annotations = []; App.state.annoSelectedId = null;
     K.repositionAll(); Panel.render();
@@ -519,8 +531,19 @@
     b('#mkp-close', Panel.toggle);
     b('#mkp-export', Panel.exportCsv);
     b('#mkp-clear', Panel.clearAll);
+    const filt = App.$('#mkp-filter');
+    if (filt) filt.addEventListener('input', Panel.render);
     const chk = App.$('#mkp-annots');
-    if (chk) chk.addEventListener('change', (e) => { App.state.saveAnnots = e.target.checked; });
+    if (chk) {
+      // Restore the persisted editable-vs-flatten choice.
+      const saved = App.Prefs ? App.Prefs.get('saveAnnots', false) : false;
+      App.state.saveAnnots = saved;
+      chk.checked = saved;
+      chk.addEventListener('change', (e) => {
+        App.state.saveAnnots = e.target.checked;
+        if (App.Prefs) App.Prefs.set('saveAnnots', e.target.checked);
+      });
+    }
   };
 
   App.Markup = K;

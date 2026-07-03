@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const pkg = require('../package.json');
+const { repoSlug, semverCmp, fileFromArgv } = require('./shared/update-utils');
 
 // Disable Chromium's native pinch-zoom at the browser level. On macOS a trackpad
 // pinch is otherwise consumed as native page zoom and never reaches the DOM, so
@@ -43,13 +44,8 @@ app.on('open-file', (event, filePath) => {
   openInRenderer(filePath);
 });
 
-// A file path passed on the command line (e.g. "Open with" on Windows).
-function fileFromArgv(argv) {
-  const candidate = argv.find(
-    (a) => a && a.toLowerCase().endsWith('.pdf') && fs.existsSync(a)
-  );
-  return candidate || null;
-}
+// (fileFromArgv, repoSlug, semverCmp live in ./shared/update-utils — pure +
+//  unit-tested; imported at the top of this file.)
 
 function createWindow() {
   // A fresh renderer hasn't reported readiness yet; wait for its signal before
@@ -60,7 +56,7 @@ function createWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    backgroundColor: '#2b2b2b',
+    backgroundColor: '#16171a',
     show: false,
     title: 'PDF Signer',
     webPreferences: {
@@ -376,6 +372,28 @@ function createWindow() {
         }, 1500);
         return;
       }
+      // Capture a screenshot of the loaded window (for visual QA of the UI).
+      // SMOKE_SHOT=<out.png>, optional SMOKE_SHOT_THEME=light|dark.
+      if (process.env.SMOKE_SHOT) {
+        setTimeout(async () => {
+          try {
+            await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1200));
+              const t = ${JSON.stringify(process.env.SMOKE_SHOT_THEME || '')};
+              if (t) document.documentElement.setAttribute('data-theme', t);
+              // only enter markup mode when a doc is open (else show empty state)
+              if (App.state.numPages) { try { App.Markup.startTool('rect'); } catch (e) {} }
+            })()`, true);
+            await new Promise((r) => setTimeout(r, 500));
+            const img = await mainWindow.webContents.capturePage();
+            fs.writeFileSync(process.env.SMOKE_SHOT, img.toPNG());
+            console.log('[shot] wrote ' + process.env.SMOKE_SHOT);
+          } catch (e) { console.log('[shot] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       setTimeout(() => { console.log('[smoke] done'); app.quit(); },
         parseInt(process.env.SMOKE_MS || '4000', 10));
     });
@@ -389,6 +407,33 @@ function createWindow() {
     // which guarantees the renderer is already listening for the file path.
     const initialFile = fileFromArgv(process.argv);
     if (initialFile) openInRenderer(initialFile);
+  });
+
+  // Prompt to save unsaved edits before the window closes.
+  mainWindow.on('close', async (e) => {
+    if (mainWindow._forceClose || process.env.SMOKE_TEST) return;
+    e.preventDefault();
+    let dirty = false;
+    try {
+      dirty = await mainWindow.webContents.executeJavaScript(
+        '!!(window.App && App.state && App.state.dirty)');
+    } catch (_) { /* renderer gone → just close */ }
+    if (!dirty) { mainWindow._forceClose = true; mainWindow.close(); return; }
+
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      message: 'Do you want to save the changes you made to this PDF?',
+      detail: "Your changes will be lost if you don't save them."
+    });
+    if (response === 2) return;                       // Cancel → stay open
+    if (response === 1) { mainWindow._forceClose = true; mainWindow.close(); return; } // Don't Save
+
+    let ok = false;                                   // Save → save, then close if it worked
+    try { ok = await mainWindow.webContents.executeJavaScript('App.Save.saveForClose()'); } catch (_) {}
+    if (ok) { mainWindow._forceClose = true; mainWindow.close(); }
   });
 
   mainWindow.on('closed', () => {
@@ -463,24 +508,6 @@ ipcMain.handle('file:writePdf', async (_e, { filePath, bytes }) => {
 /*  IPC: update check (compare app version to latest GitHub release)   */
 /* ------------------------------------------------------------------ */
 
-// owner/repo parsed from package.json's repository url.
-function repoSlug() {
-  const url = (pkg.repository && pkg.repository.url) || '';
-  const m = url.match(/github\.com[/:]([^/]+)\/([^/.]+)/i);
-  return m ? { owner: m[1], repo: m[2] } : null;
-}
-
-// Numeric compare of "x.y.z" version strings. >0 if a is newer than b.
-function semverCmp(a, b) {
-  const pa = String(a).replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
-  const pb = String(b).replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] || 0) > (pb[i] || 0)) return 1;
-    if ((pa[i] || 0) < (pb[i] || 0)) return -1;
-  }
-  return 0;
-}
-
 function fetchLatestRelease(owner, repo) {
   return new Promise((resolve, reject) => {
     const req = https.request({
@@ -509,7 +536,7 @@ ipcMain.handle('app:version', () => app.getVersion());
 
 ipcMain.handle('app:checkUpdates', async () => {
   const current = app.getVersion();
-  const slug = repoSlug();
+  const slug = repoSlug(pkg.repository && pkg.repository.url);
   if (!slug) return { ok: false, current, error: 'No repository configured' };
   try {
     const rel = await fetchLatestRelease(slug.owner, slug.repo);

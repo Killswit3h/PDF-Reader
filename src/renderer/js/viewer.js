@@ -219,6 +219,7 @@
     App.state.annoSelectedId = null;
     App.state.annoUndo = [];
     App.state.annoRedo = [];
+    if (App.History) App.History.reset();
     App.setMode && App.setMode(null);
   };
 
@@ -230,6 +231,8 @@
   Viewer.zoomIn = () => pdfViewer && (pdfViewer.currentScale = App.clamp(pdfViewer.currentScale + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
   Viewer.zoomOut = () => pdfViewer && (pdfViewer.currentScale = App.clamp(pdfViewer.currentScale - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
   Viewer.fitWidth = () => { if (pdfViewer) pdfViewer.currentScaleValue = 'page-width'; };
+  // Reset to 100% (actual size) — bound to the "0" shortcut.
+  Viewer.resetZoom = () => { if (pdfViewer) pdfViewer.currentScale = 1.0; };
 
   // Zoom to an absolute scale while keeping the content point under (clientX,
   // clientY) visually fixed. Used by trackpad pinch / Ctrl+wheel so the page
