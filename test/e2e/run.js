@@ -40,7 +40,11 @@ function runApp(env, argv) {
   const childEnv = Object.assign({}, process.env, { SMOKE_TEST: '1' }, env);
   delete childEnv.ELECTRON_RUN_AS_NODE;
   const profile = path.join(os.tmpdir(), `pdfsigner-e2e-prof-${process.pid}-${++spawnSeq}`);
-  const res = spawnSync(electronPath, ['.', ...(argv || []), `--user-data-dir=${profile}`], {
+  // Headless-CI Chromium flags: the sandbox needs a SUID helper that isn't set
+  // up on CI runners, and /dev/shm is often too small — without --no-sandbox
+  // Electron exits instantly with no output. Harmless on macOS/Windows.
+  const ciFlags = ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'];
+  const res = spawnSync(electronPath, ['.', ...(argv || []), ...ciFlags, `--user-data-dir=${profile}`], {
     cwd: ROOT, env: childEnv, encoding: 'utf8', timeout: PER_TEST_TIMEOUT
   });
   try { fs.rmSync(profile, { recursive: true, force: true }); } catch (_) { /* ignore */ }
