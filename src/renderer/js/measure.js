@@ -28,24 +28,8 @@
     _scaleTarget: null // { kind:'page', page } | { kind:'viewport', page, rect }
   };
 
-  /* ---------------- geometry (scale-1 points) ---------------- */
-  const dist = (a, b) => Math.hypot(b.vx - a.vx, b.vy - a.vy);
-  function polyLen(pts) { let s = 0; for (let i = 0; i < pts.length - 1; i++) s += dist(pts[i], pts[i + 1]); return s; }
-  function shoelace(pts) {
-    let s = 0; const n = pts.length;
-    for (let i = 0; i < n; i++) { const j = (i + 1) % n; s += pts[i].vx * pts[j].vy - pts[j].vx * pts[i].vy; }
-    return Math.abs(s) / 2;
-  }
-  function angleAt(A, B, C) {
-    const a = Math.atan2(A.vy - B.vy, A.vx - B.vx);
-    const b = Math.atan2(C.vy - B.vy, C.vx - B.vx);
-    let d = (b - a) * 180 / Math.PI; d = ((d % 360) + 360) % 360;
-    return d > 180 ? 360 - d : d;
-  }
-  function centroid(pts) {
-    let x = 0, y = 0; pts.forEach((p) => { x += p.vx; y += p.vy; });
-    return { vx: x / pts.length, vy: y / pts.length };
-  }
+  /* ---------------- geometry (shared, unit-tested: src/shared/geometry.js) --- */
+  const { dist, angleAt, centroid } = App.Geom;
 
   /* ---------------- scale lookup ---------------- */
   // Effective scale for a point set on a page (viewport region wins over page).
@@ -58,14 +42,10 @@
     return App.state.scales[page] || null;
   }
 
+  // Resolve the page/region scale here (state-coupled), then hand off to the
+  // pure App.computeValue (src/shared/measure-math.js) for the arithmetic.
   function computeValue(type, page, pts) {
-    if (type === 'count') return { value: pts.length, unit: 'ct' };
-    if (type === 'angle') return { value: pts.length >= 3 ? angleAt(pts[0], pts[1], pts[2]) : 0, unit: '°' };
-    const sc = scaleFor(page, pts);
-    if (!sc) return { value: null, unit: null };
-    if (type === 'area') return { value: shoelace(pts) * sc.factor * sc.factor, unit: sc.unit };
-    if (type === 'perimeter') return { value: polyLen(pts) * sc.factor, unit: sc.unit };
-    return { value: polyLen(pts) * sc.factor, unit: sc.unit }; // length
+    return App.computeValue(type, pts, scaleFor(page, pts));
   }
 
   // Recompute every measurement's cached value/label (after a scale change).
@@ -194,19 +174,15 @@
 
     // 2) ortho constraint on Shift, relative to last active point
     if (M._active && M._active.pts.length && e.shiftKey) {
-      const a = M._active.pts[M._active.pts.length - 1];
-      const ang = Math.round(Math.atan2(raw.vy - a.vy, raw.vx - a.vx) / (Math.PI / 4)) * (Math.PI / 4);
-      const len = Math.hypot(raw.vx - a.vx, raw.vy - a.vy);
-      return { vx: a.vx + Math.cos(ang) * len, vy: a.vy + Math.sin(ang) * len };
+      return App.Geom.ortho(M._active.pts[M._active.pts.length - 1], raw);
     }
     return raw;
   }
   function snapVertex(page, raw, thr) {
-    let best = null, bd = thr;
-    const consider = (pt) => { const d = Math.hypot(pt.vx - raw.vx, pt.vy - raw.vy); if (d < bd) { bd = d; best = pt; } };
-    App.state.measurements.forEach((m) => { if (m.page === page) m.pts.forEach(consider); });
-    if (M._active && M._active.page === page) M._active.pts.forEach(consider);
-    return best;
+    const candidates = [];
+    App.state.measurements.forEach((m) => { if (m.page === page) candidates.push(...m.pts); });
+    if (M._active && M._active.page === page) candidates.push(...M._active.pts);
+    return App.Geom.nearestVertex(candidates, raw, thr);
   }
 
   /* ---------------- rendering (SVG per page) ---------------- */
@@ -335,9 +311,7 @@
     layer.appendChild(t);
   }
 
-  function rectFrom(a, b) {
-    return { vx: Math.min(a.vx, b.vx), vy: Math.min(a.vy, b.vy), vw: Math.abs(b.vx - a.vx), vh: Math.abs(b.vy - a.vy) };
-  }
+  const rectFrom = App.Geom.rectFrom;
 
   /* ---------------- scale modal ---------------- */
   M.openScaleModal = function (target, fromCalibrate) {

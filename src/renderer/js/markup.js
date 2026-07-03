@@ -28,7 +28,8 @@
   };
 
   function ns(t) { return document.createElementNS(SVGNS, t); }
-  const dist = (a, b) => Math.hypot(b.vx - a.vx, b.vy - a.vy);
+  // Geometry is shared + unit-tested (src/shared/geometry.js).
+  const { dist, bbox } = App.Geom;
 
   /* ---------------- model + undo/redo ---------------- */
   function defaults() {
@@ -104,12 +105,9 @@
     const rect = layer.getBoundingClientRect();
     const z = App.state.zoom;
     let p = { vx: (e.clientX - rect.left) / z, vy: (e.clientY - rect.top) / z };
-    // ortho on Shift for 2-point tools
+    // ortho on Shift, relative to the last placed point
     if (K.active && K.active.pts.length && e.shiftKey) {
-      const a = K.active.pts[K.active.pts.length - 1];
-      const ang = Math.round(Math.atan2(p.vy - a.vy, p.vx - a.vx) / (Math.PI / 4)) * (Math.PI / 4);
-      const len = Math.hypot(p.vx - a.vx, p.vy - a.vy);
-      p = { vx: a.vx + Math.cos(ang) * len, vy: a.vy + Math.sin(ang) * len };
+      p = App.Geom.ortho(K.active.pts[K.active.pts.length - 1], p);
     }
     return p;
   }
@@ -193,11 +191,6 @@
     K.repositionAll();
   };
 
-  function bbox(pts) {
-    const xs = pts.map((p) => p.vx), ys = pts.map((p) => p.vy);
-    return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
-  }
-
   function startDrag(an, e) {
     e.preventDefault(); e.stopPropagation();
     K.select(an.id);
@@ -252,14 +245,10 @@
   function pts2str(pts, z) { return pts.map((p) => `${p.vx * z},${p.vy * z}`).join(' '); }
 
   function arrowHead(svg, from, to, z, color, width) {
-    const ang = Math.atan2(to.vy - from.vy, to.vx - from.vx);
-    const len = 10 + width * 2;
-    const a1 = ang + Math.PI - 0.4, a2 = ang + Math.PI + 0.4;
+    const [w1, w2] = App.Geom.arrowHeadPoints(from, to, width);
     const p = ns('polygon');
     p.setAttribute('points',
-      `${to.vx * z},${to.vy * z} ` +
-      `${(to.vx + Math.cos(a1) * len) * z},${(to.vy + Math.sin(a1) * len) * z} ` +
-      `${(to.vx + Math.cos(a2) * len) * z},${(to.vy + Math.sin(a2) * len) * z}`);
+      `${to.vx * z},${to.vy * z} ${w1.vx * z},${w1.vy * z} ${w2.vx * z},${w2.vy * z}`);
     p.setAttribute('fill', color);
     svg.appendChild(p);
   }

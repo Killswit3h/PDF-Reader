@@ -11,6 +11,11 @@
   },
   "scripts": {
     "start": "electron .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node test/e2e/run.js",
+    "verify": "npm test && npm run test:e2e",
+    "fixtures": "node test/fixtures/make-fixtures.js",
     "dist": "electron-builder --win nsis --x64",
     "dist:arm64": "electron-builder --win nsis --arm64",
     "dist:mac": "electron-builder --mac --universal",
@@ -90,6 +95,7 @@
   },
   "devDependencies": {
     "electron": "31.7.7",
-    "electron-builder": "24.13.3"
+    "electron-builder": "24.13.3",
+    "vitest": "^4.1.9"
   }
 }
