@@ -95,6 +95,7 @@
   };
 
   function finalize(a) {
+    App.History.snapshot();
     const pts = a.pts.slice(0, a.tool === 'angle' ? 3 : undefined);
     const { value, unit } = computeValue(a.tool, a.page, pts);
     const m = {
@@ -362,6 +363,7 @@
       ratioLabel = `${dv}${du} = ${rv}${unit}`;
     }
 
+    App.History.snapshot();
     const target = M._scaleTarget;
     if (target.kind === 'viewport') {
       const list = App.state.viewports[target.page] || (App.state.viewports[target.page] = []);
@@ -391,10 +393,16 @@
 
   M.renderPanel = function () {
     const list = App.$('#mp-list');
-    const ms = App.state.measurements;
+    const all = App.state.measurements;
+    const q = ((App.$('#mp-filter') && App.$('#mp-filter').value) || '').trim().toLowerCase();
+    const ms = q
+      ? all.filter((m) => m.type.includes(q) || (m.label || '').toLowerCase().includes(q) || ('p' + m.page).includes(q))
+      : all;
     list.innerHTML = '';
-    if (!ms.length) {
-      list.innerHTML = '<div class="mp-empty">No measurements yet.<br>Use the Measure menu to add some.</div>';
+    if (!all.length) {
+      list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">📐</div>No measurements yet.<br>Use the Measure menu to add some.</div>';
+    } else if (!ms.length) {
+      list.innerHTML = '<div class="mp-empty">No measurements match this filter.</div>';
     } else {
       ms.forEach((m) => {
         const row = document.createElement('div');
@@ -412,9 +420,9 @@
         list.appendChild(row);
       });
     }
-    // totals per unit for length + area
+    // totals per unit for length + area (over all measurements, not the filter)
     const tot = {};
-    ms.forEach((m) => {
+    all.forEach((m) => {
       if (m.value == null) return;
       const key = m.type === 'area' ? `area ${m.unit}²` : m.type === 'count' ? 'count' :
         (m.type === 'length' || m.type === 'perimeter') ? `length ${m.unit}` : null;
@@ -437,15 +445,30 @@
     }
   };
 
+  // Keyboard nudge (arrow keys) for the selected measurement.
+  M.nudge = function (dx, dy) {
+    const m = App.state.measurements.find((x) => x.id === App.state.measureSelectedId);
+    if (!m) return;
+    App.History.snapshot();
+    m.pts = m.pts.map((pt) => ({ vx: pt.vx + dx, vy: pt.vy + dy }));
+    M.repositionAll();
+  };
+
   M.remove = function (id) {
+    App.History.snapshot();
     App.state.measurements = App.state.measurements.filter((m) => m.id !== id);
     if (App.state.measureSelectedId === id) App.state.measureSelectedId = null;
     M.repositionAll();
     M.renderPanel();
   };
 
-  M.clearAll = function () {
+  M.clearAll = async function () {
     if (!App.state.measurements.length && !Object.keys(App.state.viewports).length) return;
+    const ok = await App.confirm(
+      'Delete all measurements and scale regions? You can undo this with Ctrl+Z.',
+      { title: 'Clear measurements', okLabel: 'Clear all', danger: true });
+    if (!ok) return;
+    App.History.snapshot();
     App.state.measurements = [];
     App.state.viewports = {};
     App.state.measureSelectedId = null;
@@ -524,6 +547,8 @@
     App.$('#mp-close').addEventListener('click', M.togglePanel);
     App.$('#mp-export').addEventListener('click', M.exportCsv);
     App.$('#mp-clear').addEventListener('click', M.clearAll);
+    const filt = App.$('#mp-filter');
+    if (filt) filt.addEventListener('input', M.renderPanel);
   };
 
   App.Measure = M;

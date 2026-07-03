@@ -163,7 +163,16 @@
   }
   function setupKeys() {
     window.addEventListener('keydown', (e) => {
-      // Let the modal handle its own keys.
+      // Escape closes whichever modal is open (via its cancel/close button, so
+      // any pending promise resolves cleanly).
+      if (e.key === 'Escape') {
+        const open = [
+          ['#sig-modal', '#sig-cancel'], ['#scale-modal', '#scale-cancel'],
+          ['#update-modal', '#upd-close'], ['#confirm-modal', '#confirm-no']
+        ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
+        if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
+      }
+      // Let the signature modal handle its own remaining keys.
       if (!App.$('#sig-modal').classList.contains('hidden')) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
@@ -204,9 +213,27 @@
         if (App.state.measureSelectedId != null) { e.preventDefault(); App.Measure.remove(App.state.measureSelectedId); return; }
         if (App.state.annoSelectedId != null) { e.preventDefault(); App.Markup.remove(App.state.annoSelectedId); return; }
       }
+      // Arrow keys nudge the selected item (Shift = ×10); otherwise fall through
+      // to page navigation below.
+      if (e.key.indexOf('Arrow') === 0) {
+        const sel = App.state.selectedId != null ? 'placement'
+          : App.state.annoSelectedId != null ? 'markup'
+            : App.state.measureSelectedId != null ? 'measure' : null;
+        if (sel) {
+          e.preventDefault();
+          const s = e.shiftKey ? 10 : 1;
+          const dx = e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0;
+          const dy = e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0;
+          if (sel === 'placement') App.Placement.nudge(dx, dy);
+          else if (sel === 'markup') App.Markup.nudge(dx, dy);
+          else App.Measure.nudge(dx, dy);
+          return;
+        }
+      }
       if (!App.state.pdfDoc) return;
       if (e.key === '+' || e.key === '=') { App.Viewer.zoomIn(); }
       else if (e.key === '-' || e.key === '_') { App.Viewer.zoomOut(); }
+      else if (e.key === '0') { App.Viewer.resetZoom(); }
       else if (e.key === 'PageDown' || e.key === 'ArrowRight') { App.Viewer.next(); }
       else if (e.key === 'PageUp' || e.key === 'ArrowLeft') { App.Viewer.prev(); }
     });

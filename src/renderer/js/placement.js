@@ -74,6 +74,7 @@
       };
     }
 
+    App.History.snapshot();
     App.state.placements.push(p);
     P.repositionAll();
     P.select(p.id);
@@ -187,8 +188,20 @@
     App.$$('.placed').forEach((n) => n.classList.remove('selected'));
   };
 
+  // ---------- Keyboard nudge (arrow keys) ----------
+  P.nudge = function (dx, dy) {
+    const p = App.state.placements.find((x) => x.id === App.state.selectedId);
+    if (!p) return;
+    App.History.snapshot();
+    const vp = App.state.baseViewports[p.page - 1];
+    p.vx = App.clamp(p.vx + dx, 0, vp.width - p.vw);
+    p.vy = App.clamp(p.vy + dy, 0, vp.height - p.vh);
+    P.repositionAll();
+  };
+
   // ---------- Remove ----------
   P.remove = function (id) {
+    App.History.snapshot();
     App.state.placements = App.state.placements.filter((p) => p.id !== id);
     const el = elFor(id);
     if (el) el.remove();
@@ -207,10 +220,14 @@
     const vp = App.state.baseViewports[p.page - 1];
     const el = elFor(p.id);
     el.classList.add('dragging');
+    let snapped = false;
 
     function onMove(ev) {
-      const dx = (ev.clientX - startX) / z;
-      const dy = (ev.clientY - startY) / z;
+      if (!snapped) { App.History.snapshot(); snapped = true; }
+      let dx = (ev.clientX - startX) / z;
+      let dy = (ev.clientY - startY) / z;
+      // Shift → orthogonal drag (lock to the dominant axis).
+      if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
       p.vx = App.clamp(ox + dx, 0, vp.width - p.vw);
       p.vy = App.clamp(oy + dy, 0, vp.height - p.vh);
       el.style.left = `${p.vx * z}px`;
@@ -236,8 +253,10 @@
     const startFont = p.fontPt;
     const vp = App.state.baseViewports[p.page - 1];
     const el = elFor(p.id);
+    let snapped = false;
 
     function onMove(ev) {
+      if (!snapped) { App.History.snapshot(); snapped = true; }
       const dx = (ev.clientX - startX) / z;
       if (p.type === 'image') {
         let w = App.clamp(startW + dx, 24, vp.width - p.vx);

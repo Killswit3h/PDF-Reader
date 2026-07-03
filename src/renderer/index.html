@@ -111,6 +111,7 @@
     <label class="mk-prop"><input id="mk-fill-on" type="checkbox" /> Fill <input id="mk-fill" type="color" value="#ffcc00" /></label>
     <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" /></label>
     <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" /></label>
+    <label class="mk-prop" title="Snap to nearby vertices while dragging"><input id="mk-snap" type="checkbox" checked /> Snap</label>
     <span class="mk-spacer"></span>
     <button id="mk-undo" class="tb-btn" title="Undo (Ctrl+Z)">↶ Undo</button>
     <button id="mk-redo" class="tb-btn" title="Redo (Ctrl+Y)">↷ Redo</button>
@@ -259,6 +260,7 @@
       <span>Markups</span>
       <button id="mkp-close" class="modal-x" title="Close">✕</button>
     </div>
+    <input id="mkp-filter" class="mp-filter" type="text" placeholder="Filter markups…" />
     <div id="mkp-list" class="mp-list"></div>
     <label class="mkp-opt"><input id="mkp-annots" type="checkbox" /> Save markups as editable PDF annotations (else flatten)</label>
     <div class="mp-foot">
@@ -273,6 +275,7 @@
       <span>Measurements</span>
       <button id="mp-close" class="modal-x" title="Close">✕</button>
     </div>
+    <input id="mp-filter" class="mp-filter" type="text" placeholder="Filter measurements…" />
     <div id="mp-list" class="mp-list"></div>
     <div id="mp-totals" class="mp-totals"></div>
     <div class="mp-foot">
@@ -299,6 +302,18 @@
     </div>
   </div>
 
+  <!-- ============ Confirm dialog (destructive actions) ============ -->
+  <div id="confirm-modal" class="modal-backdrop hidden">
+    <div class="modal confirm">
+      <div class="modal-head"><h2 id="confirm-title">Confirm</h2></div>
+      <div class="confirm-body"><p id="confirm-msg"></p></div>
+      <div class="modal-foot">
+        <button id="confirm-no" class="tb-btn">Cancel</button>
+        <button id="confirm-yes" class="tb-btn primary">OK</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
   <script src="../../node_modules/pdfjs-dist/build/pdf.js"></script>
   <script src="../../node_modules/pdfjs-dist/web/pdf_viewer.js"></script>
@@ -309,9 +324,11 @@
   <script src="../shared/geometry.js"></script>
   <script src="../shared/measure-math.js"></script>
   <script src="../shared/date-util.js"></script>
+  <script src="../shared/prefs.js"></script>
 
   <!-- ======= App modules ======= -->
   <script src="js/util.js"></script>
+  <script src="js/history.js"></script>
   <script src="js/signature.js"></script>
   <script src="js/placement.js"></script>
   <script src="js/viewer.js"></script>

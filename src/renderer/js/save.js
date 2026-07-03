@@ -309,6 +309,20 @@
       const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
 
       if (!forceDialog && App.state.filePath) {
+        // Non-destructive default: confirm the first overwrite of each file so a
+        // Save never silently replaces the original. "Save a copy…" routes to the
+        // Save As dialog instead. Once acknowledged for this path, later Saves are
+        // silent (the expected in-place behavior).
+        if (S._ackedPath !== App.state.filePath) {
+          App.hideLoading();
+          const ok = await App.confirm(
+            `Overwrite the original file on disk?\n\n${App.state.filePath}\n\n` +
+            'Choose "Save a copy…" to keep the original untouched.',
+            { title: 'Save — overwrite original?', okLabel: 'Overwrite' });
+          if (!ok) return doSave(true); // Save As → a copy
+          S._ackedPath = App.state.filePath;
+          App.showLoading('Saving…');
+        }
         // Overwrite the opened document in place.
         const res = await window.api.writePdf(App.state.filePath, bytes);
         if (res && res.ok) App.toast(`Saved: ${res.path}`, 'success', 4000);

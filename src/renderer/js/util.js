@@ -83,5 +83,32 @@ App.toast = (msg, kind = 'info', ms = 3200) => {
   toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
 };
 
+// -------- Confirm dialog (Promise<boolean>) --------
+// Themed replacement for window.confirm(); resolves false on Cancel/Esc.
+App.confirm = (message, opts = {}) => {
+  const { title = 'Confirm', okLabel = 'OK', danger = false } = opts;
+  return new Promise((resolve) => {
+    const modal = App.$('#confirm-modal');
+    App.$('#confirm-title').textContent = title;
+    App.$('#confirm-msg').textContent = message;
+    const ok = App.$('#confirm-yes');
+    const no = App.$('#confirm-no');
+    ok.textContent = okLabel;
+    ok.classList.toggle('danger', !!danger);
+    modal.classList.remove('hidden');
+    ok.focus();
+    const cleanup = (result) => {
+      modal.classList.add('hidden');
+      ok.removeEventListener('click', onOk);
+      no.removeEventListener('click', onNo);
+      resolve(result);
+    };
+    const onOk = () => cleanup(true);
+    const onNo = () => cleanup(false);
+    ok.addEventListener('click', onOk);
+    no.addEventListener('click', onNo);
+  });
+};
+
 // -------- Misc --------
 App.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));

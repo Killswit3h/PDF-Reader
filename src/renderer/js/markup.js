@@ -33,30 +33,16 @@
 
   /* ---------------- model + undo/redo ---------------- */
   function defaults() {
-    return App.state.annoStyle ||
-      (App.state.annoStyle = { stroke: '#e5484d', fill: 'none', width: 2, opacity: 1, fontSize: 14 });
+    if (App.state.annoStyle) return App.state.annoStyle;
+    const saved = App.Prefs ? App.Prefs.get('annoStyle', null) : null;
+    return (App.state.annoStyle = saved ||
+      { stroke: '#e5484d', fill: 'none', width: 2, opacity: 1, fontSize: 14 });
   }
-  function snapshot() {
-    App.state.annoUndo = App.state.annoUndo || [];
-    App.state.annoUndo.push(JSON.stringify(App.state.annotations));
-    if (App.state.annoUndo.length > 60) App.state.annoUndo.shift();
-    App.state.annoRedo = [];
-  }
-  K.undo = function () {
-    const u = App.state.annoUndo || [];
-    if (!u.length) return;
-    (App.state.annoRedo = App.state.annoRedo || []).push(JSON.stringify(App.state.annotations));
-    App.state.annotations = JSON.parse(u.pop());
-    App.state.annoSelectedId = null;
-    K.repositionAll();
-  };
-  K.redo = function () {
-    const r = App.state.annoRedo || [];
-    if (!r.length) return;
-    App.state.annoUndo.push(JSON.stringify(App.state.annotations));
-    App.state.annotations = JSON.parse(r.pop());
-    K.repositionAll();
-  };
+  // Undo/redo is now unified across all layers (see js/history.js). markup
+  // keeps calling snapshot() before each mutation; the stack is shared.
+  function snapshot() { App.History.snapshot(); }
+  K.undo = function () { App.History.undo(); };
+  K.redo = function () { App.History.redo(); };
 
   /* ---------------- tool lifecycle ---------------- */
   K.startTool = function (type) {
@@ -184,6 +170,15 @@
   function annoById(id) { return App.state.annotations.find((a) => a.id === id); }
   K.select = function (id) { App.state.annoSelectedId = id; K.repositionAll(); if (App.MarkupPanel) App.MarkupPanel.render(); syncPropBar(); App.refreshChrome && App.refreshChrome(); };
   K.deselect = function () { if (App.state.annoSelectedId != null) { App.state.annoSelectedId = null; K.repositionAll(); App.refreshChrome && App.refreshChrome(); } };
+  // Keyboard nudge (arrow keys) for the selected annotation.
+  K.nudge = function (dx, dy) {
+    const an = annoById(App.state.annoSelectedId);
+    if (!an) return;
+    snapshot();
+    an.pts = an.pts.map((pt) => ({ vx: pt.vx + dx, vy: pt.vy + dy }));
+    K.repositionAll();
+  };
+
   K.remove = function (id) {
     snapshot();
     App.state.annotations = App.state.annotations.filter((a) => a.id !== id);
@@ -198,13 +193,25 @@
     const orig = an.pts.map((p) => ({ vx: p.vx, vy: p.vy }));
     snapshot();
     function move(ev) {
-      const dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+      let dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+      // Shift → orthogonal (lock to the dominant axis).
+      if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
+      // Snap the anchor point onto a nearby vertex of another shape.
+      if (snapEnabled()) {
+        const cand = [];
+        App.state.annotations.forEach((o) => { if (o.id !== an.id && o.page === an.page) cand.push(...o.pts); });
+        const moved0 = { vx: orig[0].vx + dx, vy: orig[0].vy + dy };
+        const s = App.Geom.nearestVertex(cand, moved0, 8 / z);
+        if (s) { dx += s.vx - moved0.vx; dy += s.vy - moved0.vy; }
+      }
       an.pts = orig.map((p) => ({ vx: p.vx + dx, vy: p.vy + dy }));
       K.repositionAll();
     }
     function up() { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); }
     window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
   }
+
+  function snapEnabled() { return App.Prefs ? App.Prefs.get('snap', true) : true; }
 
   function startResize(an, e) {
     e.preventDefault(); e.stopPropagation();
@@ -434,6 +441,7 @@
     const an = annoById(App.state.annoSelectedId);
     if (an) { snapshot(); Object.assign(an.style, patch); K.repositionAll(); }
     Object.assign(defaults(), patch); // also update defaults for new items
+    if (App.Prefs) App.Prefs.set('annoStyle', App.state.annoStyle); // persist across restarts
   }
 
   K.init = function () {
@@ -445,6 +453,12 @@
     wire('#mk-fill-on', 'change', (e) => applyStyle({ fill: e.target.checked ? App.$('#mk-fill').value : 'none' }));
     wire('#mk-width', 'input', (e) => applyStyle({ width: parseFloat(e.target.value) }));
     wire('#mk-opacity', 'input', (e) => applyStyle({ opacity: App.clamp(parseInt(e.target.value, 10) / 100, 0.1, 1) }));
+    // Snap toggle — persisted; drives snapEnabled().
+    const snap = App.$('#mk-snap');
+    if (snap) {
+      snap.checked = App.Prefs ? App.Prefs.get('snap', true) : true;
+      snap.addEventListener('change', (e) => { if (App.Prefs) App.Prefs.set('snap', e.target.checked); });
+    }
     syncPropBar();
   };
 
@@ -460,9 +474,14 @@
   };
   Panel.render = function () {
     const list = App.$('#mkp-list'); if (!list) return;
-    const arr = App.state.annotations;
+    const all = App.state.annotations;
+    const q = ((App.$('#mkp-filter') && App.$('#mkp-filter').value) || '').trim().toLowerCase();
+    const arr = q
+      ? all.filter((an) => an.type.includes(q) || (an.text || '').toLowerCase().includes(q) || ('p' + an.page).includes(q))
+      : all;
     list.innerHTML = '';
-    if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
+    if (!all.length) { list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">✏️</div>No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
+    if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups match “' + esc(q) + '”.</div>'; return; }
     arr.forEach((an) => {
       const row = document.createElement('div');
       row.className = 'mp-row' + (an.id === App.state.annoSelectedId ? ' selected' : '');
@@ -481,8 +500,12 @@
       list.appendChild(row);
     });
   };
-  Panel.clearAll = function () {
+  Panel.clearAll = async function () {
     if (!App.state.annotations.length) return;
+    const ok = await App.confirm(
+      'Delete all markups? You can undo this with Ctrl+Z.',
+      { title: 'Clear markups', okLabel: 'Clear all', danger: true });
+    if (!ok) return;
     snapshot();
     App.state.annotations = []; App.state.annoSelectedId = null;
     K.repositionAll(); Panel.render();
@@ -508,8 +531,19 @@
     b('#mkp-close', Panel.toggle);
     b('#mkp-export', Panel.exportCsv);
     b('#mkp-clear', Panel.clearAll);
+    const filt = App.$('#mkp-filter');
+    if (filt) filt.addEventListener('input', Panel.render);
     const chk = App.$('#mkp-annots');
-    if (chk) chk.addEventListener('change', (e) => { App.state.saveAnnots = e.target.checked; });
+    if (chk) {
+      // Restore the persisted editable-vs-flatten choice.
+      const saved = App.Prefs ? App.Prefs.get('saveAnnots', false) : false;
+      App.state.saveAnnots = saved;
+      chk.checked = saved;
+      chk.addEventListener('change', (e) => {
+        App.state.saveAnnots = e.target.checked;
+        if (App.Prefs) App.Prefs.set('saveAnnots', e.target.checked);
+      });
+    }
   };
 
   App.Markup = K;
