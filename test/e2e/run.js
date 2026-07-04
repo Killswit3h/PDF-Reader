@@ -118,6 +118,26 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'organize — reorder/rotate/delete rebuilds the page set',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_ORGANIZE: '1' }, [BIG]), 'organize');
+      check(j.start === 12, `start ${j.start} != 12`);
+      check(j.pages === 11, `rebuilt pages ${j.pages} != 11`);
+      check(j.rot === 90, `rotated page angle ${j.rot} != 90`);
+      check(j.extract === 2, `extract page count ${j.extract} != 2`);
+      check(j.err === '', `assemble error: ${j.err}`);
+    }
+  },
+  {
+    name: 'stamp — numbering/watermark preview + flatten export',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_STAMP: '1' }, [SAMPLE]), 'stamp');
+      check(j.previews > 0, `stamp previews ${j.previews}`);
+      check(j.bytesLen > 0, 'no PDF bytes produced');
+      check(j.err === '', `buildBytes error: ${j.err}`);
+    }
+  },
+  {
     name: 'measure — length/area/angle/count + region scale export',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MEASURE: '1' }, [BIG]), 'measure');

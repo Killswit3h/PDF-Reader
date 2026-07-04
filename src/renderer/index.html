@@ -107,6 +107,15 @@
         </div>
       </div>
     </div>
+
+    <div class="rail-sep"></div>
+
+    <div class="rail-label">Document</div>
+    <div class="rail-group">
+      <button id="btn-organize" class="tb-btn rail-btn" disabled title="Organize pages — reorder, rotate, delete, insert, merge, extract">🗂️ Pages</button>
+      <button id="btn-doctools" class="tb-btn rail-btn" disabled title="Numbering, header/footer, watermark">#️⃣ Stamp</button>
+      <button id="btn-chest" class="tb-btn rail-btn" disabled title="Tool Chest — saved markups & image stamps">🧰 Chest</button>
+    </div>
   </aside>
 
   <!-- ============ Status / mode banner ============ -->
@@ -312,6 +321,117 @@
     </div>
   </aside>
 
+  <!-- ============ Page Organizer panel ============ -->
+  <aside id="organize-panel" class="hidden">
+    <div class="mp-head">
+      <span>Organize Pages</span>
+      <button id="org-close" class="modal-x" title="Close">✕</button>
+    </div>
+    <div class="org-toolbar">
+      <button id="org-merge" class="tb-btn" title="Append another PDF's pages">➕ Merge…</button>
+      <button id="org-insert" class="tb-btn" title="Insert a blank page">▤ Blank</button>
+      <button id="org-extract" class="tb-btn" title="Save the ticked pages as a new PDF">⤓ Extract…</button>
+    </div>
+    <p class="org-hint">Use ◀ ▶ to reorder, ⟳ to rotate, ✕ to delete. Tick pages to extract.
+      <b>Apply</b> rebuilds the document.</p>
+    <div id="org-grid" class="org-grid"></div>
+    <div class="mp-foot">
+      <button id="org-cancel" class="tb-btn">Cancel</button>
+      <button id="org-apply" class="tb-btn primary">Apply changes</button>
+    </div>
+  </aside>
+
+  <!-- ============ Tool Chest panel ============ -->
+  <aside id="toolchest-panel" class="hidden">
+    <div class="mp-head">
+      <span>Tool Chest</span>
+      <button id="tc-close" class="modal-x" title="Close">✕</button>
+    </div>
+    <div class="org-toolbar">
+      <button id="tc-save-markup" class="tb-btn" title="Save the current markup tool/style">＋ Save markup style</button>
+      <button id="tc-add-stamp" class="tb-btn" title="Add an image as a reusable stamp">🖼️ Add stamp…</button>
+    </div>
+    <div id="tc-list" class="tc-list"></div>
+  </aside>
+
+  <!-- ============ Document stamps modal (Bates / header-footer / watermark) ============ -->
+  <div id="docstamp-modal" class="modal-backdrop hidden">
+    <div class="modal" style="width:600px">
+      <div class="modal-head">
+        <h2>Numbering &amp; Stamps</h2>
+        <button id="ds-close" class="modal-x" title="Close">✕</button>
+      </div>
+      <div class="ds-body">
+        <fieldset class="ds-sec">
+          <legend><label><input id="ds-num-on" type="checkbox" /> Page / Bates numbering</label></legend>
+          <div class="ds-row">
+            <label>Prefix <input id="ds-num-prefix" type="text" maxlength="24" placeholder="ABC-" style="width:90px" /></label>
+            <label>Start <input id="ds-num-start" type="number" value="1" style="width:70px" /></label>
+            <label>Min digits <input id="ds-num-digits" type="number" value="0" min="0" max="10" style="width:60px" /></label>
+            <label>Position
+              <select id="ds-num-pos">
+                <option value="bl">Bottom-left</option>
+                <option value="bc">Bottom-centre</option>
+                <option value="br" selected>Bottom-right</option>
+                <option value="tl">Top-left</option>
+                <option value="tc">Top-centre</option>
+                <option value="tr">Top-right</option>
+              </select>
+            </label>
+            <label>Size <input id="ds-num-size" type="number" value="10" min="6" max="48" style="width:56px" /></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="ds-sec">
+          <legend><label><input id="ds-hdr-on" type="checkbox" /> Header (top-centre)</label></legend>
+          <div class="ds-row">
+            <label class="grow">Text <input id="ds-hdr-text" type="text" maxlength="120" style="width:100%" /></label>
+            <label>Size <input id="ds-hdr-size" type="number" value="10" min="6" max="48" style="width:56px" /></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="ds-sec">
+          <legend><label><input id="ds-ftr-on" type="checkbox" /> Footer (bottom-centre)</label></legend>
+          <div class="ds-row">
+            <label class="grow">Text <input id="ds-ftr-text" type="text" maxlength="120" style="width:100%" /></label>
+            <label>Size <input id="ds-ftr-size" type="number" value="10" min="6" max="48" style="width:56px" /></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="ds-sec">
+          <legend><label><input id="ds-wm-on" type="checkbox" /> Watermark (centre)</label></legend>
+          <div class="ds-row">
+            <label class="grow">Text <input id="ds-wm-text" type="text" maxlength="60" value="DRAFT" style="width:100%" /></label>
+            <label>Size <input id="ds-wm-size" type="number" value="60" min="10" max="200" style="width:60px" /></label>
+            <label>Angle <input id="ds-wm-angle" type="number" value="45" min="-90" max="90" style="width:60px" /></label>
+            <label>Opacity <input id="ds-wm-opacity" type="range" min="2" max="100" value="15" /></label>
+            <label>Color <input id="ds-wm-color" type="color" value="#e5484d" /></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="ds-sec">
+          <legend>Apply to</legend>
+          <div class="ds-row">
+            <label>Pages
+              <select id="ds-range-mode">
+                <option value="all">All pages</option>
+                <option value="range">Range</option>
+              </select>
+            </label>
+            <label>From <input id="ds-range-from" type="number" value="1" min="1" style="width:64px" /></label>
+            <label>To <input id="ds-range-to" type="number" value="0" min="0" title="0 = last page" style="width:64px" /></label>
+          </div>
+          <label class="ds-flatten"><input id="ds-flatten" type="checkbox" /> Flatten interactive form fields on save (make them non-editable)</label>
+        </fieldset>
+      </div>
+      <div class="modal-foot">
+        <button id="ds-clear" class="tb-btn">Clear</button>
+        <button id="ds-cancel" class="tb-btn">Cancel</button>
+        <button id="ds-apply" class="tb-btn primary">Apply</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ Update modal ============ -->
   <div id="update-modal" class="modal-backdrop hidden">
     <div class="modal" style="width:520px">
@@ -362,6 +482,9 @@
   <script src="js/viewer.js"></script>
   <script src="js/measure.js"></script>
   <script src="js/markup.js"></script>
+  <script src="js/organize.js"></script>
+  <script src="js/docstamp.js"></script>
+  <script src="js/toolchest.js"></script>
   <script src="js/save.js"></script>
   <script src="js/app.js"></script>
 </body>
