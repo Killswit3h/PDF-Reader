@@ -51,7 +51,8 @@
     }
 
     const label = mode === 'signature' ? 'signature'
-      : mode === 'initials' ? 'initials' : 'date';
+      : mode === 'initials' ? 'initials'
+        : mode === 'stamp' ? 'stamp' : 'date';
     textEl.textContent = `Click on the page where the ${label} should go.`;
     banner.classList.remove('hidden');
     document.body.classList.add('has-banner');
@@ -172,7 +173,8 @@
       if (e.key === 'Escape') {
         const open = [
           ['#sig-modal', '#sig-cancel'], ['#scale-modal', '#scale-cancel'],
-          ['#update-modal', '#upd-close'], ['#confirm-modal', '#confirm-no']
+          ['#update-modal', '#upd-close'], ['#confirm-modal', '#confirm-no'],
+          ['#docstamp-modal', '#ds-cancel']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
         if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
       }
@@ -437,6 +439,9 @@
     App.Signature.init();
     App.Measure.init();
     App.Markup.init();
+    if (App.Organize) App.Organize.init();
+    if (App.DocStamp) App.DocStamp.init();
+    if (App.ToolChest) App.ToolChest.init();
     setupUpdates();
     setupDragDrop();
     setupKeys();
@@ -451,6 +456,9 @@
     App.$('#btn-sign').addEventListener('click', () => startImagePlacement('signature'));
     App.$('#btn-initials').addEventListener('click', () => startImagePlacement('initials'));
     App.$('#btn-date').addEventListener('click', startDatePlacement);
+    if (App.$('#btn-organize')) App.$('#btn-organize').addEventListener('click', () => App.Organize.toggle());
+    if (App.$('#btn-doctools')) App.$('#btn-doctools').addEventListener('click', () => App.DocStamp.open());
+    if (App.$('#btn-chest')) App.$('#btn-chest').addEventListener('click', () => App.ToolChest.toggle());
     App.$('#btn-save').addEventListener('click', () => App.Save.save());
     App.$('#btn-save-as').addEventListener('click', () => App.Save.saveAs());
     App.$('#mode-cancel').addEventListener('click', () => App.setMode(null));

@@ -139,7 +139,18 @@
   S.buildBytes = async function () {
     const { PDFDocument, StandardFonts, degrees, rgb } = window.PDFLib;
 
-    const pdfDoc = await PDFDocument.load(App.state.pdfBytes);
+    // If the user typed into interactive form fields (PDF.js ENABLE_FORMS keeps
+    // their values in annotationStorage), bake those into the base document
+    // first, then let pdf-lib stamp signatures/markup on top of the filled PDF.
+    let baseBytes = App.state.pdfBytes;
+    try {
+      const store = App.state.pdfDoc && App.state.pdfDoc.annotationStorage;
+      if (store && store.size > 0 && typeof App.state.pdfDoc.saveDocument === 'function') {
+        baseBytes = await App.state.pdfDoc.saveDocument();
+      }
+    } catch (_) { /* no form edits / unsupported → use the original bytes */ }
+
+    const pdfDoc = await PDFDocument.load(baseBytes);
       const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
       // Under virtualized rendering a page with items may never have been
@@ -290,6 +301,15 @@
           lines.forEach((ln, i) => page.drawText(ln, { x: bx, y: topY - size * (i + 1), size, font: helv, color: col }));
         }
       }
+
+      // Optional: flatten interactive form fields into static page content.
+      if (App.state.flattenForms) {
+        try { pdfDoc.getForm().flatten(); } catch (_) { /* no form / nothing to flatten */ }
+      }
+
+      // Document stamps: Bates/page numbering, header/footer, watermark. Drawn
+      // last so they sit above the flattened content.
+      if (App.DocStamp) App.DocStamp.applyToPdf(pdfDoc, helv);
 
       return await pdfDoc.save();
   };

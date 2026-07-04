@@ -223,6 +223,62 @@ function createWindow() {
         }, 1200);
         return;
       }
+      if (process.env.SMOKE_ORGANIZE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1000));
+              const start = App.state.numPages;
+              App.Organize.toggle();
+              const m = App.Organize._model();
+              m[0].deleted = true; m[1].rotate = 90;
+              const tmp = m[2]; m[2] = m[3]; m[3] = tmp;      // swap pages 3 & 4
+              const live = m.filter((e) => !e.deleted);
+              let pages = 0, rot = -1, extract = 0, err = '';
+              try {
+                const bytes = await App.Organize._assemble(live);
+                const doc = await window.PDFLib.PDFDocument.load(bytes);
+                pages = doc.getPageCount();
+                rot = doc.getPage(0).getRotation().angle;      // live[0] = rotated page
+                const exBytes = await App.Organize._assemble([m[4], m[6]]);
+                extract = (await window.PDFLib.PDFDocument.load(exBytes)).getPageCount();
+              } catch (e) { err = e.message; }
+              App.Organize.close();
+              return JSON.stringify({ start, pages, rot, extract, err });
+            })()`, true);
+            console.log('[organize] ' + r);
+          } catch (e) { console.log('[organize] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      if (process.env.SMOKE_STAMP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1000));
+              App.state.docStamp = {
+                number: { on: true, prefix: 'A-', start: 1, digits: 4, pos: 'br', size: 10 },
+                header: { on: false, text: '', size: 10 },
+                footer: { on: true, text: 'Confidential', size: 9 },
+                watermark: { on: true, text: 'DRAFT', size: 60, opacity: 0.15, angle: 45, color: '#e5484d' },
+                range: { mode: 'all', from: 1, to: 0 }
+              };
+              App.DocStamp.repositionAll();
+              const previews = document.querySelectorAll('#viewer .stamp-preview').length;
+              App.state.flattenForms = true;   // exercise the pdf-lib form-flatten path
+              let bytesLen = 0, err = '';
+              try { bytesLen = (await App.Save.buildBytes()).length; } catch (e) { err = e.message; }
+              return JSON.stringify({ previews, bytesLen, err });
+            })()`, true);
+            console.log('[stamp] ' + r);
+          } catch (e) { console.log('[stamp] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_OVERLAY) {
         setTimeout(async () => {
           try {

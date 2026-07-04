@@ -50,7 +50,9 @@
       findController,
       l10n: pdfjsViewer.NullL10n,
       textLayerMode: 1, // enable text selection
-      annotationMode: pdfjsLib.AnnotationMode.ENABLE,
+      // ENABLE_FORMS renders interactive AcroForm widgets as real inputs and
+      // keeps edits in the document's annotationStorage (baked in on save).
+      annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS || 2,
       removePageBorders: true,
       maxCanvasPixels: 16777216 // cap per-page canvas to bound memory on big pages
     });
@@ -189,6 +191,7 @@
     if (App.Placement) App.Placement.repositionAll();
     if (App.Measure) App.Measure.repositionAll();
     if (App.Markup) App.Markup.repositionAll();
+    if (App.DocStamp) App.DocStamp.repositionAll();
   }
   Viewer.refreshOverlays = refreshOverlays;
 
@@ -255,6 +258,7 @@
     App.state.annoSelectedId = null;
     App.state.annoUndo = [];
     App.state.annoRedo = [];
+    App.state.flattenForms = false;
     if (App.History) App.History.reset();
     App.setMode && App.setMode(null);
   };
@@ -347,9 +351,10 @@
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {
     ['#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
+     '#btn-organize', '#btn-doctools', '#btn-chest',
      '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next',
      '#btn-save', '#btn-save-as', '#page-input']
-      .forEach((s) => { App.$(s).disabled = !enabled; });
+      .forEach((s) => { const el = App.$(s); if (el) el.disabled = !enabled; });
   };
 
   App.Viewer = Viewer;

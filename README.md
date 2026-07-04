@@ -112,12 +112,27 @@ at runtime. Handwriting fonts are bundled with the app.
   remembered between launches.
 - **Find & filter** — filter inputs in the Markups and Measurements panels
   narrow long lists by type / value / page.
+- **Organize pages** (🗂️ Pages) — a thumbnail panel to **reorder** (◀ ▶),
+  **rotate** (⟳), **delete**, and **insert blank** pages; **Merge** another PDF's
+  pages in; and **Extract** ticked pages to a new file. *Apply* rebuilds the
+  document with pdf-lib (`copyPages`) and reloads it.
+- **Fill interactive forms** — real **AcroForm** fields render as native inputs
+  (PDF.js `ENABLE_FORMS`); type into them and the values are baked into the saved
+  PDF (`saveDocument` → pdf-lib), or **flatten** them to static content on save.
+- **Numbering & stamps** (#️⃣ Stamp) — **Bates / page numbering** (prefix, start,
+  zero-padding, corner), **header / footer** text, and a rotated **watermark**
+  (text, size, angle, opacity, color) — applied across all pages or a range, with
+  a live preview. Drawn into the PDF at save time.
+- **Tool Chest** (🧰 Chest) — save a markup tool's **type + style** as a reusable
+  tool, or add an image as a reusable **stamp**; click to re-apply. Stored locally
+  (localStorage) so it persists across launches.
 
 ## Layout & keyboard
 
 The **top bar** carries Open · zoom · page navigation · Save / Save As · theme ·
-version. A **left tool rail** holds the creation tools: **Sign · Initials · Date ·
-Measure ▾ · Markup ▾**.
+version. A **left tool rail** holds the creation tools in three groups:
+**Stamp** (Sign · Initials · Date), **Take-off** (Measure ▾ · Markup ▾), and
+**Document** (🗂️ Pages · #️⃣ Stamp · 🧰 Chest).
 
 Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+F` find ·
 `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `+ / − / 0` zoom (0 = 100%) · `← / →` page ·
@@ -164,10 +179,11 @@ npm run verify    # both, in sequence — the pre-push gate
   preferences. No Electron required; runs in milliseconds.
 - **E2E smoke suite** (`test/e2e/run.js`) launches the real app headlessly via
   the `SMOKE_*` harness in `main.js` against committed fixtures
-  (`test/fixtures/`, regenerate with `npm run fixtures`) and asserts nine
+  (`test/fixtures/`, regenerate with `npm run fixtures`) and asserts eleven
   scenarios: cold-start "Open with", warm document swap, trackpad/Ctrl-wheel
-  zoom, virtualized rendering + find, all markup tools, scaled measurements,
-  editable annotations, overlay rendering, and PDF save/flatten.
+  zoom, virtualized rendering + find, all markup tools, page organize
+  (reorder/rotate/delete/extract), numbering/watermark + form flatten, scaled
+  measurements, editable annotations, overlay rendering, and PDF save/flatten.
 - CI (`.github/workflows/ci.yml`) runs the unit tests on Linux/Windows/macOS and
   the E2E suite headlessly (xvfb) on every push and PR; the release workflow
   gates every build on the same tests. A local `scripts/prepush.sh` runs
@@ -332,7 +348,10 @@ PDF Reader/
 │        ├─ viewer.js      # PDF.js render, zoom, fit, navigation
 │        ├─ measure.js     # scale calibration, measurement tools, viewports, CSV
 │        ├─ markup.js      # Bluebeam-style markup engine + Markups List panel
-│        ├─ save.js        # pdf-lib export + coordinate mapping
+│        ├─ organize.js    # Page Organizer: reorder/rotate/delete/insert/merge/extract
+│        ├─ docstamp.js    # Bates numbering, header/footer, watermark (preview + export)
+│        ├─ toolchest.js   # saved markup tools + reusable image stamps (Prefs-backed)
+│        ├─ save.js        # pdf-lib export + coordinate mapping (+ form fill / flatten)
 │        └─ app.js         # toolbar/rail wiring, drag-drop, keyboard, theme, modes
 ├─ test/
 │  ├─ unit/                # vitest suites over src/shared/*
