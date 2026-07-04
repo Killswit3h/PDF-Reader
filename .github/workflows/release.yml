@@ -97,9 +97,50 @@ jobs:
             release/*.dmg
             release/*.zip
 
+  # ---------------- Android ----------------
+  build-android:
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # Capacitor CLI requires Node >= 22.
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - run: npm ci
+      - name: Build web bundle + generate Android project
+        run: |
+          npm run build:web
+          npx cap add android
+          npx cap sync android
+      - name: Assemble debug APK
+        # Debug build is signed with the auto-generated debug keystore, so it
+        # installs via sideload without a release keystore (same "unsigned"
+        # posture as the desktop installers).
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+      - name: Stage APK with a stable name
+        run: |
+          mkdir -p release-apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release-apk/PDF-Signer.apk
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: release-apk/PDF-Signer.apk
+
   # ---------------- Publish combined release ----------------
   release:
-    needs: [build-windows, build-mac]
+    needs: [build-windows, build-mac, build-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,3 +168,4 @@ jobs:
             dist-artifacts/windows/PDF-Signer-Setup.exe
             dist-artifacts/mac/*.dmg
             dist-artifacts/mac/*.zip
+            dist-artifacts/android/PDF-Signer.apk
