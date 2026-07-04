@@ -1,0 +1,13 @@
+{
+  "appId": "com.pdfsigner.app",
+  "appName": "PDF Signer",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": false
+    }
+  }
+}

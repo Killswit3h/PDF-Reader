@@ -1,10 +1,19 @@
 # PDF Signer
 
-A simple, **offline** desktop app (**Windows + macOS**) to open PDFs, **view**
-large plan sets fast, **mark them up** (arrows, shapes, clouds, ink, text,
-highlight), **measure by scale**, add a **signature / initials / date**, and save.
-Built with Electron, the official PDF.js viewer (virtualized rendering), and
-pdf-lib (writing/exporting).
+A simple, **offline** app (**Windows + macOS desktop**, and now **Android**) to
+open PDFs, **view** large plan sets fast, **mark them up** (arrows, shapes,
+clouds, ink, text, highlight), **measure by scale**, add a **signature /
+initials / date**, and save. Built with Electron on the desktop and
+[Capacitor](https://capacitorjs.com/) on Android, both driving the *same*
+renderer — the official PDF.js viewer (virtualized rendering) and pdf-lib
+(writing/exporting).
+
+> **Android:** the entire UI + PDF engine is platform-neutral web code, so the
+> Android app reuses the desktop renderer verbatim inside a native WebView. The
+> only platform-specific layer is file I/O: on desktop that's Electron IPC; on
+> Android it's the system file picker plus the Capacitor Filesystem/Share
+> plugins (`src/renderer/js/platform-web.js`). See
+> [Build the Android app](#build-the-android-app-apk).
 
 ## ⬇ Download
 
@@ -187,6 +196,54 @@ required): `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`,
 Both platforms register **PDF Signer** as a handler for `.pdf` (Open With), and
 macOS "Open with" is handled via the app's `open-file` event.
 
+## Build the Android app (`.apk`)
+
+The Android app wraps the desktop renderer in a native WebView via
+[Capacitor](https://capacitorjs.com/). The build has two steps: bundle the web
+renderer into a self-contained `www/`, then let Capacitor generate and build the
+native Android project.
+
+**Prerequisites:** Android SDK + a JDK (17 or 21). Easiest via
+[Android Studio](https://developer.android.com/studio), which also gives you an
+emulator and one-click Run.
+
+```bash
+npm ci                 # installs deps incl. Capacitor + the vendored web libs
+npm run build:web      # assemble the self-contained www/ bundle
+npm run android:add    # first time only: generate the native android/ project
+npm run android:apk    # build -> android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+After the first `android:add`, use `npm run android:sync` to push renderer
+changes into the native project, `npm run android:open` to open it in Android
+Studio (Run on a device/emulator from there), or `npm run android:apk` to
+assemble a debug APK from the command line.
+
+Every push and PR also builds a debug APK in CI
+(`.github/workflows/android.yml`) and uploads it as a workflow artifact
+(`pdf-signer-debug-apk`) — download it from the Actions run to sideload on a
+device. The generated `android/` directory and the `www/` bundle are
+**git-ignored** (reproducible from source); commit only `capacitor.config.json`
+and the build scripts.
+
+How the port works:
+
+- **`scripts/build-web.js`** copies the renderer, shared logic, fonts, and the
+  vendored PDF.js / pdf-lib / signature_pad files into `www/`, rewriting the
+  `node_modules` / `shared` paths so the bundle is self-contained, and injects
+  the platform adapter + a mobile viewport.
+- **`src/renderer/js/platform-web.js`** provides the same `window.api` surface
+  the desktop gets from Electron's preload — open via the system file picker,
+  save/export via the Capacitor Filesystem + Share plugins (or a browser
+  download when run as a plain web page). None of the app modules change.
+- **`npm run verify:web`** builds the bundle and drives it in a headless
+  Chromium (the same engine the Android WebView uses) to confirm it boots, loads
+  a PDF, renders, and exports — no Android SDK required.
+
+> The Android build is a **debug**, unsigned APK. To publish to Google Play,
+> generate a signed release build (`./gradlew bundleRelease` with a keystore) —
+> out of scope for this repo's CI, which only produces a sideloadable debug APK.
+
 ## Publishing a release (one-time setup)
 
 You don't need a Windows machine to publish — a GitHub Actions workflow
@@ -219,7 +276,12 @@ certificate later if you want to remove it.)
 
 ```
 PDF Reader/
-├─ package.json            # deps (pinned) + electron-builder config
+├─ package.json            # deps (pinned) + electron-builder config + android:* scripts
+├─ capacitor.config.json   # Capacitor (Android) config: appId, appName, webDir=www
+├─ scripts/
+│  ├─ prepush.sh           # local pre-push gate (npm run verify)
+│  ├─ build-web.js         # assemble the self-contained www/ bundle (Capacitor webDir)
+│  └─ verify-web.js        # drive www/ in headless Chromium (WebView-parity check)
 ├─ build/
 │  ├─ icon.ico             # app/installer icon (256x256)
 │  └─ make-icon.js         # regenerates the icon (pure Node)
@@ -239,6 +301,7 @@ PDF Reader/
 │     ├─ styles.css        # component styles (token-driven)
 │     └─ js/
 │        ├─ theme-boot.js  # pre-paint theme apply (CSP-safe, runs in <head>)
+│        ├─ platform-web.js# window.api for the WebView/browser (Android + web build)
 │        ├─ util.js        # shared state + helpers (toast, loading, confirm)
 │        ├─ history.js     # App.History: unified undo/redo across all layers
 │        ├─ signature.js   # creation modal (type/initials/draw) -> PNG
@@ -248,14 +311,18 @@ PDF Reader/
 │        ├─ markup.js      # Bluebeam-style markup engine + Markups List panel
 │        ├─ save.js        # pdf-lib export + coordinate mapping
 │        └─ app.js         # toolbar/rail wiring, drag-drop, keyboard, theme, modes
-└─ test/
-   ├─ unit/                # vitest suites over src/shared/*
-   ├─ e2e/run.js           # headless Electron smoke suite (SMOKE_* harness)
-   └─ fixtures/            # committed sample.pdf + big.pdf (make-fixtures.js)
+├─ test/
+│  ├─ unit/                # vitest suites over src/shared/*
+│  ├─ e2e/run.js           # headless Electron smoke suite (SMOKE_* harness)
+│  └─ fixtures/            # committed sample.pdf + big.pdf (make-fixtures.js)
+├─ www/                    # (generated) self-contained web bundle — git-ignored
+└─ android/                # (generated) Capacitor native project — git-ignored
 ```
 
-Libraries are loaded from `node_modules` as local UMD builds (offline). `asar`
-is disabled so PDF.js's worker file loads reliably at runtime.
+On the desktop, libraries are loaded from `node_modules` as local UMD builds
+(offline); `asar` is disabled so PDF.js's worker file loads reliably at runtime.
+The Android build copies those same UMD files into `www/vendor/` so the bundle
+is fully self-contained inside the WebView.
 
 ---
 

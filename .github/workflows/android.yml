@@ -1,0 +1,75 @@
+name: Android
+
+# Assemble the web bundle and build a debug Android APK on every push/PR so the
+# mobile port stays buildable. The APK is uploaded as a workflow artifact.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Fast, browser-free check that the renderer still bundles into a
+  # self-contained www/ (catches path/rewrite regressions before the slow APK job).
+  web-bundle:
+    name: Web bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build web bundle
+        run: npm run build:web
+      - name: Assert bundle is self-contained
+        run: |
+          test -f www/index.html
+          test -f www/js/platform-web.js
+          test -f www/js/app-config.js
+          test -f www/vendor/pdfjs/build/pdf.worker.js
+          test -f www/vendor/pdf-lib/pdf-lib.min.js
+          # No stray source-tree paths should survive the rewrite.
+          ! grep -rq "\.\./\.\./node_modules" www/index.html
+          echo "web bundle OK"
+      - name: Verify bundle runs in a browser engine
+        run: |
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium
+          node scripts/verify-web.js
+
+  apk:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    needs: web-bundle
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - run: npm ci
+      - name: Build web bundle + generate Android project
+        # android/ is generated (git-ignored); create it fresh from capacitor.config.json.
+        run: |
+          npm run build:web
+          npx cap add android
+          npx cap sync android
+      - name: Assemble debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-signer-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
