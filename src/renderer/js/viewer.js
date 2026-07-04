@@ -13,7 +13,11 @@
 (function () {
   const pdfjsLib = window.pdfjsLib;
   const pdfjsViewer = window.pdfjsViewer;
-  const VENDOR = '../../node_modules/pdfjs-dist/';
+  // Where the bundled PDF.js assets (worker) live. Electron loads the renderer
+  // straight from the source tree, so it resolves them under node_modules. The
+  // mobile/web build (scripts/build-web.js) copies them into a self-contained
+  // www/ and sets window.PDFJS_VENDOR before this module runs to point here.
+  const VENDOR = window.PDFJS_VENDOR || '../../node_modules/pdfjs-dist/';
   pdfjsLib.GlobalWorkerOptions.workerSrc = VENDOR + 'build/pdf.worker.js';
 
   const ZOOM_MIN = 0.1;
