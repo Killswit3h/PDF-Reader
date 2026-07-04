@@ -23,11 +23,18 @@ Runs on Windows 10/11. Download, run the installer, and launch **PDF Signer**.
 Windows SmartScreen may warn about an "unknown publisher" (the app is not
 code-signed) — click **More info → Run anyway**.
 
+### [**Download for Android (APK)**](https://github.com/Killswit3h/PDF-Reader/releases/latest/download/PDF-Signer.apk)
+
+Sideload on Android 6+. Download `PDF-Signer.apk`, tap it, and allow
+**"install unknown apps"** for your browser/Files app when prompted (the APK is
+signed with a debug key, not a Play Store release key). Not yet on Google Play.
+
 **macOS:** grab the `.dmg` from the [latest release](https://github.com/Killswit3h/PDF-Reader/releases/latest)
 (universal, Intel + Apple Silicon). It's unsigned, so **right-click → Open** the
 first time (or `xattr -dr com.apple.quarantine "/Applications/PDF Signer.app"`).
 
-The installer is built and published automatically on every version tag — see
+Windows, macOS, and Android builds are all built and published automatically on
+every version tag — see
 [Publishing a release](#publishing-a-release-one-time-setup). The app also checks
 for updates on launch and shows a version badge in the toolbar (click it to check
 manually); when a newer release exists it offers a one-click link to download it.
@@ -219,12 +226,18 @@ changes into the native project, `npm run android:open` to open it in Android
 Studio (Run on a device/emulator from there), or `npm run android:apk` to
 assemble a debug APK from the command line.
 
-Every push and PR also builds a debug APK in CI
-(`.github/workflows/android.yml`) and uploads it as a workflow artifact
-(`pdf-signer-debug-apk`) — download it from the Actions run to sideload on a
-device. The generated `android/` directory and the `www/` bundle are
-**git-ignored** (reproducible from source); commit only `capacitor.config.json`
-and the build scripts.
+Two ways to get an APK without a local Android toolchain:
+
+- **A published release** — every version tag builds `PDF-Signer.apk` and
+  attaches it to the GitHub Release (see [Publishing a release](#publishing-a-release-one-time-setup)).
+  The **Download for Android** button above points at the latest release's APK.
+- **A CI artifact** — every push and PR also builds a debug APK in CI
+  (`.github/workflows/android.yml`) and uploads it as a workflow artifact
+  (`pdf-signer-debug-apk`); download it from the Actions run to sideload.
+
+The generated `android/` directory and the `www/` bundle are **git-ignored**
+(reproducible from source); commit only `capacitor.config.json` and the build
+scripts.
 
 How the port works:
 
@@ -247,9 +260,10 @@ How the port works:
 ## Publishing a release (one-time setup)
 
 You don't need a Windows machine to publish — a GitHub Actions workflow
-(`.github/workflows/release.yml`) builds the installer on a Windows runner and
-attaches it to a GitHub Release. The **Download for Windows** button above always
-points at the latest release's `PDF-Signer-Setup.exe`.
+(`.github/workflows/release.yml`) builds the Windows installer, the macOS
+`.dmg`/`.zip`, and the **Android `PDF-Signer.apk`** on their respective runners
+and attaches all of them to a single GitHub Release. The **Download** buttons
+above always point at the latest release's assets.
 
 **To cut a release, push a version tag:**
 
@@ -259,8 +273,13 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The workflow builds `PDF-Signer-Setup.exe` and publishes it as release `v1.0.0`.
-Within a few minutes the download button works for everyone.
+The workflow publishes `PDF-Signer-Setup.exe`, the macOS artifacts, and
+`PDF-Signer.apk` as release `v1.0.0`. Within a few minutes the download buttons
+work for everyone.
+
+> **The Download for Android button 404s until the first release built with the
+> updated workflow exists** — earlier releases have no APK attached. Cut a new
+> version tag (or re-run the release workflow) to publish the first APK.
 
 **Or trigger it manually:** open the repo's **Actions** tab → *Build & Release
 (Windows)* → **Run workflow**. It uses the version from `package.json` for the
