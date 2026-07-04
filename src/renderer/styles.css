@@ -657,3 +657,142 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
 .tb-field .val { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); margin-top: 3px; }
 /* Cheat sheet sits below the block, like a drawing note. */
 #empty-state .kbd-row { max-width: 468px; }
+
+/* =============================================================================
+ * MOBILE / TOUCH — responsive layer for phones and touchscreens (Android app).
+ *
+ * Grounded in platform guidance: >=48px touch targets spaced ~8px (Material 3 /
+ * web.dev accessible tap targets), env(safe-area-inset-*) for notches + the
+ * gesture bar (the web build sets viewport-fit=cover), `pointer: coarse` to size
+ * up for touch on any device, and thumb-reachable primary tools relocated to a
+ * bottom bar. Desktop (fine pointer + wide viewport) is completely unaffected —
+ * every rule here is gated behind a media query.
+ * ========================================================================== */
+
+/* ---- Touch-target sizing: any coarse pointer (phones AND tablets) ---- */
+@media (pointer: coarse) {
+  .tb-btn { min-height: 40px; }
+  .tb-btn.icon { min-width: 40px; }
+  #page-input { height: 38px; }
+  .tb-menu button { padding: 12px 12px; }          /* ~48px tall rows */
+  .mp-row { padding: 12px 10px; }
+  .modal-x { width: 40px; height: 40px; }
+  .sig-tab, .scale-tab { padding: 12px 18px; }
+  .modal-foot .tb-btn, .mp-foot .tb-btn { min-height: 44px; }
+  .link-btn { padding: 6px 4px; }
+  /* Hover-only affordances need a visible resting state on touch (no :hover). */
+  .mp-row .mp-del { opacity: 1; }
+  /* Keyboard cheat-sheet is meaningless without a keyboard. */
+  #empty-state .kbd-row { display: none; }
+}
+
+/* ---- Phone / small-tablet layout reflow ---- */
+@media (max-width: 820px) {
+  :root {
+    /* Fold the notch inset into the toolbar height so every top-anchored
+       offset (viewer, rail, panels) shifts down with it automatically. */
+    --toolbar-h: calc(52px + env(safe-area-inset-top));
+    --mrail-h: 60px;   /* bottom tool bar (excl. safe-area, added separately) */
+  }
+
+  /* ---------- Top bar: scroll-safe, nothing clipped ----------
+     All document controls stay in one row; if they exceed the width the row
+     scrolls horizontally, with Open pinned left and Save pinned right so the
+     two primary actions are always reachable. */
+  #toolbar {
+    padding: 0 8px;
+    padding-top: env(safe-area-inset-top);
+    gap: 6px;
+    overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none;                 /* Firefox */
+  }
+  #toolbar::-webkit-scrollbar { display: none; }
+  #toolbar > * { flex: 0 0 auto; }
+  .tb-spacer { display: none; }
+  #toolbar .brand-name { display: none; }  /* keep the compact mark; the empty-state title block keeps its label */
+  #btn-updates { display: none; }          /* version badge: not needed here */
+
+  .tb-group.g-open {
+    position: sticky; left: 0; z-index: 3; order: -1;
+    background: var(--panel); padding-right: 6px;
+    box-shadow: 6px 0 6px -6px rgba(0,0,0,0.35);
+  }
+  .tb-group.g-save {
+    position: sticky; right: 0; z-index: 3; order: 5;
+    background: var(--panel); padding-left: 6px;
+    box-shadow: -6px 0 6px -6px rgba(0,0,0,0.35);
+  }
+
+  /* ---------- Tool rail -> bottom tab bar (thumb reach) ---------- */
+  #tool-rail {
+    top: auto !important; bottom: 0; left: 0; right: 0;
+    width: auto; height: auto;
+    flex-direction: row; align-items: stretch; gap: 0;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    border-right: none; border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.28);
+    z-index: 22;
+  }
+  #tool-rail .rail-label, #tool-rail .rail-sep { display: none; }
+  /* Promote the two rail groups' children to equal-width bottom-bar items. */
+  #tool-rail .rail-group { display: contents; }
+  #tool-rail .rail-btn, #tool-rail .tb-dropdown { flex: 1 1 0; min-width: 0; }
+  #tool-rail .tb-dropdown { display: flex; }
+  #tool-rail .rail-btn {
+    height: auto; min-height: 52px;
+    flex-direction: column; justify-content: center; gap: 2px;
+    padding: 6px 2px; font-size: 11px; text-align: center;
+    white-space: nowrap;
+  }
+  /* Tool menus become a full-width action sheet above the bar. Fixed (not
+     absolute) so left/right are viewport-relative, not confined to the narrow
+     tab; a 2-column grid keeps all options on screen without scrolling. */
+  #tool-rail .tb-menu {
+    position: fixed; top: auto;
+    left: 8px; right: 8px;
+    bottom: calc(var(--mrail-h) + env(safe-area-inset-bottom) + 6px);
+    min-width: 0; max-height: 62vh; overflow-y: auto;
+    box-shadow: var(--shadow-3);
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px;
+  }
+  #tool-rail .tb-menu .tb-menu-sep { grid-column: 1 / -1; }
+  #tool-rail .tb-menu button { padding: 13px 12px; font-size: 14px; }
+
+  /* ---------- Viewer fills the width; clears the bottom bar ---------- */
+  #viewer-wrap {
+    left: 0; right: 0;
+    bottom: calc(var(--mrail-h) + env(safe-area-inset-bottom));
+  }
+  body.has-mpanel #viewer-wrap, body.has-mkpanel #viewer-wrap { right: 0; }
+
+  /* ---------- List panels -> full-width overlay sheets ---------- */
+  #measure-panel, #markup-panel {
+    width: 100%; left: 0; right: 0;
+    bottom: calc(var(--mrail-h) + env(safe-area-inset-bottom));
+    z-index: 25;
+  }
+
+  /* Markup properties bar: scroll its controls rather than overflow the width. */
+  #markup-props { gap: 10px; padding: 0 10px; overflow-x: auto; }
+  #markup-props::-webkit-scrollbar { display: none; }
+  .mk-prop { flex: 0 0 auto; }
+  .mk-prop input[type="range"] { width: 74px; }
+
+  /* Mode banner wraps and its Finish/Cancel stay tappable. */
+  #mode-banner { height: auto; min-height: 34px; padding: 6px 12px; flex-wrap: wrap; }
+
+  /* Toast clears the bottom bar. */
+  #toast {
+    bottom: calc(var(--mrail-h) + 18px + env(safe-area-inset-bottom));
+    max-width: 88%;
+  }
+
+  /* Modals: cap height and let the whole card scroll on short screens. */
+  .modal { max-height: 88dvh; overflow-y: auto; }
+  .modal-foot { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+
+  /* Empty-state title block: fit narrow screens, drop the desktop drag hint. */
+  .title-block { width: 100%; }
+  .tb-body { padding: 22px 18px 18px; }
+  .tb-body .hint { display: none; }
+}

@@ -28,6 +28,10 @@
     const existing = document.getElementById('mode-new');
     if (existing) existing.remove();
 
+    // A tappable "Finish shape" for measure/markup — the touch-friendly
+    // equivalent of pressing Enter (or double-tapping) to close a polyline/polygon.
+    App.$('#mode-finish').classList.toggle('hidden', !(mode === 'measure' || mode === 'markup'));
+
     if (!mode) {
       banner.classList.add('hidden');
       document.body.classList.remove('has-banner');
@@ -450,6 +454,10 @@
     App.$('#btn-save').addEventListener('click', () => App.Save.save());
     App.$('#btn-save-as').addEventListener('click', () => App.Save.saveAs());
     App.$('#mode-cancel').addEventListener('click', () => App.setMode(null));
+    App.$('#mode-finish').addEventListener('click', () => {
+      if (App.state.mode === 'measure') App.Measure.finishDrawing();
+      else if (App.state.mode === 'markup') App.Markup.finishDrawing();
+    });
 
     App.$('#btn-zoom-in').addEventListener('click', () => App.Viewer.zoomIn());
     App.$('#btn-zoom-out').addEventListener('click', () => App.Viewer.zoomOut());
