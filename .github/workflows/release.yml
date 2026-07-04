@@ -120,6 +120,7 @@ jobs:
           npm run build:web
           npx cap add android
           npx cap sync android
+          node build/make-android-icons.js android/app/src/main/res
       - name: Assemble debug APK
         # Debug build is signed with the auto-generated debug keystore, so it
         # installs via sideload without a release keystore (same "unsigned"

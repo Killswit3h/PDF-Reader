@@ -305,8 +305,9 @@ PDF Reader/
 │  ├─ build-web.js         # assemble the self-contained www/ bundle (Capacitor webDir)
 │  └─ verify-web.js        # drive www/ in headless Chromium (WebView-parity check)
 ├─ build/
-│  ├─ icon.ico             # app/installer icon (256x256)
-│  └─ make-icon.js         # regenerates the icon (pure Node)
+│  ├─ icon.ico             # desktop app/installer icon (256x256)
+│  ├─ make-icon.js         # regenerates the desktop icon (pure Node)
+│  └─ make-android-icons.js# same artwork → Android launcher icons (legacy + adaptive)
 ├─ src/
 │  ├─ main.js              # Electron main: window, file dialogs, fs bridge
 │  ├─ preload.js           # contextBridge IPC surface (no raw node in renderer)
