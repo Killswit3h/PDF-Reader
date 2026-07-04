@@ -21,7 +21,7 @@
       <span class="brand-name">PDF Signer</span>
     </div>
 
-    <div class="tb-group">
+    <div class="tb-group g-open">
       <button id="btn-open" class="tb-btn primary" title="Open a PDF (Ctrl+O)">📂 Open</button>
     </div>
 
@@ -47,7 +47,7 @@
 
     <div class="tb-sep"></div>
 
-    <div class="tb-group">
+    <div class="tb-group g-save">
       <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
       <button id="btn-save-as" class="tb-btn" disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
     </div>
@@ -112,6 +112,7 @@
   <!-- ============ Status / mode banner ============ -->
   <div id="mode-banner" class="hidden">
     <span id="mode-banner-text"></span>
+    <button id="mode-finish" class="link-btn hidden">✓ Finish shape</button>
     <button id="mode-cancel" class="link-btn">Cancel</button>
   </div>
 

@@ -93,6 +93,7 @@
     eventBus.on('updatefindcontrolstate', (e) => showFindCount(e.matchesCount));
 
     setupWheelZoom(container);
+    setupTouchZoom(container);
   };
 
   // ---- Trackpad pinch + Ctrl/Cmd + scroll-wheel zoom ----
@@ -124,6 +125,37 @@
       const factor = Math.exp(-delta * 0.0025);
       Viewer.zoomByAt(factor, e.clientX, e.clientY);
     }, { passive: false, capture: true });
+  }
+
+  // ---- Two-finger pinch-to-zoom (touchscreens) ----
+  // On a touch device there is no `wheel` event for a pinch (that would be a
+  // native browser page-zoom, which the mobile viewport disables). So drive the
+  // same Viewer.zoomByAt from raw touch points: track the distance between two
+  // fingers and zoom by its ratio, centered on the gesture midpoint. Single-
+  // finger touches are left alone so normal scrolling still works.
+  function setupTouchZoom(container) {
+    let lastDist = 0;
+    const dist = (t) => Math.hypot(
+      t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const mid = (t) => ({
+      x: (t[0].clientX + t[1].clientX) / 2,
+      y: (t[0].clientY + t[1].clientY) / 2
+    });
+    container.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2 && App.state.pdfDoc) lastDist = dist(e.touches);
+    }, { passive: true });
+    container.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 2 || !App.state.pdfDoc || !lastDist) return;
+      e.preventDefault();               // suppress scroll while pinching
+      const d = dist(e.touches);
+      if (d <= 0) return;
+      const m = mid(e.touches);
+      Viewer.zoomByAt(d / lastDist, m.x, m.y);
+      lastDist = d;
+    }, { passive: false });
+    const end = (e) => { if (e.touches.length < 2) lastDist = 0; };
+    container.addEventListener('touchend', end, { passive: true });
+    container.addEventListener('touchcancel', end, { passive: true });
   }
 
   function updateZoomLabel() {
