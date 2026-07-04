@@ -710,7 +710,6 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
   #toolbar > * { flex: 0 0 auto; }
   .tb-spacer { display: none; }
   #toolbar .brand-name { display: none; }  /* keep the compact mark; the empty-state title block keeps its label */
-  #btn-updates { display: none; }          /* version badge: not needed here */
 
   .tb-group.g-open {
     position: sticky; left: 0; z-index: 3; order: -1;

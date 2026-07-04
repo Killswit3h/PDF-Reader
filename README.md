@@ -28,6 +28,9 @@ code-signed) — click **More info → Run anyway**.
 Sideload on Android 6+. Download `PDF-Signer.apk`, tap it, and allow
 **"install unknown apps"** for your browser/Files app when prompted (the APK is
 signed with a debug key, not a Play Store release key). Not yet on Google Play.
+The app **checks GitHub for a newer release on launch** (and via the version
+badge in the top bar); when one exists it offers a one-tap **Download** of the
+new APK to sideload over the top.
 
 **macOS:** grab the `.dmg` from the [latest release](https://github.com/Killswit3h/PDF-Reader/releases/latest)
 (universal, Intel + Apple Silicon). It's unsigned, so **right-click → Open** the

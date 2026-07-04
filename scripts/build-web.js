@@ -104,11 +104,16 @@ html = html.replace(
   "connect-src 'self' blob: data: https: capacitor: gap:;"
 );
 
-// The CSP allows scripts only from 'self' (no inline), so the app version is
-// exposed via a generated file rather than an inline <script>.
+// The CSP allows scripts only from 'self' (no inline), so the app version and
+// the GitHub repo slug (for the in-app update check) are exposed via a generated
+// file rather than an inline <script>.
+const repoUrl = (pkg.repository && pkg.repository.url) || '';
+const repoMatch = repoUrl.match(/github\.com[/:]+([^/]+)\/([^/.]+)/i);
+const repoSlug = repoMatch ? `${repoMatch[1]}/${repoMatch[2]}` : '';
 fs.writeFileSync(
   path.join(OUT, 'js', 'app-config.js'),
-  'window.APP_VERSION=' + JSON.stringify(pkg.version) + ';\n', 'utf8');
+  'window.APP_VERSION=' + JSON.stringify(pkg.version) + ';\n' +
+  'window.APP_REPO=' + JSON.stringify(repoSlug) + ';\n', 'utf8');
 
 // Inject app-config.js + the platform adapter right before the first app
 // module (util.js), so window.APP_VERSION / window.api / window.PDFJS_VENDOR

@@ -28,6 +28,16 @@
 
   // ---- helpers -----------------------------------------------------------
 
+  // Compare dotted numeric versions; >0 iff a is newer than b.
+  function semverCmp(a, b) {
+    const pa = String(a).split('.').map((n) => parseInt(n, 10) || 0);
+    const pb = String(b).split('.').map((n) => parseInt(n, 10) || 0);
+    for (let i = 0; i < 3; i++) {
+      if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+    }
+    return 0;
+  }
+
   function bytesToBase64(bytes) {
     const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     let bin = '';
@@ -166,9 +176,34 @@
 
     getVersion: () => Promise.resolve(version),
 
-    // The store (or the GitHub release page) handles updates on mobile; report
-    // "up to date" so the version badge renders without erroring.
-    checkUpdates: () => Promise.resolve({ ok: true, current: version, latest: version, hasUpdate: false }),
+    // In-app update check: ask GitHub for the latest release, compare versions,
+    // and hand back the APK's direct download URL so the shared update modal's
+    // "Download" opens it (Android then prompts to install the sideloaded APK).
+    // GitHub's REST API sends permissive CORS headers, so a plain fetch works in
+    // the WebView (CapacitorHttp is disabled; connect-src allows https:).
+    checkUpdates: async () => {
+      const repo = window.APP_REPO;
+      if (!repo) return { ok: true, current: version, latest: version, hasUpdate: false };
+      try {
+        const r = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+          headers: { Accept: 'application/vnd.github+json' }
+        });
+        if (!r.ok) return { ok: false, current: version, error: 'HTTP ' + r.status };
+        const rel = await r.json();
+        const latest = String(rel.tag_name || '').replace(/^v/, '');
+        // Prefer the APK asset so Download fetches the app directly; else the page.
+        const apk = (rel.assets || []).find((a) => /\.apk$/i.test(a.name || ''));
+        const url = (apk && apk.browser_download_url) || rel.html_url ||
+          `https://github.com/${repo}/releases/latest`;
+        return {
+          ok: true, current: version, latest,
+          hasUpdate: !!latest && semverCmp(latest, version) > 0,
+          url, notes: rel.body || ''
+        };
+      } catch (err) {
+        return { ok: false, current: version, error: err.message };
+      }
+    },
 
     openExternal: async (url) => {
       if (isNative && plugins.Browser && plugins.Browser.open) {
