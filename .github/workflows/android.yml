@@ -63,6 +63,14 @@ jobs:
           npx cap add android
           npx cap sync android
           node build/make-android-icons.js android/app/src/main/res
+      - name: Use the committed debug keystore (stable signature)
+        # Sign every build with the repo's committed debug keystore instead of a
+        # per-runner auto-generated one, so released APKs share ONE signature and
+        # install as in-place updates (no uninstall). AGP's default debug signing
+        # config reads ~/.android/debug.keystore with the standard debug creds.
+        run: |
+          mkdir -p ~/.android
+          cp build/debug.keystore ~/.android/debug.keystore
       - name: Assemble debug APK
         run: |
           cd android
