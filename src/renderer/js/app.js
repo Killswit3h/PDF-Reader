@@ -357,6 +357,30 @@
     App.$('#mk-redo').addEventListener('click', () => App.Markup.redo());
   }
 
+  // Document tools live under one dropdown (Organize / Stamps / Tool Chest) so
+  // the rail stays compact — especially on the mobile bottom bar.
+  function setupDocumentMenu() {
+    const btn = App.$('#btn-document');
+    const menu = App.$('#document-menu');
+    if (!btn || !menu) return;
+    const close = () => menu.classList.add('hidden');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled) return;
+      menu.classList.toggle('hidden');
+    });
+    menu.querySelectorAll('button[data-doc]').forEach((b) => {
+      b.addEventListener('click', () => {
+        close();
+        const d = b.dataset.doc;
+        if (d === 'organize') App.Organize.toggle();
+        else if (d === 'stamp') App.DocStamp.open();
+        else if (d === 'chest') App.ToolChest.toggle();
+      });
+    });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
+  }
+
   // ---------- Theme ----------
   function applyTheme(theme) {
     document.documentElement.dataset.theme = theme;
@@ -448,6 +472,7 @@
     setupPlacementClicks();
     setupMeasureMenu();
     setupMarkupMenu();
+    setupDocumentMenu();
     setupFind();
     App.Viewer.init();
 
@@ -456,9 +481,6 @@
     App.$('#btn-sign').addEventListener('click', () => startImagePlacement('signature'));
     App.$('#btn-initials').addEventListener('click', () => startImagePlacement('initials'));
     App.$('#btn-date').addEventListener('click', startDatePlacement);
-    if (App.$('#btn-organize')) App.$('#btn-organize').addEventListener('click', () => App.Organize.toggle());
-    if (App.$('#btn-doctools')) App.$('#btn-doctools').addEventListener('click', () => App.DocStamp.open());
-    if (App.$('#btn-chest')) App.$('#btn-chest').addEventListener('click', () => App.ToolChest.toggle());
     App.$('#btn-save').addEventListener('click', () => App.Save.save());
     App.$('#btn-save-as').addEventListener('click', () => App.Save.saveAs());
     App.$('#mode-cancel').addEventListener('click', () => App.setMode(null));

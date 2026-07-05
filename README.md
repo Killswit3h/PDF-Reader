@@ -88,7 +88,9 @@ at runtime. Handwriting fonts are bundled with the app.
   preserved on save; importing them for in-app editing is planned.)
 - **Measure by scale** (Bluebeam-style takeoff) — under the **📐 Measure** menu:
   - **Set Scale** — calibrate by drawing a line of known length, or enter a
-    ratio / pick a preset (`1/4" = 1'-0"`, `1:100`, …). Scale is stored per page.
+    ratio / pick a preset (`1/4" = 1'-0"`, `1:100`, …). **Applies to all pages by
+    default** (choose *This page* in the dialog to scope it to one sheet); scale
+    regions still override per-area.
   - **Length, Perimeter, Area, Angle, Count** — draw on the page and get live,
     real-world values (area in unit², angle in degrees). Snapping to existing
     vertices; hold **Shift** for orthogonal/45° lines. **Enter** finishes a
@@ -112,18 +114,18 @@ at runtime. Handwriting fonts are bundled with the app.
   remembered between launches.
 - **Find & filter** — filter inputs in the Markups and Measurements panels
   narrow long lists by type / value / page.
-- **Organize pages** (🗂️ Pages) — a thumbnail panel to **reorder** (◀ ▶),
+- **Organize pages** (Document ▾ → Organize) — a thumbnail panel to **reorder** (◀ ▶),
   **rotate** (⟳), **delete**, and **insert blank** pages; **Merge** another PDF's
   pages in; and **Extract** ticked pages to a new file. *Apply* rebuilds the
   document with pdf-lib (`copyPages`) and reloads it.
 - **Fill interactive forms** — real **AcroForm** fields render as native inputs
   (PDF.js `ENABLE_FORMS`); type into them and the values are baked into the saved
   PDF (`saveDocument` → pdf-lib), or **flatten** them to static content on save.
-- **Numbering & stamps** (#️⃣ Stamp) — **Bates / page numbering** (prefix, start,
+- **Numbering & stamps** (Document ▾ → Numbering & Stamps) — **Bates / page numbering** (prefix, start,
   zero-padding, corner), **header / footer** text, and a rotated **watermark**
   (text, size, angle, opacity, color) — applied across all pages or a range, with
   a live preview. Drawn into the PDF at save time.
-- **Tool Chest** (🧰 Chest) — save a markup tool's **type + style** as a reusable
+- **Tool Chest** (Document ▾ → Tool Chest) — save a markup tool's **type + style** as a reusable
   tool, or add an image as a reusable **stamp**; click to re-apply. Stored locally
   (localStorage) so it persists across launches.
 
@@ -132,7 +134,7 @@ at runtime. Handwriting fonts are bundled with the app.
 The **top bar** carries Open · zoom · page navigation · Save / Save As · theme ·
 version. A **left tool rail** holds the creation tools in three groups:
 **Stamp** (Sign · Initials · Date), **Take-off** (Measure ▾ · Markup ▾), and
-**Document** (🗂️ Pages · #️⃣ Stamp · 🧰 Chest).
+**Document ▾** (Organize Pages · Numbering & Stamps · Tool Chest).
 
 Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+F` find ·
 `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `+ / − / 0` zoom (0 = 100%) · `← / →` page ·
