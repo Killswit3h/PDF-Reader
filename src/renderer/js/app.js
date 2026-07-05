@@ -274,23 +274,26 @@
       }
     });
 
-    // ink press-drag-release
-    container.addEventListener('mousedown', (e) => {
+    // ink press-drag-release (pointer events so touch/pen work, not just mouse)
+    container.addEventListener('pointerdown', (e) => {
       if (App.state.mode !== 'markup' || App.Markup.tool !== 'ink') return;
       const pl = pageLayerFor(e);
       if (!pl) return;
       e.preventDefault();
       App.Markup.inkStart(pl.page, pl.layer, e);
     });
-    window.addEventListener('mouseup', () => { if (App.Markup) App.Markup.inkEnd(); });
+    window.addEventListener('pointerup', () => { if (App.Markup) App.Markup.inkEnd(); });
+    window.addEventListener('pointercancel', () => { if (App.Markup) App.Markup.inkEnd(); });
 
-    // live preview (measure + markup)
-    container.addEventListener('mousemove', (e) => {
+    // live preview (measure + markup) + ink drag. Prevent the WebView from
+    // stealing an ink drag as a page scroll while freehand drawing.
+    container.addEventListener('pointermove', (e) => {
       const pl = pageLayerFor(e);
       if (!pl) return;
+      if (App.Markup && App.Markup.inkDrawing) e.preventDefault();
       if (App.state.mode === 'measure') App.Measure.handleMove(pl.page, pl.layer, e);
       else if (App.state.mode === 'markup') App.Markup.handleMove(pl.page, pl.layer, e);
-    });
+    }, { passive: false });
 
     // double-click finishes a polyline/polygon
     container.addEventListener('dblclick', (e) => {

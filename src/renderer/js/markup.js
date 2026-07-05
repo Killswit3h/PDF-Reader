@@ -207,8 +207,8 @@
       an.pts = orig.map((p) => ({ vx: p.vx + dx, vy: p.vy + dy }));
       K.repositionAll();
     }
-    function up() { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); }
-    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    function up() { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); }
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
 
   function snapEnabled() { return App.Prefs ? App.Prefs.get('snap', true) : true; }
@@ -227,8 +227,8 @@
       an.pts = orig.map((p) => ({ vx: b.x + (p.vx - b.x) * sw, vy: b.y + (p.vy - b.y) * sh }));
       K.repositionAll();
     }
-    function up() { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); }
-    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    function up() { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); }
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
 
   /* ---------------- rendering ---------------- */
@@ -293,7 +293,7 @@
       el.setAttribute('stroke-width', s.width);
       el.setAttribute('fill', fill);
       el.setAttribute('opacity', s.opacity);
-      if (hit) { el.setAttribute('class', 'hit'); el.addEventListener('mousedown', (e) => startDrag(an, e)); }
+      if (hit) { el.setAttribute('class', 'hit'); el.addEventListener('pointerdown', (e) => startDrag(an, e)); }
       svg.appendChild(el);
     };
 
@@ -308,7 +308,7 @@
       const r = ns('rect');
       r.setAttribute('x', b.x * z); r.setAttribute('y', b.y * z);
       r.setAttribute('width', b.w * z); r.setAttribute('height', b.h * z);
-      if (an.type === 'highlight') { r.setAttribute('fill', stroke); r.setAttribute('opacity', 0.35); r.setAttribute('stroke', 'none'); r.setAttribute('class', 'hit'); r.addEventListener('mousedown', (e) => startDrag(an, e)); svg.appendChild(r); }
+      if (an.type === 'highlight') { r.setAttribute('fill', stroke); r.setAttribute('opacity', 0.35); r.setAttribute('stroke', 'none'); r.setAttribute('class', 'hit'); r.addEventListener('pointerdown', (e) => startDrag(an, e)); svg.appendChild(r); }
       else common(r, true);
     } else if (an.type === 'ellipse') {
       const b = bbox(an.pts);
@@ -359,7 +359,7 @@
     div.style.border = `1px solid ${s.stroke}`;
     div.textContent = an.text || '';
     fo.appendChild(div);
-    fo.addEventListener('mousedown', (e) => startDrag(an, e));
+    fo.addEventListener('pointerdown', (e) => startDrag(an, e));
     fo.addEventListener('dblclick', (e) => { e.stopPropagation(); startTextEdit(an); });
     svg.appendChild(fo);
   }
@@ -399,7 +399,7 @@
     h.setAttribute('x', (b.x + b.w) * z - 4); h.setAttribute('y', (b.y + b.h) * z - 4);
     h.setAttribute('width', 8); h.setAttribute('height', 8);
     h.setAttribute('class', 'handle');
-    h.addEventListener('mousedown', (e) => startResize(an, e));
+    h.addEventListener('pointerdown', (e) => startResize(an, e));
     svg.appendChild(h);
   }
 
