@@ -112,9 +112,14 @@
 
     <div class="rail-label">Document</div>
     <div class="rail-group">
-      <button id="btn-organize" class="tb-btn rail-btn" disabled title="Organize pages — reorder, rotate, delete, insert, merge, extract">🗂️ Pages</button>
-      <button id="btn-doctools" class="tb-btn rail-btn" disabled title="Numbering, header/footer, watermark">#️⃣ Stamp</button>
-      <button id="btn-chest" class="tb-btn rail-btn" disabled title="Tool Chest — saved markups & image stamps">🧰 Chest</button>
+      <div class="tb-dropdown">
+        <button id="btn-document" class="tb-btn rail-btn" disabled title="Document tools">📄 Document ▾</button>
+        <div id="document-menu" class="tb-menu hidden">
+          <button data-doc="organize">🗂️ Organize Pages…</button>
+          <button data-doc="stamp">#️⃣ Numbering &amp; Stamps…</button>
+          <button data-doc="chest">🧰 Tool Chest</button>
+        </div>
+      </div>
     </div>
   </aside>
 
@@ -279,8 +284,8 @@
       <div class="scale-apply">
         <label class="field-label">Apply to</label>
         <select id="scale-apply-to">
+          <option value="all" selected>All pages</option>
           <option value="page">This page</option>
-          <option value="all">All pages</option>
         </select>
       </div>
 
