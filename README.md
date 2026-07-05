@@ -272,9 +272,21 @@ How the port works:
   Chromium (the same engine the Android WebView uses) to confirm it boots, loads
   a PDF, renders, and exports — no Android SDK required.
 
-> The Android build is a **debug**, unsigned APK. To publish to Google Play,
-> generate a signed release build (`./gradlew bundleRelease` with a keystore) —
-> out of scope for this repo's CI, which only produces a sideloadable debug APK.
+> The Android build is a **debug** APK, signed with the **committed, stable debug
+> keystore** at `build/debug.keystore` (standard Android debug credentials). CI
+> copies it to `~/.android/debug.keystore` before `assembleDebug`, so every
+> release is signed with the **same** key and installs as an **in-place update**
+> over the previous version — no uninstall needed. (Because it's a debug key with
+> public credentials, it provides no authenticity guarantee; that's the accepted
+> trade-off for a sideloaded, offline app. It is **not** a release key.)
+>
+> **One-time note:** upgrading *from* an older build that was signed with the
+> previous per-runner debug key still needs a single uninstall/reinstall; every
+> update after the first stable-key build installs over the top.
+>
+> To publish to Google Play, generate a signed **release** build
+> (`./gradlew bundleRelease` with a real release keystore held in GitHub Secrets)
+> — out of scope for this repo's CI, which only produces a sideloadable debug APK.
 
 ## Publishing a release (one-time setup)
 
