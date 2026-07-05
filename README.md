@@ -275,16 +275,23 @@ How the port works:
   a PDF, renders, and exports — no Android SDK required.
 
 > The Android build is a **debug** APK, signed with the **committed, stable debug
-> keystore** at `build/debug.keystore` (standard Android debug credentials). CI
-> copies it to `~/.android/debug.keystore` before `assembleDebug`, so every
-> release is signed with the **same** key and installs as an **in-place update**
-> over the previous version — no uninstall needed. (Because it's a debug key with
-> public credentials, it provides no authenticity guarantee; that's the accepted
-> trade-off for a sideloaded, offline app. It is **not** a release key.)
+> keystore** at `build/debug.keystore` (standard Android debug credentials).
+> `build/inject-signing.js` writes an explicit `signingConfigs.debug` into the
+> generated `android/app/build.gradle` pointing at that keystore, so every release
+> is signed with the **same** key and installs as an **in-place update** over the
+> previous version — no uninstall needed. (Copying the keystore to
+> `~/.android/debug.keystore` is **not** enough: the CI runner's `setup-android`
+> sets `ANDROID_USER_HOME`, so Gradle would otherwise auto-generate a fresh random
+> debug key each build.) CI then runs `build/apk-cert-sha256.js` to **assert** the
+> built APK's signing cert matches the keystore, failing the build on any drift.
+> (It's a debug key with public credentials, so it provides no authenticity
+> guarantee — the accepted trade-off for a sideloaded, offline app. **Not** a
+> release key.)
 >
-> **One-time note:** upgrading *from* an older build that was signed with the
-> previous per-runner debug key still needs a single uninstall/reinstall; every
-> update after the first stable-key build installs over the top.
+> **One-time note (through v1.8.3):** earlier releases were each signed with a
+> *different* auto-generated key, so upgrading from any build **≤ v1.8.3** to the
+> first correctly-keyed build (**v1.8.4+**) needs a single uninstall/reinstall.
+> Every update from v1.8.4 onward installs over the top.
 >
 > To publish to Google Play, generate a signed **release** build
 > (`./gradlew bundleRelease` with a real release keystore held in GitHub Secrets)

@@ -58,24 +58,27 @@ jobs:
       - run: npm ci
       - name: Build web bundle + generate Android project
         # android/ is generated (git-ignored); create it fresh from capacitor.config.json.
+        # inject-signing wires an explicit debug signingConfig -> build/debug.keystore
+        # so every APK is signed with ONE stable key (in-place updates, no uninstall).
         run: |
           npm run build:web
           npx cap add android
           npx cap sync android
           node build/make-android-icons.js android/app/src/main/res
-      - name: Use the committed debug keystore (stable signature)
-        # Sign every build with the repo's committed debug keystore instead of a
-        # per-runner auto-generated one, so released APKs share ONE signature and
-        # install as in-place updates (no uninstall). AGP's default debug signing
-        # config reads ~/.android/debug.keystore with the standard debug creds.
-        run: |
-          mkdir -p ~/.android
-          cp build/debug.keystore ~/.android/debug.keystore
+          node build/inject-signing.js
       - name: Assemble debug APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
+      - name: Verify APK is signed with the committed keystore
+        # Fail loudly if the APK's signing cert ever drifts from build/debug.keystore
+        # (that would break in-place updates, the bug this guards against).
+        run: |
+          EXPECT=$(keytool -exportcert -keystore build/debug.keystore -storepass android -alias androiddebugkey 2>/dev/null | sha256sum | cut -d' ' -f1)
+          GOT=$(node build/apk-cert-sha256.js android/app/build/outputs/apk/debug/app-debug.apk)
+          echo "expected=$EXPECT"; echo "got=     $GOT"
+          test "$EXPECT" = "$GOT"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
