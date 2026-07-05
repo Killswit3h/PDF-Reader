@@ -123,6 +123,14 @@ body.has-banner #viewer-wrap { top: calc(var(--toolbar-h) + 34px); }
 }
 .markup-layer .placed { pointer-events: auto; }
 body.tool-active .markup-layer { pointer-events: auto; }
+/* Touch: a finger press on a draggable item (or while a drawing tool is active)
+   should move/draw, not scroll the page. Without touch-action:none the WebView
+   consumes the gesture as a scroll before our pointer handlers can act. The SVG
+   sits on .markup-svg (its .hit/.handle children inherit the effective value);
+   the SVG is pointer-events:none, so touches over empty page area still scroll. */
+.markup-layer .placed,
+.markup-svg { touch-action: none; }
+body.tool-active .markup-layer { touch-action: none; }
 body.tool-active #viewerContainer .page { cursor: crosshair; }
 
 /* Find bar */

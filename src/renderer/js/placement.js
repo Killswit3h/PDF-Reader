@@ -171,13 +171,13 @@
     pe.overlay.appendChild(el);
 
     // ---- interactions ----
-    el.addEventListener('mousedown', (e) => {
+    el.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       P.select(p.id);
     });
     del.addEventListener('click', (e) => { e.stopPropagation(); P.remove(p.id); });
-    move.addEventListener('mousedown', (e) => startDrag(e, p));
-    handle.addEventListener('mousedown', (e) => startResize(e, p));
+    move.addEventListener('pointerdown', (e) => startDrag(e, p));
+    handle.addEventListener('pointerdown', (e) => startResize(e, p));
 
     if (p.type === 'date') {
       const textEl = inner.querySelector('.date-text');
@@ -246,11 +246,11 @@
     }
     function onUp() {
       el.classList.remove('dragging');
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }
 
   // ---------- Resize ----------
@@ -287,11 +287,11 @@
       el.style.height = `${p.vh * z}px`;
     }
     function onUp() {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
     }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }
 
   // ---------- Inline date editing ----------
