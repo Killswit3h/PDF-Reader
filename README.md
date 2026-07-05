@@ -66,9 +66,10 @@ at runtime. Handwriting fonts are bundled with the app.
   - Every creation becomes a **transparent PNG**. The last signature/initials of
     the session are **remembered** so you can re-place them without recreating.
 - **Place** — after creating, click where it goes. A **draggable, resizable**
-  box lets you position and scale before/after committing. Place multiple items
-  across multiple pages. Select an item to reveal a **✕ delete** button (or press
-  **Delete**).
+  box lets you position and scale before/after committing, **anywhere on the
+  page** — including flush in the margins or overhanging any edge (no forced
+  keep-on-page). Place multiple items across multiple pages. Select an item to
+  reveal a **✕ delete** button (or press **Delete**).
 - **Date** — inserts today's date (default `MM/DD/YYYY`) at a clicked spot;
   **double-click to edit** the text before saving.
 - **Save** — overwrites the file you opened, in place, with no dialog
