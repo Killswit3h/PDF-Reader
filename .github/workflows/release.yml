@@ -116,19 +116,15 @@ jobs:
         uses: android-actions/setup-android@v3
       - run: npm ci
       - name: Build web bundle + generate Android project
+        # inject-signing wires an explicit debug signingConfig -> build/debug.keystore
+        # so every released APK is signed with ONE stable key and installs as an
+        # in-place update over the previous version (no uninstall).
         run: |
           npm run build:web
           npx cap add android
           npx cap sync android
           node build/make-android-icons.js android/app/src/main/res
-      - name: Use the committed debug keystore (stable signature)
-        # Sign with the repo's committed debug keystore, not a per-runner
-        # auto-generated one, so every released APK shares ONE signature and
-        # installs as an in-place update over the previous version (no uninstall).
-        # AGP's default debug signing config reads ~/.android/debug.keystore.
-        run: |
-          mkdir -p ~/.android
-          cp build/debug.keystore ~/.android/debug.keystore
+          node build/inject-signing.js
       - name: Assemble debug APK
         # Debug build signed with the committed, stable debug keystore, so it
         # installs via sideload without a release keystore (same "unsigned"
@@ -137,6 +133,12 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
+      - name: Verify APK is signed with the committed keystore
+        run: |
+          EXPECT=$(keytool -exportcert -keystore build/debug.keystore -storepass android -alias androiddebugkey 2>/dev/null | sha256sum | cut -d' ' -f1)
+          GOT=$(node build/apk-cert-sha256.js android/app/build/outputs/apk/debug/app-debug.apk)
+          echo "expected=$EXPECT"; echo "got=     $GOT"
+          test "$EXPECT" = "$GOT"
       - name: Stage APK with a stable name
         run: |
           mkdir -p release-apk

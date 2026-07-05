@@ -13,16 +13,13 @@
  */
 (function () {
   const DATE_FONT_FAMILY = "'Segoe UI', system-ui, sans-serif";
-  // Keep at least this many points of an item on the page so it can't be lost,
-  // but otherwise allow it to sit at (and overhang) the edges — signatures and
-  // dates often belong on a signature line right at the margin.
-  const EDGE_KEEP = 16;
-
-  // Clamp one axis, permitting overhang past both edges while keeping a sliver
-  // visible. `size` = item extent on this axis, `extent` = page extent.
-  function clampAxis(v, size, extent) {
-    const keep = Math.min(EDGE_KEEP, size);
-    return App.clamp(v, keep - size, extent - keep);
+  // No placement limits: a signature / date / text item can be positioned
+  // ANYWHERE on the page — fully into the margins or overhanging any edge — with
+  // no forced sliver kept on-page. (Markups are likewise unclamped.) Undo
+  // (Ctrl+Z), arrow-key nudge, or the item's ✕ recover a stray item.
+  // `size`/`extent` are kept in the signature for call-site compatibility.
+  function clampAxis(v /* , size, extent */) {
+    return v;
   }
 
   const P = {
