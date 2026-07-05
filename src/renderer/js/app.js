@@ -5,6 +5,11 @@
   const DEFAULT_SIG_WIDTH_PT = 200;
   const DEFAULT_INITIALS_WIDTH_PT = 90;
 
+  // On the Electron desktop build the native application menu owns the Cmd/Ctrl
+  // accelerators (Open/Save/Find/Undo/…). The in-page keyboard handler below
+  // then skips those combos so they don't fire twice.
+  const IS_DESKTOP = !!(window.api && window.api.isDesktop);
+
   // ---------- Mode / banner ----------
   App.setMode = function (mode, kind) {
     const prev = App.state.mode;
@@ -109,6 +114,19 @@
     App.setMode('date');
   }
 
+  // Build the exported PDF (all edits baked in) and hand it to the platform's
+  // print path. Shared by the native File → Print menu and the Ctrl/Cmd+P key.
+  async function doPrint() {
+    if (!App.state.pdfDoc) return;
+    App.toast('Preparing print…', 'info', 1500);
+    try {
+      const bytes = await App.Save.buildBytes();
+      await window.api.print(bytes);
+    } catch (e) {
+      App.toast('Could not print: ' + (e && e.message ? e.message : e), 'error');
+    }
+  }
+
   // ---------- Open a PDF ----------
   async function openViaDialog() {
     const res = await window.api.openPdfDialog();
@@ -181,27 +199,34 @@
       // Let the signature modal handle its own remaining keys.
       if (!App.$('#sig-modal').classList.contains('hidden')) return;
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
-        e.preventDefault(); openViaDialog(); return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault();
-        if (App.$('#btn-save').disabled) return;
-        if (e.shiftKey) App.Save.saveAs();
-        else App.Save.save();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
-        if (App.state.pdfDoc) { e.preventDefault(); App.Viewer.openFind(); }
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) App.Markup.redo(); else App.Markup.undo();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
-        e.preventDefault(); App.Markup.redo(); return;
+      // On desktop these Cmd/Ctrl combos are the native menu's accelerators —
+      // skip them here so a single keystroke doesn't trigger the action twice.
+      if (!IS_DESKTOP) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'o') {
+          e.preventDefault(); openViaDialog(); return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          if (App.$('#btn-save').disabled) return;
+          if (e.shiftKey) App.Save.saveAs();
+          else App.Save.save();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
+          e.preventDefault(); doPrint(); return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+          if (App.state.pdfDoc) { e.preventDefault(); App.Viewer.openFind(); }
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) App.Markup.redo(); else App.Markup.undo();
+          return;
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+          e.preventDefault(); App.Markup.redo(); return;
+        }
       }
       if (inEditable(e.target)) return;
 
@@ -458,6 +483,28 @@
     setTimeout(() => checkForUpdates(false), 3000);
   }
 
+  // ---------- Native-menu commands (desktop) ----------
+  // The Electron main process forwards menu clicks here as command strings; map
+  // each to the same action its toolbar button / shortcut already performs.
+  function handleMenuCommand(cmd) {
+    switch (cmd) {
+      case 'open': openViaDialog(); break;
+      case 'save': if (!App.$('#btn-save').disabled) App.Save.save(); break;
+      case 'save-as': if (App.state.pdfDoc) App.Save.saveAs(); break;
+      case 'print': doPrint(); break;
+      case 'find': if (App.state.pdfDoc) App.Viewer.openFind(); break;
+      case 'undo': App.Markup.undo(); break;
+      case 'redo': App.Markup.redo(); break;
+      case 'zoom-in': if (App.state.pdfDoc) App.Viewer.zoomIn(); break;
+      case 'zoom-out': if (App.state.pdfDoc) App.Viewer.zoomOut(); break;
+      case 'zoom-reset': if (App.state.pdfDoc) App.Viewer.resetZoom(); break;
+      case 'fit-width': if (App.state.pdfDoc) App.Viewer.fitWidth(); break;
+      case 'toggle-theme': App.$('#btn-theme').click(); break;
+      case 'check-updates': checkForUpdates(true); break;
+      default: break;
+    }
+  }
+
   function boot() {
     setupTheme();
     // Stamp today's date into the empty-state title block.
@@ -502,6 +549,9 @@
 
     // "Open with" / command-line file.
     window.api.onOpenFilePath((p) => openFromPath(p));
+
+    // Native application-menu commands (desktop only; no-op elsewhere).
+    window.api.onMenuCommand(handleMenuCommand);
 
     // Now that the listener above is wired up, tell the main process we're ready.
     // It will deliver any file the app was launched to open (which may have

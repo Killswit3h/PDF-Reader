@@ -11,6 +11,11 @@ try { webFrame.setVisualZoomLevelLimits(1, 1); } catch (_) { /* older Electron *
 
 // Minimal, explicit surface exposed to the renderer. No raw node access.
 contextBridge.exposeInMainWorld('api', {
+  // Marks the Electron desktop build. The renderer uses this to let the native
+  // application menu own the Cmd/Ctrl accelerators (Open/Save/Find/Undo/…) so
+  // they don't double-fire against the shared in-page keyboard handler.
+  isDesktop: true,
+
   // Native "Open PDF" dialog. Resolves to { ok, path, name, data } or null.
   openPdfDialog: () => ipcRenderer.invoke('dialog:openPdf'),
 
@@ -36,6 +41,14 @@ contextBridge.exposeInMainWorld('api', {
   // This closes the race where a launch-time "Open with" path would otherwise
   // be sent before this listener exists (and silently dropped).
   notifyReady: () => ipcRenderer.send('renderer-ready'),
+
+  // A native-menu item was chosen; deliver the command string to the renderer.
+  onMenuCommand: (cb) =>
+    ipcRenderer.on('menu-command', (_e, command) => cb(command)),
+
+  // Print the finished document. `bytes` is the exported PDF (Uint8Array); the
+  // main process renders it offscreen and opens the OS print dialog.
+  print: (bytes) => ipcRenderer.invoke('app:print', bytes),
 
   // ---- Updates ----
   getVersion: () => ipcRenderer.invoke('app:version'),

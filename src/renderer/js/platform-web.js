@@ -136,6 +136,26 @@
   const version = window.APP_VERSION || '0.0.0';
 
   window.api = {
+    // Web/Android has no native application menu; the in-page keyboard handler
+    // owns the shortcuts here (see the isDesktop guard in app.js).
+    isDesktop: false,
+
+    // No native menu to drive commands from — a harmless no-op for parity.
+    onMenuCommand: () => { /* desktop-only */ },
+
+    // Print the finished document. Open the exported PDF so the WebView/browser
+    // print (Android's system print → save-as-PDF or a networked printer) acts
+    // on the complete document rather than the app chrome.
+    print: (bytes) => {
+      try {
+        const blob = new Blob([bytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, isNative ? '_system' : '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch (_) { /* ignore */ }
+      return Promise.resolve({ ok: true });
+    },
+
     openPdfDialog: () => pickPdf(),
 
     // A native "open with" intent may hand us a file:// or content:// URI.

@@ -1,11 +1,20 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const pkg = require('../package.json');
 const { repoSlug, semverCmp, fileFromArgv } = require('./shared/update-utils');
+const { buildMenuTemplate } = require('./shared/menu-template');
+const { addRecent, pruneRecent } = require('./shared/recent-files');
+const { sanitizeBounds } = require('./shared/window-state');
+const { createStore } = require('./desktop-store');
+
+// Persisted desktop-only state (window bounds + recent files). Skipped under the
+// e2e smoke harness so scenarios run against deterministic default bounds.
+const store = process.env.SMOKE_TEST ? null : createStore(app.getPath('userData'));
+const IS_MAC = process.platform === 'darwin';
 
 // Disable Chromium's native pinch-zoom at the browser level. On macOS a trackpad
 // pinch is otherwise consumed as native page zoom and never reaches the DOM, so
@@ -47,11 +56,84 @@ app.on('open-file', (event, filePath) => {
 // (fileFromArgv, repoSlug, semverCmp live in ./shared/update-utils — pure +
 //  unit-tested; imported at the top of this file.)
 
+// GitHub project URL (for the Help menu), derived from package.json.
+function githubUrl() {
+  const slug = repoSlug(pkg.repository && pkg.repository.url);
+  return slug ? `https://github.com/${slug.owner}/${slug.repo}` : 'https://github.com';
+}
+
+/* ------------------------------------------------------------------ */
+/*  Native application menu                                             */
+/* ------------------------------------------------------------------ */
+
+// Menu items that map to renderer actions send a 'menu-command' the renderer
+// dispatches (see src/renderer/js/app.js). A couple (external links) are handled
+// here in the main process.
+function handleMenuCommand(command) {
+  if (command === 'open-github') { shell.openExternal(githubUrl()); return; }
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('menu-command', command);
+  }
+}
+
+// Rebuild + install the application menu. Called at startup and whenever the
+// recent-files list changes so the "Open Recent" submenu stays current.
+function rebuildMenu() {
+  const template = buildMenuTemplate({
+    isMac: IS_MAC,
+    isDev: !!process.env.PDF_SIGNER_DEV,
+    appName: app.getName(),
+    recent: store ? store.getRecent() : [],
+    onCommand: handleMenuCommand,
+    onOpenRecent: (entry) => { if (entry && entry.path) openInRenderer(entry.path); },
+    onClearRecent: () => {
+      if (!store) return;
+      store.setRecent([]);
+      app.clearRecentDocuments();
+      rebuildMenu();
+    }
+  });
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// Record a freshly opened/saved file at the top of the recent list, mirror it
+// into the OS (Windows Jump List / macOS Dock "Open Recent"), and refresh the
+// menu. No-op under the smoke harness (store is null).
+function recordRecent(filePath, name) {
+  if (!store || !filePath) return;
+  const next = pruneRecent(addRecent(store.getRecent(), { path: filePath, name }), fs.existsSync);
+  store.setRecent(next);
+  try { app.addRecentDocument(filePath); } catch (_) { /* unsupported platform */ }
+  rebuildMenu();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Window bounds persistence                                          */
+/* ------------------------------------------------------------------ */
+
+// Persist the window's restored (non-maximized) bounds + maximized flag.
+function saveWindowState() {
+  if (!store || !mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isFullScreen() || mainWindow.isMinimized()) return;
+  store.setBounds(mainWindow.getNormalBounds(), mainWindow.isMaximized());
+}
+
+// Compute the bounds a new window should open at, honoring saved state but
+// clamping it on-screen against the current display work area.
+function startupBounds() {
+  if (!store) return null;
+  const saved = store.get().bounds;
+  if (!saved) return null;
+  const area = screen.getDisplayMatching(saved).workArea;
+  return sanitizeBounds(saved, area);
+}
+
 function createWindow() {
   // A fresh renderer hasn't reported readiness yet; wait for its signal before
   // pushing any file path so we don't send to a window that isn't listening.
   rendererReady = false;
-  mainWindow = new BrowserWindow({
+  const saved = startupBounds();
+  mainWindow = new BrowserWindow(Object.assign({
     width: 1280,
     height: 900,
     minWidth: 800,
@@ -65,10 +147,36 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false
     }
-  });
+  }, saved || {}));
 
-  // No default OS menu bar – keep it a clean single-window app.
-  Menu.setApplicationMenu(null);
+  // Native application menu (File / Edit / View / Window / Help) with
+  // accelerators. The Edit-menu roles also restore Cmd+C/V/X/A in text fields on
+  // macOS, which a null menu silently breaks.
+  rebuildMenu();
+
+  // Restore a maximized window; otherwise the sanitized bounds above apply.
+  if (store && store.get().maximized) mainWindow.maximize();
+
+  // Persist size/position/maximized as the user changes them (debounced in the
+  // store). Never navigate away from the local app or spawn extra windows —
+  // an offline viewer has no reason to, and a link inside a hostile PDF must
+  // not be able to.
+  mainWindow.on('resize', saveWindowState);
+  mainWindow.on('move', saveWindowState);
+  mainWindow.on('maximize', saveWindowState);
+  mainWindow.on('unmaximize', saveWindowState);
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    // The app never navigates the main window after its initial load (that's a
+    // 'load', not a navigation). Block everything — including a file:// URL from
+    // a mis-dropped PDF that would otherwise replace the app — and send real
+    // web links to the user's browser instead.
+    e.preventDefault();
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+  });
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
@@ -333,6 +441,39 @@ function createWindow() {
         }, 1200);
         return;
       }
+      if (process.env.SMOKE_MENU) {
+        setTimeout(async () => {
+          try {
+            await mainWindow.webContents.executeJavaScript(
+              `(async()=>{for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));await new Promise(r=>setTimeout(r,400));})()`, true);
+            const m = Menu.getApplicationMenu();
+            const topLabels = m ? m.items.map((i) => i.label) : [];
+            const find = (menu, label) => {
+              for (const it of menu.items) {
+                if (it.label === label) return it;
+                if (it.submenu) { const f = find(it.submenu, label); if (f) return f; }
+              }
+              return null;
+            };
+            const before = await mainWindow.webContents.executeJavaScript('App.Viewer._pdfViewer.currentScale', true);
+            const zi = m && find(m, 'Zoom In');
+            if (zi && typeof zi.click === 'function') zi.click();   // fires the renderer command
+            await new Promise((r) => setTimeout(r, 300));
+            const after = await mainWindow.webContents.executeJavaScript('App.Viewer._pdfViewer.currentScale', true);
+            const fileMenu = m && find(m, 'File');
+            const hasOpenRecent = !!(fileMenu && fileMenu.submenu && find(fileMenu.submenu, 'Open Recent'));
+            console.log('[menu] ' + JSON.stringify({
+              hasMenu: !!m,
+              hasEdit: topLabels.includes('Edit'),
+              hasView: topLabels.includes('View'),
+              hasOpenRecent,
+              zoomed: after > before
+            }));
+          } catch (e) { console.log('[menu] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_UPDATE) {
         setTimeout(async () => {
           try {
@@ -516,6 +657,9 @@ if (!gotLock) {
     if (process.platform !== 'darwin') app.quit();
   });
 
+  // A debounced bounds write could still be pending when the app exits — flush.
+  app.on('before-quit', () => { if (store) store.flushNow(); });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
@@ -554,9 +698,41 @@ ipcMain.handle('file:readPdf', async (_e, filePath) => readPdf(filePath));
 ipcMain.handle('file:writePdf', async (_e, { filePath, bytes }) => {
   try {
     fs.writeFileSync(filePath, Buffer.from(bytes));
+    recordRecent(filePath, path.basename(filePath));
     return { ok: true, path: filePath };
   } catch (err) {
     return { ok: false, error: err.message };
+  }
+});
+
+// Print the finished document (all pages, with every placement/markup/measure
+// baked in). The renderer hands us the same bytes `Save` would write; we render
+// them through Chromium's PDF viewer in an offscreen window so the OS print
+// dialog gets the complete document rather than only the on-screen (virtualized)
+// pages.
+ipcMain.handle('app:print', async (_e, bytes) => {
+  if (!bytes) return { ok: false, error: 'Nothing to print' };
+  let tmpFile = null;
+  let printWin = null;
+  try {
+    tmpFile = path.join(app.getPath('temp'), `pdfsigner-print-${process.pid}-${Date.now()}.pdf`);
+    fs.writeFileSync(tmpFile, Buffer.from(bytes));
+    printWin = new BrowserWindow({
+      show: false,
+      webPreferences: { plugins: true } // enable Chromium's built-in PDF viewer
+    });
+    await printWin.loadURL('file://' + tmpFile);
+    const result = await new Promise((resolve) => {
+      printWin.webContents.print({ printBackground: true }, (success, reason) => {
+        resolve({ ok: success, error: success ? undefined : reason });
+      });
+    });
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    if (printWin && !printWin.isDestroyed()) printWin.close();
+    if (tmpFile) { try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore */ } }
   }
 });
 
@@ -618,6 +794,7 @@ ipcMain.handle('app:openExternal', async (_e, url) => {
 function readPdf(filePath) {
   try {
     const data = fs.readFileSync(filePath);
+    recordRecent(filePath, path.basename(filePath));
     return {
       ok: true,
       path: filePath,
@@ -656,6 +833,7 @@ ipcMain.handle('dialog:savePdf', async (_e, { defaultName, bytes }) => {
   if (canceled || !filePath) return { ok: false, canceled: true };
   try {
     fs.writeFileSync(filePath, Buffer.from(bytes));
+    recordRecent(filePath, path.basename(filePath));
     return { ok: true, path: filePath };
   } catch (err) {
     return { ok: false, error: err.message };
