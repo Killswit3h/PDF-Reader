@@ -59,7 +59,8 @@ const VENDOR = [
   ['node_modules/pdfjs-dist/web/pdf_viewer.js', 'vendor/pdfjs/web/pdf_viewer.js'],
   ['node_modules/pdfjs-dist/web/pdf_viewer.css', 'vendor/pdfjs/web/pdf_viewer.css'],
   ['node_modules/pdf-lib/dist/pdf-lib.min.js', 'vendor/pdf-lib/pdf-lib.min.js'],
-  ['node_modules/signature_pad/dist/signature_pad.umd.min.js', 'vendor/signature_pad/signature_pad.umd.min.js']
+  ['node_modules/signature_pad/dist/signature_pad.umd.min.js', 'vendor/signature_pad/signature_pad.umd.min.js'],
+  ['node_modules/node-forge/dist/forge.min.js', 'vendor/node-forge/forge.min.js']
 ];
 for (const [from, to] of VENDOR) {
   const src = path.join(ROOT, from);
@@ -87,6 +88,7 @@ html = html
   .replace(/\.\.\/\.\.\/node_modules\/pdfjs-dist\/build\//g, 'vendor/pdfjs/build/')
   .replace(/\.\.\/\.\.\/node_modules\/pdf-lib\/dist\//g, 'vendor/pdf-lib/')
   .replace(/\.\.\/\.\.\/node_modules\/signature_pad\/dist\//g, 'vendor/signature_pad/')
+  .replace(/\.\.\/\.\.\/node_modules\/node-forge\/dist\//g, 'vendor/node-forge/')
   .replace(/\.\.\/shared\//g, 'shared/');
 
 // Mobile viewport (once, after the charset meta).
