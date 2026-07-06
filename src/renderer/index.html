@@ -467,6 +467,21 @@
     </div>
   </div>
 
+  <!-- ============ Keyboard shortcuts help ============ -->
+  <div id="shortcuts-modal" class="modal-backdrop hidden">
+    <div class="modal" style="width:600px">
+      <div class="modal-head">
+        <h2>Keyboard shortcuts</h2>
+        <button id="sc-close" class="modal-x" title="Close">✕</button>
+      </div>
+      <!-- Rows are rendered by app.js so the modifier key matches the OS (⌘/Ctrl). -->
+      <div id="sc-body" class="sc-body"></div>
+      <div class="modal-foot">
+        <button id="sc-ok" class="tb-btn primary">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
   <script src="../../node_modules/pdfjs-dist/build/pdf.js"></script>
   <script src="../../node_modules/pdfjs-dist/web/pdf_viewer.js"></script>

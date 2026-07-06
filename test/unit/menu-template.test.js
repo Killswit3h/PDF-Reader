@@ -49,6 +49,15 @@ describe('buildMenuTemplate', () => {
     expect(seen).toEqual(['save', 'zoom-in']);
   });
 
+  it('exposes Keyboard Shortcuts under Help', () => {
+    const seen = [];
+    const t = buildMenuTemplate({ isMac: false, onCommand: (c) => seen.push(c) });
+    const item = find(t, 'Keyboard Shortcuts');
+    expect(item).toBeTruthy();
+    item.click();
+    expect(seen).toEqual(['shortcuts']);
+  });
+
   it('lists recent files and a Clear item, newest first', () => {
     const recent = [{ path: '/a/new.pdf', name: 'new.pdf' }, { path: '/a/old.pdf', name: 'old.pdf' }];
     const opened = [];
