@@ -53,5 +53,15 @@ contextBridge.exposeInMainWorld('api', {
   // ---- Updates ----
   getVersion: () => ipcRenderer.invoke('app:version'),
   checkUpdates: () => ipcRenderer.invoke('app:checkUpdates'),
-  openExternal: (url) => ipcRenderer.invoke('app:openExternal', url)
+  openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
+
+  // Start downloading the available update in-app. Resolves { started } — false
+  // when self-install isn't possible (falls back to openExternal in the UI).
+  startUpdateDownload: () => ipcRenderer.invoke('app:startUpdateDownload'),
+  // Quit and install the downloaded update.
+  installUpdate: () => ipcRenderer.invoke('app:installUpdate'),
+  // Download lifecycle events (electron-updater).
+  onUpdateProgress: (cb) => ipcRenderer.on('update-progress', (_e, d) => cb(d)),
+  onUpdateDownloaded: (cb) => ipcRenderer.on('update-downloaded', () => cb()),
+  onUpdateError: (cb) => ipcRenderer.on('update-error', (_e, d) => cb(d))
 });

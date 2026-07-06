@@ -5,7 +5,13 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const pkg = require('../package.json');
-const { repoSlug, semverCmp, fileFromArgv } = require('./shared/update-utils');
+const { repoSlug, semverCmp, fileFromArgv, canInstallInApp } = require('./shared/update-utils');
+
+// electron-updater drives in-app download + install of a new release. Loaded
+// defensively: if the module is ever missing/unloadable, the updater simply
+// stays unavailable and the app falls back to opening the download page.
+let autoUpdater = null;
+try { ({ autoUpdater } = require('electron-updater')); } catch (_) { autoUpdater = null; }
 const { buildMenuTemplate } = require('./shared/menu-template');
 const { addRecent, pruneRecent } = require('./shared/recent-files');
 const { sanitizeBounds } = require('./shared/window-state');
@@ -480,7 +486,11 @@ function createWindow() {
             const r = await mainWindow.webContents.executeJavaScript(`(async () => {
               const v = await window.api.getVersion();
               const res = await window.api.checkUpdates();
-              return JSON.stringify({ version: v, res });
+              // Unpackaged dev build → in-app install is unavailable; the IPC must
+              // resolve to { started:false } (fallback path), never throw.
+              let dl = null, dlErr = '';
+              try { dl = await window.api.startUpdateDownload(); } catch (e) { dlErr = e.message; }
+              return JSON.stringify({ version: v, res, dl, dlErr });
             })()`, true);
             console.log('[update] ' + r);
           } catch (e) { console.log('[update] error', e && e.message); }
@@ -789,6 +799,65 @@ ipcMain.handle('app:checkUpdates', async () => {
 ipcMain.handle('app:openExternal', async (_e, url) => {
   await shell.openExternal(url);
   return true;
+});
+
+/* ------------------------------------------------------------------ */
+/*  IPC: in-app auto-update (electron-updater; desktop, packaged only)  */
+/* ------------------------------------------------------------------ */
+
+// True only when this build can actually download + install an update itself
+// (packaged Windows). Everywhere else the renderer keeps the "open the download
+// page" flow. SMOKE runs unpackaged, so this is false under e2e.
+function updaterUsable() {
+  return !!autoUpdater && !process.env.SMOKE_TEST &&
+    canInstallInApp(process.platform, app.isPackaged);
+}
+
+let updaterWired = false;
+// Forward electron-updater progress/result/error to the renderer once.
+function wireUpdater() {
+  if (updaterWired || !autoUpdater) return;
+  updaterWired = true;
+  autoUpdater.autoDownload = false;         // we start the download on user action
+  autoUpdater.autoInstallOnAppQuit = false; // the user chooses when to restart
+  const send = (channel, payload) => {
+    if (mainWindow && mainWindow.webContents) mainWindow.webContents.send(channel, payload);
+  };
+  autoUpdater.on('download-progress', (p) => send('update-progress', { percent: p && p.percent }));
+  autoUpdater.on('update-downloaded', () => send('update-downloaded'));
+  autoUpdater.on('error', (err) => send('update-error', { message: err && err.message }));
+}
+
+// Begin downloading the available update. Returns { started } — the renderer
+// shows progress when true, or falls back to the download page when false (web,
+// unsigned macOS, dev, or any updater error).
+ipcMain.handle('app:startUpdateDownload', async () => {
+  if (!updaterUsable()) return { started: false };
+  try {
+    wireUpdater();
+    const res = await autoUpdater.checkForUpdates(); // reads latest.yml from the release
+    if (!res || !res.updateInfo ||
+        semverCmp(String(res.updateInfo.version || ''), app.getVersion()) <= 0) {
+      return { started: false };
+    }
+    autoUpdater.downloadUpdate();                    // fires 'download-progress' → 'update-downloaded'
+    return { started: true };
+  } catch (err) {
+    return { started: false, error: err.message };
+  }
+});
+
+// Quit and install the downloaded update. Bypass the unsaved-changes prompt on
+// the window (the user already opted to install; edits are their own to keep).
+ipcMain.handle('app:installUpdate', async () => {
+  if (!updaterUsable()) return { ok: false };
+  try {
+    if (mainWindow) mainWindow._forceClose = true;
+    setImmediate(() => autoUpdater.quitAndInstall());
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 });
 
 function readPdf(filePath) {

@@ -176,6 +176,19 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'update — in-app download IPC wired, resolves to fallback in dev',
+    run: () => {
+      // Unpackaged dev build: electron-updater can't self-install, so the IPC
+      // must resolve to { started:false } (UI then opens the download page) and
+      // never throw — this also proves requiring electron-updater didn't brick
+      // the main process.
+      const j = tagJson(runApp({ SMOKE_UPDATE: '1' }, [SAMPLE]), 'update');
+      check(!!j.version, 'no version reported');
+      check(j.dlErr === '', `startUpdateDownload threw: ${j.dlErr}`);
+      check(j.dl && j.dl.started === false, 'in-app download should be unavailable in the dev build');
+    }
+  },
+  {
     name: 'save/flatten — signed PDF written to disk is valid',
     run: () => {
       const outFile = path.join(os.tmpdir(), `pdfsigner-e2e-${process.pid}.pdf`);

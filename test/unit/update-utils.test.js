@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { repoSlug, semverCmp, fileFromArgv } from '../../src/shared/update-utils.js';
+import { repoSlug, semverCmp, fileFromArgv, canInstallInApp } from '../../src/shared/update-utils.js';
+
+describe('canInstallInApp', () => {
+  it('allows in-app install on packaged Windows', () => {
+    expect(canInstallInApp('win32', true)).toBe(true);
+  });
+  it('blocks it on unpackaged (dev) builds', () => {
+    expect(canInstallInApp('win32', false)).toBe(false);
+  });
+  it('blocks it on macOS (unsigned artifacts cannot self-install)', () => {
+    expect(canInstallInApp('darwin', true)).toBe(false);
+  });
+  it('blocks it on Linux', () => {
+    expect(canInstallInApp('linux', true)).toBe(false);
+  });
+  it('treats a non-boolean isPackaged as not installable', () => {
+    expect(canInstallInApp('win32', undefined)).toBe(false);
+  });
+});
 
 describe('semverCmp', () => {
   it('treats equal versions as 0', () => expect(semverCmp('1.4.3', '1.4.3')).toBe(0));
