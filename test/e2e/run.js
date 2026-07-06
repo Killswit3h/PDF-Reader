@@ -165,6 +165,17 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'menu — native application menu installed + commands dispatch',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MENU: '1' }, [SAMPLE]), 'menu');
+      check(j.hasMenu === true, 'no application menu installed');
+      check(j.hasEdit === true, 'no Edit menu (macOS copy/paste roles)');
+      check(j.hasView === true, 'no View menu');
+      check(j.hasOpenRecent === true, 'no Open Recent submenu');
+      check(j.zoomed === true, 'Zoom In menu command did not reach the renderer');
+    }
+  },
+  {
     name: 'save/flatten — signed PDF written to disk is valid',
     run: () => {
       const outFile = path.join(os.tmpdir(), `pdfsigner-e2e-${process.pid}.pdf`);

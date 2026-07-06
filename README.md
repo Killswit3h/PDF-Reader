@@ -137,13 +137,23 @@ version. A **left tool rail** holds the creation tools in three groups:
 **Stamp** (Sign · Initials · Date), **Take-off** (Measure ▾ · Markup ▾), and
 **Document ▾** (Organize Pages · Numbering & Stamps · Tool Chest).
 
-Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+F` find ·
-`Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `+ / − / 0` zoom (0 = 100%) · `← / →` page ·
-**arrow keys** nudge the selected item (**Shift** = ×10) · `Esc` cancel / close a
-modal / deselect · `Delete` remove selected.
+Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+P` print ·
+`Ctrl+F` find · `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `+ / − / 0` zoom (0 = 100%) ·
+`← / →` page · **arrow keys** nudge the selected item (**Shift** = ×10) · `Esc`
+cancel / close a modal / deselect · `Delete` remove selected.
 
 Zoom: trackpad **pinch-to-zoom** (macOS & Windows precision trackpads) and
 **`Ctrl`/`Cmd` + scroll wheel** zoom toward the pointer.
+
+**Desktop (Windows / macOS)** adds a native **menu bar** — File · Edit · View ·
+Window · Help — so every shortcut above is discoverable and works even when
+focus is outside the page (on macOS the Edit menu also restores the standard
+`Cmd+C/V/X/A` in text fields). **File → Open Recent** lists the last documents
+you opened (also surfaced in the Windows Jump List and the macOS Dock), the
+window **remembers its size, position and maximized state** between launches,
+and **File → Print** (`Ctrl/Cmd+P`) renders the finished document — every
+placement, markup and measurement baked in — to the system print dialog (which
+can also save-as-PDF). Android exposes Print through its system print sheet.
 
 ---
 
