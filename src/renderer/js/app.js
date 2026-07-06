@@ -192,7 +192,7 @@
         const open = [
           ['#sig-modal', '#sig-cancel'], ['#scale-modal', '#scale-cancel'],
           ['#update-modal', '#upd-close'], ['#confirm-modal', '#confirm-no'],
-          ['#docstamp-modal', '#ds-cancel']
+          ['#docstamp-modal', '#ds-cancel'], ['#shortcuts-modal', '#sc-close']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
         if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
       }
@@ -229,6 +229,9 @@
         }
       }
       if (inEditable(e.target)) return;
+
+      // '?' (Shift+/) or F1 opens the keyboard-shortcuts help on any platform.
+      if (e.key === '?' || e.key === 'F1') { e.preventDefault(); App.Shortcuts.open(); return; }
 
       if (e.key === 'Enter' && App.state.mode === 'measure') { e.preventDefault(); App.Measure.finishDrawing(); return; }
       if (e.key === 'Enter' && App.state.mode === 'markup') { e.preventDefault(); App.Markup.finishDrawing(); return; }
@@ -528,6 +531,84 @@
     setTimeout(() => checkForUpdates(false), 3000);
   }
 
+  // ---------- Keyboard shortcuts help ----------
+  // Each combo is an array of key tokens; multiple combos in a row are shown as
+  // alternatives ("A / B"). 'mod' renders as ⌘ on macOS, Ctrl elsewhere. Tokens
+  // are arrays (not '+'-joined strings) so a literal '+' key is unambiguous.
+  const SHORTCUTS = [
+    { title: 'File', rows: [
+      { combos: [['mod', 'O']], label: 'Open PDF' },
+      { combos: [['mod', 'S']], label: 'Save' },
+      { combos: [['mod', 'Shift', 'S']], label: 'Save As…' },
+      { combos: [['mod', 'P']], label: 'Print' }
+    ] },
+    { title: 'Editing', rows: [
+      { combos: [['mod', 'Z']], label: 'Undo' },
+      { combos: [['mod', 'Shift', 'Z']], label: 'Redo' },
+      { combos: [['Enter']], label: 'Finish shape' },
+      { combos: [['Arrows']], label: 'Nudge selected' },
+      { combos: [['Shift', 'Arrows']], label: 'Nudge ×10' },
+      { combos: [['Delete']], label: 'Remove selected' },
+      { combos: [['Esc']], label: 'Cancel / deselect' }
+    ] },
+    { title: 'View', rows: [
+      { combos: [['mod', 'F']], label: 'Find' },
+      { combos: [['+'], ['−'], ['0']], label: 'Zoom in / out / 100%' },
+      { combos: [['mod', 'scroll']], label: 'Zoom to pointer' }
+    ] },
+    { title: 'Navigation', rows: [
+      { combos: [['←'], ['→']], label: 'Previous / next page' },
+      { combos: [['PageUp'], ['PageDown']], label: 'Page up / down' },
+      { combos: [['?'], ['F1']], label: 'Show this help' }
+    ] }
+  ];
+
+  function renderShortcuts() {
+    const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+    const mod = mac ? '⌘' : 'Ctrl';
+    const body = App.$('#sc-body');
+    body.innerHTML = '';
+    SHORTCUTS.forEach((sec) => {
+      const col = document.createElement('div');
+      col.className = 'sc-sec';
+      const h = document.createElement('h3');
+      h.textContent = sec.title;
+      col.appendChild(h);
+      sec.rows.forEach((row) => {
+        const el = document.createElement('div');
+        el.className = 'sc-row';
+        const lab = document.createElement('span');
+        lab.className = 'sc-label';
+        lab.textContent = row.label;
+        const keys = document.createElement('span');
+        keys.className = 'sc-keys';
+        row.combos.forEach((combo, i) => {
+          if (i) keys.appendChild(document.createTextNode(' / '));
+          combo.forEach((tok) => {
+            const k = document.createElement('kbd');
+            k.textContent = tok === 'mod' ? mod : tok;
+            keys.appendChild(k);
+          });
+        });
+        el.appendChild(lab);
+        el.appendChild(keys);
+        col.appendChild(el);
+      });
+      body.appendChild(col);
+    });
+  }
+
+  App.Shortcuts = {
+    open() { App.$('#shortcuts-modal').classList.remove('hidden'); },
+    close() { App.$('#shortcuts-modal').classList.add('hidden'); }
+  };
+
+  function setupShortcuts() {
+    renderShortcuts();
+    App.$('#sc-close').addEventListener('click', () => App.Shortcuts.close());
+    App.$('#sc-ok').addEventListener('click', () => App.Shortcuts.close());
+  }
+
   // ---------- Native-menu commands (desktop) ----------
   // The Electron main process forwards menu clicks here as command strings; map
   // each to the same action its toolbar button / shortcut already performs.
@@ -546,6 +627,7 @@
       case 'fit-width': if (App.state.pdfDoc) App.Viewer.fitWidth(); break;
       case 'toggle-theme': App.$('#btn-theme').click(); break;
       case 'check-updates': checkForUpdates(true); break;
+      case 'shortcuts': App.Shortcuts.open(); break;
       default: break;
     }
   }
@@ -562,6 +644,7 @@
     if (App.DocStamp) App.DocStamp.init();
     if (App.ToolChest) App.ToolChest.init();
     setupUpdates();
+    setupShortcuts();
     setupDragDrop();
     setupKeys();
     setupPlacementClicks();

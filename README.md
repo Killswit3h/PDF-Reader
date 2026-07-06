@@ -148,7 +148,8 @@ version. A **left tool rail** holds the creation tools in three groups:
 Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+P` print ·
 `Ctrl+F` find · `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `+ / − / 0` zoom (0 = 100%) ·
 `← / →` page · **arrow keys** nudge the selected item (**Shift** = ×10) · `Esc`
-cancel / close a modal / deselect · `Delete` remove selected.
+cancel / close a modal / deselect · `Delete` remove selected. Press **`?`** (or
+`F1`) any time — or **Help → Keyboard Shortcuts** on desktop — for the full list.
 
 Zoom: trackpad **pinch-to-zoom** (macOS & Windows precision trackpads) and
 **`Ctrl`/`Cmd` + scroll wheel** zoom toward the pointer.

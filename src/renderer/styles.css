@@ -563,6 +563,29 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
   border-radius: var(--r-sm); font: 600 11px 'Segoe UI', monospace;
 }
 
+/* ---- Keyboard shortcuts help modal ---- */
+.sc-body {
+  padding: var(--sp-4) var(--sp-5); max-height: 60vh; overflow-y: auto;
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3) var(--sp-6);
+}
+.sc-sec { min-width: 0; }
+.sc-sec h3 {
+  margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 600;
+  color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em;
+}
+.sc-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--sp-3); padding: 3px 0; font-size: var(--fs-sm); color: var(--text-dim);
+}
+.sc-row .sc-keys { flex: none; white-space: nowrap; }
+.sc-row kbd {
+  display: inline-block; min-width: 16px; padding: 2px 6px; margin-left: 3px;
+  background: var(--bg-input); color: var(--text-dim);
+  border: 1px solid var(--border); border-bottom-width: 2px;
+  border-radius: var(--r-sm); font: 600 11px 'Segoe UI', monospace;
+}
+@media (max-width: 560px) { .sc-body { grid-template-columns: 1fr; } }
+
 /* ---- Themed scrollbars ---- */
 #viewerContainer::-webkit-scrollbar, .mp-list::-webkit-scrollbar,
 .upd-notes::-webkit-scrollbar { width: 12px; height: 12px; }
