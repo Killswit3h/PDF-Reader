@@ -58,7 +58,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: release/PDF-Signer-Setup.exe
+          # latest.yml + the .blockmap are electron-updater's update feed —
+          # ship them alongside the installer so the app can self-update. Kept
+          # best-effort (warn): if a build ever omits the metadata, the release
+          # still ships and the app falls back to the manual download flow.
+          path: |
+            release/PDF-Signer-Setup.exe
+            release/latest.yml
+            release/*.blockmap
+          if-no-files-found: warn
 
   # ---------------- macOS ----------------
   build-mac:
@@ -177,6 +185,8 @@ jobs:
           fail_on_unmatched_files: false
           files: |
             dist-artifacts/windows/PDF-Signer-Setup.exe
+            dist-artifacts/windows/latest.yml
+            dist-artifacts/windows/*.blockmap
             dist-artifacts/mac/*.dmg
             dist-artifacts/mac/*.zip
             dist-artifacts/android/PDF-Signer.apk

@@ -38,9 +38,17 @@ first time (or `xattr -dr com.apple.quarantine "/Applications/PDF Signer.app"`).
 
 Windows, macOS, and Android builds are all built and published automatically on
 every version tag — see
-[Publishing a release](#publishing-a-release-one-time-setup). The app also checks
-for updates on launch and shows a version badge in the toolbar (click it to check
-manually); when a newer release exists it offers a one-click link to download it.
+[Publishing a release](#publishing-a-release-one-time-setup). The app checks for
+updates on launch and shows a version badge in the toolbar (click it to check
+manually). When a newer release exists:
+
+- **Windows** downloads and installs the update **in-app** (electron-updater):
+  the update dialog shows download progress, then **Restart & Install** applies
+  it — no manual re-download. Powered by the `latest.yml` + `.blockmap` the
+  release workflow ships next to the installer.
+- **macOS** and **Android** open the download page for the new `.dmg` / `.apk`
+  instead. (In-app install on macOS needs a signed, notarized build, which the
+  release is not yet — it falls back rather than shipping a broken updater.)
 
 > **Note:** This is a *cosmetic* e-signature tool. Signatures are rendered as
 > images and stamped onto the page. It does **not** create cryptographic /

@@ -23,9 +23,9 @@
     "android:sync": "npm run build:web && cap sync android && npm run android:icons",
     "android:open": "npm run android:sync && cap open android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "dist": "electron-builder --win nsis --x64",
-    "dist:arm64": "electron-builder --win nsis --arm64",
-    "dist:mac": "electron-builder --mac --universal",
+    "dist": "electron-builder --win nsis --x64 --publish never",
+    "dist:arm64": "electron-builder --win nsis --arm64 --publish never",
+    "dist:mac": "electron-builder --mac --universal --publish never",
     "pack": "electron-builder --dir"
   },
   "build": {
@@ -41,6 +41,13 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Killswit3h",
+        "repo": "PDF-Reader"
+      }
+    ],
     "fileAssociations": [
       {
         "ext": "pdf",
@@ -101,6 +108,7 @@
     "@capacitor/core": "8.4.1",
     "@capacitor/filesystem": "8.1.2",
     "@capacitor/share": "8.0.1",
+    "electron-updater": "^6.3.9",
     "pdf-lib": "1.17.1",
     "pdfjs-dist": "3.11.174",
     "signature_pad": "4.2.0"

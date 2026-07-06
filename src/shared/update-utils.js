@@ -34,4 +34,14 @@ function fileFromArgv(argv, existsFn) {
   return candidate || null;
 }
 
-module.exports = { repoSlug, semverCmp, fileFromArgv };
+// Can this build install an update in-app (electron-updater downloadUpdate +
+// quitAndInstall)? Only when packaged, and — for now — only on Windows: our
+// macOS artifacts are unsigned (release.yml sets CSC_IDENTITY_AUTO_DISCOVERY
+// false), and electron-updater's mac installer rejects an unsigned update, so
+// mac falls back to opening the download page until signing lands. In dev
+// (unpackaged) there is no app-update.yml, so it also can't self-update.
+function canInstallInApp(platform, isPackaged) {
+  return isPackaged === true && platform === 'win32';
+}
+
+module.exports = { repoSlug, semverCmp, fileFromArgv, canInstallInApp };

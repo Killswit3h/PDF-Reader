@@ -231,6 +231,15 @@
       }
       window.open(url, isNative ? '_system' : '_blank');
       return true;
-    }
+    },
+
+    // No in-app installer on web/Android — the update UI opens the download page
+    // (APK / release) instead. These keep the contract identical to the desktop
+    // preload so app modules never branch on platform.
+    startUpdateDownload: () => Promise.resolve({ started: false }),
+    installUpdate: () => Promise.resolve({ ok: false }),
+    onUpdateProgress: () => { /* desktop-only */ },
+    onUpdateDownloaded: () => { /* desktop-only */ },
+    onUpdateError: () => { /* desktop-only */ }
   };
 })();

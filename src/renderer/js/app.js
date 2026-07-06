@@ -432,6 +432,9 @@
 
   // ---------- Updates ----------
   let latestUpdate = null;
+  // 'idle' → 'downloading' → 'ready'. Only meaningful on desktop; web/Android
+  // always take the openExternal fallback so it stays 'idle'.
+  let updState = 'idle';
 
   async function initVersionBadge() {
     try {
@@ -441,11 +444,36 @@
     } catch (_) { /* ignore */ }
   }
 
+  function setDownloadBtn() {
+    const b = App.$('#upd-download');
+    if (updState === 'downloading') { b.disabled = true; b.textContent = 'Downloading…'; }
+    else if (updState === 'ready') { b.disabled = false; b.textContent = 'Restart & Install'; }
+    else { b.disabled = false; b.textContent = 'Download'; }
+  }
+
   function showUpdateModal(res) {
     App.$('#upd-msg').textContent =
       `A new version (v${res.latest}) is available. You have v${res.current}.`;
     App.$('#upd-notes').textContent = (res.notes || '').trim() || 'No release notes.';
+    setDownloadBtn();
     App.$('#update-modal').classList.remove('hidden');
+  }
+
+  // Download button: kick off an in-app download, restart to install once ready,
+  // or fall back to opening the download page when self-install isn't available.
+  async function onUpdateAction() {
+    if (updState === 'ready') { window.api.installUpdate(); return; }
+    if (updState === 'downloading') return;
+    if (!latestUpdate) return;
+    let r = null;
+    try { r = await window.api.startUpdateDownload(); } catch (_) { r = null; }
+    if (!r || !r.started) {
+      window.api.openExternal(latestUpdate.url);          // web / macOS / dev / error
+      App.$('#update-modal').classList.add('hidden');
+      return;
+    }
+    updState = 'downloading';
+    setDownloadBtn();
   }
 
   async function checkForUpdates(manual) {
@@ -474,10 +502,27 @@
     });
     App.$('#upd-close').addEventListener('click', () => App.$('#update-modal').classList.add('hidden'));
     App.$('#upd-later').addEventListener('click', () => App.$('#update-modal').classList.add('hidden'));
-    App.$('#upd-download').addEventListener('click', () => {
-      if (latestUpdate) window.api.openExternal(latestUpdate.url);
-      App.$('#update-modal').classList.add('hidden');
+    App.$('#upd-download').addEventListener('click', onUpdateAction);
+
+    // electron-updater lifecycle (desktop; no-ops elsewhere).
+    window.api.onUpdateProgress((d) => {
+      if (updState !== 'downloading') return;
+      const pct = Math.max(0, Math.min(100, Math.round((d && d.percent) || 0)));
+      App.$('#upd-download').textContent = 'Downloading… ' + pct + '%';
     });
+    window.api.onUpdateDownloaded(() => {
+      updState = 'ready';
+      setDownloadBtn();
+      App.toast('Update downloaded — click Restart & Install.', 'success', 6000);
+    });
+    window.api.onUpdateError(() => {
+      if (updState === 'idle') return;
+      updState = 'idle';
+      setDownloadBtn();
+      App.toast('Update download failed; opening the download page…', 'error', 5000);
+      if (latestUpdate) window.api.openExternal(latestUpdate.url);
+    });
+
     initVersionBadge();
     // quiet check shortly after launch
     setTimeout(() => checkForUpdates(false), 3000);
