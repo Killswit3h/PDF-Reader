@@ -49,6 +49,13 @@ function openInRenderer(filePath) {
     mainWindow.webContents.send('open-file-path', filePath);
   } else {
     pendingFile = filePath;
+    // macOS keeps the app running after its window is closed. If a file arrives
+    // then (e.g. opening an Outlook attachment), there is no window to receive
+    // it — create one now so it opens immediately instead of hanging until the
+    // user clicks the Dock icon. On a cold start the app isn't ready yet;
+    // whenReady() creates the first window and the 'renderer-ready' handler
+    // flushes pendingFile, so don't double-create in that case.
+    if (!mainWindow && app.isReady()) createWindow();
   }
 }
 
@@ -195,6 +202,37 @@ function createWindow() {
       console.log('[render-process-gone]', JSON.stringify(d)));
     mainWindow.webContents.once('did-finish-load', () => {
       console.log('[env] disable-pinch=' + app.commandLine.hasSwitch('disable-pinch'));
+      // SMOKE_REOPEN: cold-open a file, CLOSE the window (app stays alive, macOS-
+      // style — see the window-all-closed guard), then deliver a second file the
+      // way an Outlook attachment arrives while windowless. Verifies a new window
+      // is created and the file opens without a Dock click.
+      if (process.env.SMOKE_REOPEN) {
+        if (global.__reopened) return;   // the recreated window: just let it load
+        setTimeout(async () => {
+          try {
+            await mainWindow.webContents.executeJavaScript(
+              `(async()=>{for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));})()`, true);
+            const first = await mainWindow.webContents.executeJavaScript(
+              'JSON.stringify({name:App.state.fileName,pages:App.state.numPages})', true);
+            global.__reopened = true;
+            mainWindow._forceClose = true;
+            mainWindow.close();                                  // → app goes windowless
+            await new Promise((r) => setTimeout(r, 400));
+            openInRenderer(process.env.SMOKE_REOPEN);            // file arrives while windowless
+            for (let i = 0; i < 100 && (!mainWindow || !mainWindow.webContents); i++) await new Promise((r) => setTimeout(r, 100));
+            let second = '{}';
+            if (mainWindow && mainWindow.webContents) {
+              await mainWindow.webContents.executeJavaScript(
+                `(async()=>{for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));})()`, true);
+              second = await mainWindow.webContents.executeJavaScript(
+                'JSON.stringify({name:App.state.fileName,pages:App.state.numPages})', true);
+            }
+            console.log('[reopen] ' + JSON.stringify({ first: JSON.parse(first), createdWindow: !!(mainWindow && mainWindow.webContents), second: JSON.parse(second) }));
+          } catch (e) { console.log('[reopen] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_LAUNCH: verify the REAL launch path (file passed via argv/open-file
       // → buffered → flushed on 'renderer-ready'). Deliberately does NOT push the
       // path itself, so it exercises the actual "Open with" cold-start fix.
@@ -646,8 +684,13 @@ function createWindow() {
     // If launched with a PDF argument (Windows/Linux), queue it. It is delivered
     // once the renderer reports it is ready (see the 'renderer-ready' handler),
     // which guarantees the renderer is already listening for the file path.
-    const initialFile = fileFromArgv(process.argv);
-    if (initialFile) openInRenderer(initialFile);
+    // Skip when a file is already buffered — this window may have been created
+    // to open a *new* file (e.g. a warm macOS re-open), and process.argv still
+    // holds the original launch path, which would otherwise clobber it.
+    if (!pendingFile) {
+      const initialFile = fileFromArgv(process.argv);
+      if (initialFile) openInRenderer(initialFile);
+    }
   });
 
   // Prompt to save unsaved edits before the window closes.
@@ -691,14 +734,18 @@ if (!gotLock) {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
-      openInRenderer(fileFromArgv(argv));
     }
+    // Route through openInRenderer even with no window — it recreates one so a
+    // second launch (or file open) while the app runs windowless still opens.
+    openInRenderer(fileFromArgv(argv));
   });
 
   app.whenReady().then(createWindow);
 
   app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+    // macOS keeps the app alive after the last window closes. The SMOKE_REOPEN
+    // e2e emulates that on Linux CI so the windowless file-open path is testable.
+    if (process.platform !== 'darwin' && !process.env.SMOKE_REOPEN) app.quit();
   });
 
   // A debounced bounds write could still be pending when the app exits — flush.
