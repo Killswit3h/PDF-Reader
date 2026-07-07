@@ -189,6 +189,16 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'reopen — file opens after the window was closed (macOS lifecycle)',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_REOPEN: BIG }, [SAMPLE]), 'reopen');
+      check(j.first.name === 'sample.pdf', `first ${JSON.stringify(j.first)}`);
+      check(j.createdWindow === true, 'no window was recreated for the reopened file');
+      check(j.second.name === 'big.pdf', `second ${JSON.stringify(j.second)}`);
+      check(j.second.pages === 12, `second pages ${j.second.pages}`);
+    }
+  },
+  {
     name: 'digital signature — real PKCS#7 signature embeds in the renderer',
     run: () => {
       // Generates a throwaway identity in-renderer and signs the fixture via the
