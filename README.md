@@ -33,8 +33,23 @@ badge in the top bar); when one exists it offers a one-tap **Download** of the
 new APK to sideload over the top.
 
 **macOS:** grab the `.dmg` from the [latest release](https://github.com/Killswit3h/PDF-Reader/releases/latest)
-(universal, Intel + Apple Silicon). It's unsigned, so **right-click → Open** the
-first time (or `xattr -dr com.apple.quarantine "/Applications/PDF Signer.app"`).
+(universal, Intel + Apple Silicon). The app is **ad-hoc signed but not notarized**
+(notarization needs a paid Apple Developer account), so macOS quarantines the
+download. Right-click → **Open** the first time to launch it.
+
+**To use it as your default PDF opener**, clear the quarantine flag once — without
+this, macOS refuses to launch it as a document handler and shows *"«file».pdf is
+damaged and can't be opened"* (the file is fine; Gatekeeper is blocking the
+*app*). In Terminal:
+
+```bash
+xattr -cr "/Applications/PDF Signer.app"
+codesign --force --deep --sign - "/Applications/PDF Signer.app"   # only needed on older downloads
+```
+
+Then right-click a PDF → **Get Info** → **Open with** → **PDF Signer** → **Change
+All…**. (Builds from v1.10.0 on are ad-hoc signed at release time, so the
+`codesign` line is only needed for earlier downloads.)
 
 Windows, macOS, and Android builds are all built and published automatically on
 every version tag — see
