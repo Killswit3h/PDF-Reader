@@ -586,6 +586,24 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
 }
 @media (max-width: 560px) { .sc-body { grid-template-columns: 1fr; } }
 
+/* ---- Digital signature modal ---- */
+.dsig-body { padding: var(--sp-4) var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3); }
+.dsig-intro { margin: 0 0 var(--sp-1); color: var(--text-dim); font-size: var(--fs-sm); line-height: 1.5; }
+.dsig-intro code { font-family: var(--font-mono); font-size: 0.9em; }
+.dsig-field { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); color: var(--text-dim); }
+.dsig-field input[type="text"], .dsig-field input[type="password"],
+.dsig-field input[type="number"], .dsig-field select {
+  background: var(--bg-input); color: var(--text); border: 1px solid var(--border);
+  border-radius: var(--r-sm); padding: 7px 9px; font-size: var(--fs-md);
+}
+.dsig-field input[type="number"] { width: 80px; }
+.dsig-row { display: flex; gap: var(--sp-4); }
+.dsig-row .grow { flex: 1; }
+.dsig-check { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-dim); }
+.dsig-status { margin: 2px 0 0; min-height: 18px; font-size: var(--fs-sm); color: var(--text-faint); }
+.dsig-status.err { color: var(--danger, #e5484d); }
+.dsig-status.ok { color: var(--success, #30a46c); }
+
 /* ---- Themed scrollbars ---- */
 #viewerContainer::-webkit-scrollbar, .mp-list::-webkit-scrollbar,
 .upd-notes::-webkit-scrollbar { width: 12px; height: 12px; }

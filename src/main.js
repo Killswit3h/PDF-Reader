@@ -480,6 +480,40 @@ function createWindow() {
         }, 1200);
         return;
       }
+      if (process.env.SMOKE_SIGN) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 80 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 600));
+              const forge = window.forge;
+              // Throwaway self-signed identity generated in-renderer (never a real key).
+              const keys = forge.pki.rsa.generateKeyPair(1024);
+              const cert = forge.pki.createCertificate();
+              cert.publicKey = keys.publicKey; cert.serialNumber = '01';
+              cert.validity.notBefore = new Date(2020,0,1); cert.validity.notAfter = new Date(2035,0,1);
+              const at = [{ name:'commonName', value:'Smoke Signer' }];
+              cert.setSubject(at); cert.setIssuer(at);
+              cert.sign(keys.privateKey, forge.md.sha256.create());
+              const der = forge.asn1.toDer(forge.pkcs12.toPkcs12Asn1(keys.privateKey, [cert], 'pw', { algorithm:'3des' })).getBytes();
+              const p12 = Uint8Array.from(der, (c) => c.charCodeAt(0) & 0xff);
+              const pdf = await App.Save.buildBytes();
+              let len = 0, hasSig = false, br = false, err = '';
+              try {
+                const signed = await App.PdfSign.signPdf(pdf, p12, { passphrase:'pw', name:'Smoke Signer', reason:'test', visible:{ pageIndex:0, corner:'bl' } });
+                len = signed.length;
+                let s = ''; for (let i = 0; i < signed.length; i++) s += String.fromCharCode(signed[i]);
+                hasSig = s.indexOf('/SubFilter /adbe.pkcs7.detached') !== -1;
+                br = /\\/ByteRange \\[\\d+ \\d+ \\d+ \\d+\\]/.test(s);
+              } catch (e) { err = e.message; }
+              return JSON.stringify({ len, hasSig, br, err });
+            })()`, true);
+            console.log('[sign] ' + r);
+          } catch (e) { console.log('[sign] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_UPDATE) {
         setTimeout(async () => {
           try {

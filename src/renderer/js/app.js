@@ -192,7 +192,8 @@
         const open = [
           ['#sig-modal', '#sig-cancel'], ['#scale-modal', '#scale-cancel'],
           ['#update-modal', '#upd-close'], ['#confirm-modal', '#confirm-no'],
-          ['#docstamp-modal', '#ds-cancel'], ['#shortcuts-modal', '#sc-close']
+          ['#docstamp-modal', '#ds-cancel'], ['#shortcuts-modal', '#sc-close'],
+          ['#digisign-modal', '#dsig-close']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
         if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
       }
@@ -407,6 +408,7 @@
         if (d === 'organize') App.Organize.toggle();
         else if (d === 'stamp') App.DocStamp.open();
         else if (d === 'chest') App.ToolChest.toggle();
+        else if (d === 'digisign') App.DigiSign.open();
       });
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
@@ -643,6 +645,7 @@
     if (App.Organize) App.Organize.init();
     if (App.DocStamp) App.DocStamp.init();
     if (App.ToolChest) App.ToolChest.init();
+    if (App.DigiSign) App.DigiSign.init();
     setupUpdates();
     setupShortcuts();
     setupDragDrop();

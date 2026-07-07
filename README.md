@@ -50,9 +50,13 @@ manually). When a newer release exists:
   instead. (In-app install on macOS needs a signed, notarized build, which the
   release is not yet — it falls back rather than shipping a broken updater.)
 
-> **Note:** This is a *cosmetic* e-signature tool. Signatures are rendered as
-> images and stamped onto the page. It does **not** create cryptographic /
-> certificate-based (PKI) digital signatures.
+> **Two kinds of signature.** The **Sign / Initials** tools are *cosmetic* —
+> your signature is rendered as an image and stamped onto the page (it looks
+> signed but carries no cryptographic proof). Separately, **Document → Digital
+> Signature** applies a *real* certificate-based **PKI / PAdES** signature using
+> your own digital ID (`.p12`/`.pfx`): it cryptographically binds your identity
+> to the document and makes any later change detectable. See
+> [Digital signatures](#digital-signatures-pki--pades) below.
 
 Everything runs locally — no cloud, no login, no telemetry, no network access
 at runtime. Handwriting fonts are bundled with the app.
@@ -137,6 +141,35 @@ at runtime. Handwriting fonts are bundled with the app.
 - **Tool Chest** (Document ▾ → Tool Chest) — save a markup tool's **type + style** as a reusable
   tool, or add an image as a reusable **stamp**; click to re-apply. Stored locally
   (localStorage) so it persists across launches.
+
+## Digital signatures (PKI / PAdES)
+
+**Document ▾ → Digital Signature** applies a real, certificate-based signature —
+distinct from the cosmetic Sign/Initials tools — using your own **digital ID**
+(a `.p12`/`.pfx` file that holds your private key + certificate):
+
+- Import your digital ID, enter its password, optionally add a **visible
+  signature block** (name, date, reason, location) on a chosen page/corner, then
+  **Sign & Save**. The output carries a standard `adbe.pkcs7.detached` signature.
+- **Fully offline & private.** Signing runs entirely in the app (node-forge +
+  pdf-lib in the renderer, so Windows/macOS/Android all use one implementation).
+  Your key and password stay in memory for the signing operation only — they are
+  never written to disk or sent anywhere.
+- **Tamper-evident + identity-bound.** Any change after signing invalidates the
+  signature. If your certificate chains to a trusted CA (e.g. an **Adobe AATL**
+  member such as IdenTrust/DigiCert/GlobalSign), Adobe shows the green *"Signed
+  and all signatures are valid"* automatically; a self-signed ID is equally
+  tamper-evident but shows *"validity unknown"* until the recipient trusts it.
+
+**Good to know:**
+- **Sign last.** A digital signature must be the final step — editing or
+  re-marking the document afterward breaks it. (Place any cosmetic
+  signature/markup first, then digitally sign.)
+- **No trusted timestamp.** Because the app never touches the network, signatures
+  are not RFC-3161 timestamped; their time comes from your system clock and they
+  don't embed long-term-validation (LTV) data.
+- You need your **own** digital ID — the app doesn't issue certificates. Buy one
+  from a CA for public trust, or generate a self-signed one for internal use.
 
 ## Layout & keyboard
 

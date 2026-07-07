@@ -118,6 +118,7 @@
           <button data-doc="organize">🗂️ Organize Pages…</button>
           <button data-doc="stamp">#️⃣ Numbering &amp; Stamps…</button>
           <button data-doc="chest">🧰 Tool Chest</button>
+          <button data-doc="digisign">🔏 Digital Signature…</button>
         </div>
       </div>
     </div>
@@ -482,17 +483,67 @@
     </div>
   </div>
 
+  <!-- ============ Digital signature (PKI / PAdES) ============ -->
+  <div id="digisign-modal" class="modal-backdrop hidden">
+    <div class="modal" style="width:520px">
+      <div class="modal-head">
+        <h2>Digital signature</h2>
+        <button id="dsig-close" class="modal-x" title="Close">✕</button>
+      </div>
+      <div class="dsig-body">
+        <p class="dsig-intro">Apply a certified, tamper-evident signature using your digital ID
+          (<code>.p12</code>/<code>.pfx</code>). Your key and password stay on this device — nothing is uploaded.</p>
+        <label class="dsig-field">Digital ID (.p12 / .pfx)
+          <input id="dsig-p12" type="file" accept=".p12,.pfx,application/x-pkcs12" />
+        </label>
+        <label class="dsig-field">Password
+          <input id="dsig-pass" type="password" autocomplete="off" placeholder="Password for your digital ID" />
+        </label>
+        <label class="dsig-field">Name (shown on the signature)
+          <input id="dsig-name" type="text" placeholder="e.g. Jane Doe" />
+        </label>
+        <div class="dsig-row">
+          <label class="dsig-field grow">Reason (optional)
+            <input id="dsig-reason" type="text" placeholder="e.g. I approve this document" />
+          </label>
+          <label class="dsig-field grow">Location (optional)
+            <input id="dsig-loc" type="text" placeholder="e.g. New York" />
+          </label>
+        </div>
+        <label class="dsig-check"><input id="dsig-visible" type="checkbox" /> Add a visible signature block</label>
+        <div id="dsig-visible-opts" class="dsig-row hidden">
+          <label class="dsig-field">Page <input id="dsig-page" type="number" min="1" value="1" /></label>
+          <label class="dsig-field">Position
+            <select id="dsig-corner">
+              <option value="bl">Bottom-left</option>
+              <option value="br">Bottom-right</option>
+              <option value="tl">Top-left</option>
+              <option value="tr">Top-right</option>
+            </select>
+          </label>
+        </div>
+        <p id="dsig-status" class="dsig-status"></p>
+      </div>
+      <div class="modal-foot">
+        <button id="dsig-cancel" class="tb-btn">Cancel</button>
+        <button id="dsig-go" class="tb-btn primary" disabled>Sign &amp; Save…</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
   <script src="../../node_modules/pdfjs-dist/build/pdf.js"></script>
   <script src="../../node_modules/pdfjs-dist/web/pdf_viewer.js"></script>
   <script src="../../node_modules/pdf-lib/dist/pdf-lib.min.js"></script>
   <script src="../../node_modules/signature_pad/dist/signature_pad.umd.min.js"></script>
+  <script src="../../node_modules/node-forge/dist/forge.min.js"></script>
 
   <!-- ======= Shared, unit-tested pure logic (load before app modules) ======= -->
   <script src="../shared/geometry.js"></script>
   <script src="../shared/measure-math.js"></script>
   <script src="../shared/date-util.js"></script>
   <script src="../shared/prefs.js"></script>
+  <script src="../shared/pdf-sign.js"></script>
 
   <!-- ======= App modules ======= -->
   <script src="js/util.js"></script>
@@ -506,6 +557,7 @@
   <script src="js/docstamp.js"></script>
   <script src="js/toolchest.js"></script>
   <script src="js/save.js"></script>
+  <script src="js/digisign.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

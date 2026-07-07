@@ -189,6 +189,18 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'digital signature — real PKCS#7 signature embeds in the renderer',
+    run: () => {
+      // Generates a throwaway identity in-renderer and signs the fixture via the
+      // real App.PdfSign path (node-forge running in Electron's renderer).
+      const j = tagJson(runApp({ SMOKE_SIGN: '1' }, [SAMPLE]), 'sign');
+      check(j.err === '', `sign error: ${j.err}`);
+      check(j.hasSig === true, 'no adbe.pkcs7.detached signature embedded');
+      check(j.br === true, 'no real ByteRange in the signed PDF');
+      check(j.len > 0, 'no signed bytes produced');
+    }
+  },
+  {
     name: 'save/flatten — signed PDF written to disk is valid',
     run: () => {
       const outFile = path.join(os.tmpdir(), `pdfsigner-e2e-${process.pid}.pdf`);
