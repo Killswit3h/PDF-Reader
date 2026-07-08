@@ -306,6 +306,34 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
+      if (process.env.SMOKE_MDRAG) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.pageEls.length;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              App.state.scales[1]={factor:0.5,unit:'ft',ratioLabel:'t'};
+              App.state.measurements.push({id:1,page:1,type:'length',pts:[{vx:100,vy:100},{vx:200,vy:100}],value:50,unit:'ft',label:'50 ft'});
+              App.Measure.repositionAll();
+              const hit=document.querySelector('.measure-layer .m-hit');
+              const before=JSON.stringify(App.state.measurements[0].pts);
+              let moved=false, selected=false; const hasHit=!!hit;
+              if(hit){ const b=hit.getBoundingClientRect();
+                hit.dispatchEvent(new PointerEvent('pointerdown',{clientX:b.left+b.width/2,clientY:b.top+b.height/2,bubbles:true,cancelable:true}));
+                window.dispatchEvent(new PointerEvent('pointermove',{clientX:b.left+b.width/2+40,clientY:b.top+b.height/2+30,bubbles:true}));
+                window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+                moved=JSON.stringify(App.state.measurements[0].pts)!==before;
+                selected=App.state.measureSelectedId===1;
+              }
+              return JSON.stringify({hasHit,moved,selected});
+            })()`, true);
+            console.log('[mdrag] ' + r);
+          } catch (e) { console.log('[mdrag] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_ZOOM: verify trackpad/ctrl-wheel zoom changes the scale.
       if (process.env.SMOKE_ZOOM) {
         setTimeout(async () => {

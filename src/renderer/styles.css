@@ -181,7 +181,7 @@ body.has-banner #find-bar { top: calc(var(--toolbar-h) + 42px); }
 
 /* ===================== Markup layer ===================== */
 .markup-svg { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
-.markup-svg .hit { pointer-events: auto; cursor: move; }
+.markup-svg .hit { pointer-events: all; cursor: move; }
 body.tool-active .markup-svg .hit { pointer-events: none; }
 .markup-svg .handle { pointer-events: auto; cursor: nwse-resize; fill: #2f6fed; stroke: #fff; stroke-width: 1.5; }
 body.tool-active .markup-svg .handle { pointer-events: none; }
@@ -490,6 +490,10 @@ body.has-banner.has-props #markup-panel { top: calc(var(--toolbar-h) + 74px); }
 }
 .measure-layer .m-shape.selected { stroke-width: 2.6; }
 .measure-layer .m-preview { stroke-dasharray: 5 4; }
+/* Invisible wide grab area so a placed measurement can be selected + dragged.
+   Disabled while a measure tool is armed so clicks draw new measurements. */
+.measure-layer .m-hit { pointer-events: all; cursor: move; fill: transparent; stroke: transparent; stroke-width: 14px; touch-action: none; }
+body.tool-active .measure-layer .m-hit { pointer-events: none; }
 .page-holder.measuring .page-overlay { cursor: crosshair; }
 .m-snap-dot { fill: #ffb000; stroke: #7a5200; stroke-width: 1; }
 .viewport-rect { fill: rgba(255,176,0,0.06); stroke: #ffb000; stroke-width: 1.2; stroke-dasharray: 6 4; }
