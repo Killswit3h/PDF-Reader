@@ -337,8 +337,7 @@ function createWindow() {
               for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
               await new Promise(r=>setTimeout(r,600));
               const bytes=App.state.pdfBytes.slice();
-              window.api.openPdfDialog=async()=>({ok:true,data:bytes.buffer,name:'copy.pdf',path:null});
-              await App.Compare.open();
+              await App.Compare.compareData(bytes,'copy.pdf');
               let cv=null;
               for(let i=0;i<100;i++){cv=document.querySelector('#cmp-view canvas');if(cv&&cv.width>0)break;await new Promise(r=>setTimeout(r,100));}
               const modalOpen=!document.querySelector('#compare-modal').classList.contains('hidden');

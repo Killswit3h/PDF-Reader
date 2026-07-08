@@ -96,19 +96,26 @@
     return d;
   }
 
+  // Load `data` (PDF bytes) as document B, alongside the open document as A,
+  // and show the diff. Split out from open() so it can be driven without the
+  // file dialog (the e2e smoke harness relies on this).
+  C.compareData = async function (data, name) {
+    docA = App.state.pdfDoc;
+    docB = await pdfjs().getDocument({ data: new Uint8Array(data) }).promise;
+    maxPages = Math.max(docA.numPages, docB.numPages);
+    pageNum = 1;
+    $('#cmp-names').textContent = `A: ${App.state.fileName || 'current'}  ·  B: ${name || 'chosen file'}`;
+    $('#compare-modal').classList.remove('hidden');
+    await renderCurrent();
+  };
+
   C.open = async function () {
     if (!App.state.pdfDoc) { App.toast('Open a PDF first — it becomes document A.', 'error'); return; }
     const res = await window.api.openPdfDialog();
     if (!res) return;
     if (!res.ok) { App.toast('Could not read the comparison file: ' + (res.error || ''), 'error'); return; }
     try {
-      docA = App.state.pdfDoc;
-      docB = await pdfjs().getDocument({ data: new Uint8Array(res.data) }).promise;
-      maxPages = Math.max(docA.numPages, docB.numPages);
-      pageNum = 1;
-      $('#cmp-names').textContent = `A: ${App.state.fileName || 'current'}  ·  B: ${res.name || 'chosen file'}`;
-      $('#compare-modal').classList.remove('hidden');
-      await renderCurrent();
+      await C.compareData(res.data, res.name);
     } catch (e) {
       App.toast('Could not open the comparison file: ' + (e && e.message), 'error', 5000);
     }
