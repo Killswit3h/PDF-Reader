@@ -96,10 +96,12 @@
       };
       if ($('#dsig-visible').checked) {
         const pageIndex = Math.max(0, Math.min((App.state.numPages || 1) - 1, (parseInt($('#dsig-page').value, 10) || 1) - 1));
-        const lines = ['Digitally signed by ' + (opts.name || 'Signer'), 'Date: ' + new Date().toLocaleString()];
-        if (opts.reason) lines.push('Reason: ' + opts.reason);
-        if (opts.location) lines.push('Location: ' + opts.location);
-        opts.visible = { pageIndex, corner: $('#dsig-corner').value || 'bl', lines };
+        // pdf-sign draws the Adobe-style two-column block (name left, "Digitally
+        // signed by … / Date …" right) and formats the date to match the signature.
+        opts.visible = {
+          pageIndex, corner: $('#dsig-corner').value || 'bl',
+          name: opts.name || 'Signer', reason: opts.reason, location: opts.location
+        };
       }
       setStatus('Signing…');
       const signed = await App.PdfSign.signPdf(bytes, p12Bytes, opts);

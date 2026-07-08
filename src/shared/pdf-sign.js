@@ -93,6 +93,30 @@
     return o;
   }
 
+  // Greedy word-wrap to a max width for a pdf-lib font at `size`.
+  function wrapText(font, text, maxWidth, size) {
+    const words = String(text).split(/\s+/).filter(Boolean);
+    const lines = [];
+    let cur = '';
+    for (const word of words) {
+      const trial = cur ? cur + ' ' + word : word;
+      if (!cur || font.widthOfTextAtSize(trial, size) <= maxWidth) cur = trial;
+      else { lines.push(cur); cur = word; }
+    }
+    if (cur) lines.push(cur);
+    return lines.length ? lines : [''];
+  }
+
+  // Adobe-style signing date, e.g. "2026.07.08 13:56:01 -04'00'".
+  function formatAdobeDate(d) {
+    const p = (n) => String(n).padStart(2, '0');
+    const off = -d.getTimezoneOffset();
+    const sign = off >= 0 ? '+' : '-';
+    return d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) + ' ' +
+      p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) + ' ' +
+      sign + p(Math.floor(Math.abs(off) / 60)) + "'" + p(Math.abs(off) % 60) + "'";
+  }
+
   /* ---------- placeholder (ported from @signpdf/placeholder-pdf-lib) ---------- */
   // Adds an AcroForm signature field + widget with a ByteRange/Contents
   // placeholder to a pdf-lib PDFDocument. widgetRect [x1,y1,x2,y2] is the
@@ -255,9 +279,10 @@
 
     const doc = await P.PDFDocument.load(pdfU8, { ignoreEncryption: true });
 
-    // Optional visible appearance: draw a bordered block with the signer lines
-    // directly on the page (so it's part of the signed content), and point the
-    // signature widget's rectangle at it. Purely renderer/pdf-lib drawing.
+    // Optional visible appearance, drawn directly on the page (so it's part of
+    // the signed content) with the signature widget pointing at it. Matches
+    // Adobe's default two-column layout: the signer's name large on the left,
+    // and the "Digitally signed by … / Date …" details on the right.
     let widgetRect = o.widgetRect || [0, 0, 0, 0];
     let pageIndex = typeof o.pageIndex === 'number' ? o.pageIndex : 0;
     if (o.visible) {
@@ -270,17 +295,47 @@
       if (v.rect) { [x, y, w, h] = v.rect; }
       else {
         const size = page.getSize();
-        w = v.width || 230; h = v.height || 66;
+        w = v.width || 300; h = v.height || 84;
         const margin = 36; const corner = v.corner || 'bl';
         x = corner.indexOf('r') !== -1 ? size.width - margin - w : margin;
         y = corner.indexOf('t') !== -1 ? size.height - margin - h : margin;
       }
       const font = await doc.embedFont(P.StandardFonts.Helvetica);
-      page.drawRectangle({ x, y, width: w, height: h, borderWidth: 1, borderColor: P.rgb(0.16, 0.31, 0.61), color: P.rgb(0.94, 0.96, 1) });
-      let ty = y + h - 13;
-      for (const line of (v.lines || [])) {
-        page.drawText(String(line), { x: x + 6, y: ty, size: 9, font, color: P.rgb(0.1, 0.12, 0.22) });
-        ty -= 12;
+      const name = String(v.name || 'Signer');
+      const ink = P.rgb(0.11, 0.13, 0.24);
+      const pad = 6;
+      const midX = x + Math.round(w * 0.46);   // column divider
+
+      page.drawRectangle({ x, y, width: w, height: h, borderWidth: 1, borderColor: P.rgb(0.35, 0.45, 0.7) });
+      page.drawLine({ start: { x: midX, y: y + 4 }, end: { x: midX, y: y + h - 4 }, thickness: 0.75, color: P.rgb(0.7, 0.77, 0.9) });
+
+      // Left column: the name, as large as fits (wrapped to the column width).
+      const leftW = midX - x - pad * 2;
+      let nameSize = 26;
+      let nameLines = wrapText(font, name, leftW, nameSize);
+      while ((nameLines.length * (nameSize + 2) > h - pad * 2 || nameLines.some((ln) => font.widthOfTextAtSize(ln, nameSize) > leftW)) && nameSize > 9) {
+        nameSize -= 1;
+        nameLines = wrapText(font, name, leftW, nameSize);
+      }
+      let ny = y + (h + (nameLines.length - 1) * (nameSize + 2)) / 2 - nameSize;
+      for (const ln of nameLines) {
+        page.drawText(ln, { x: x + pad, y: ny, size: nameSize, font, color: ink });
+        ny -= nameSize + 2;
+      }
+
+      // Right column: the Adobe-style detail block.
+      const detail = ['Digitally signed by ' + name, 'Date: ' + formatAdobeDate(signingTime)];
+      if (v.reason) detail.push('Reason: ' + v.reason);
+      if (v.location) detail.push('Location: ' + v.location);
+      const rightW = x + w - midX - pad * 2;
+      const dSize = 8;
+      let dy = y + h - pad - dSize;
+      for (const para of detail) {
+        for (const ln of wrapText(font, para, rightW, dSize)) {
+          if (dy < y + 3) break;
+          page.drawText(ln, { x: midX + pad, y: dy, size: dSize, font, color: ink });
+          dy -= dSize + 2;
+        }
       }
       widgetRect = [x, y, x + w, y + h];
     }

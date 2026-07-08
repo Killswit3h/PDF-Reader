@@ -127,6 +127,9 @@ at runtime. Handwriting fonts are bundled with the app.
     multiple scales (measurements inside it use the region's scale).
   - **Measurements List** — a side panel of every measurement with per-type
     totals and **Export CSV**.
+  - **Reposition after placing** — with no measure tool armed, click a
+    measurement (or markup) to select it, then **drag to move** it (or use the
+    arrow keys; **Shift** locks to an axis). Handy for fixing a misplaced item.
   - Measurements are flattened into the saved PDF alongside signatures.
 - **Light & dark themes** — a cohesive design-token system with a **persisted
   theme toggle** (☾ / ☀) in the top bar; defaults to your OS preference and
@@ -164,8 +167,10 @@ distinct from the cosmetic Sign/Initials tools — using your own **digital ID**
 (a `.p12`/`.pfx` file that holds your private key + certificate):
 
 - Import your digital ID, enter its password, optionally add a **visible
-  signature block** (name, date, reason, location) on a chosen page/corner, then
-  **Sign & Save**. The output carries a standard `adbe.pkcs7.detached` signature.
+  signature block** on a chosen page/corner, then **Sign & Save**. The visible
+  block mirrors Adobe's default layout — your **name large on the left**, and
+  **"Digitally signed by … / Date … / Reason / Location"** on the right. The
+  output carries a standard `adbe.pkcs7.detached` signature.
 - **Fully offline & private.** Signing runs entirely in the app (node-forge +
   pdf-lib in the renderer, so Windows/macOS/Android all use one implementation).
   Your key and password stay in memory for the signing operation only — they are

@@ -189,6 +189,15 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'measure drag — a placed measurement can be grabbed and moved',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MDRAG: '1' }, [SAMPLE]), 'mdrag');
+      check(j.hasHit === true, 'no draggable hit area on the measurement');
+      check(j.moved === true, 'dragging did not move the measurement');
+      check(j.selected === true, 'dragging did not select the measurement');
+    }
+  },
+  {
     name: 'tabs — open two PDFs, switch, each keeps isolated state',
     run: () => {
       const j = tagJson(runApp({ SMOKE_TABS: BIG }, [SAMPLE]), 'tabs');

@@ -241,6 +241,18 @@
         label(layer, pt.vx * z - 3, pt.vy * z + 4, String(idx + 1), '#3a2a00');
       });
       if (m.pts.length) label(layer, m.pts[0].vx * z + 10, m.pts[0].vy * z - 8, `Count: ${m.value}`, color);
+      // Invisible bbox hit so the whole count group can be dragged.
+      if (m.pts.length) {
+        const xs = m.pts.map((p) => p.vx * z), ys = m.pts.map((p) => p.vy * z);
+        const minx = Math.min.apply(null, xs) - 10, miny = Math.min.apply(null, ys) - 10;
+        const rect = ns('rect');
+        rect.setAttribute('class', 'm-hit');
+        rect.setAttribute('x', minx); rect.setAttribute('y', miny);
+        rect.setAttribute('width', Math.max.apply(null, xs) - minx + 10);
+        rect.setAttribute('height', Math.max.apply(null, ys) - miny + 10);
+        rect.addEventListener('pointerdown', (e) => startMeasureDrag(m, e));
+        layer.appendChild(rect);
+      }
       return;
     }
 
@@ -259,6 +271,13 @@
     line.setAttribute('stroke', color);
     layer.appendChild(line);
     m.pts.forEach((pt) => vdot(layer, pt, z, color));
+
+    // Invisible wide hit line over the shape so it can be grabbed + dragged.
+    const hit = ns('polyline');
+    hit.setAttribute('class', 'm-hit');
+    hit.setAttribute('points', pts.map((p) => P(p, z)).join(' '));
+    hit.addEventListener('pointerdown', (e) => startMeasureDrag(m, e));
+    layer.appendChild(hit);
 
     const anchor = m.type === 'area' ? centroid(m.pts)
       : m.type === 'angle' ? m.pts[1]
@@ -453,6 +472,32 @@
     m.pts = m.pts.map((pt) => ({ vx: pt.vx + dx, vy: pt.vy + dy }));
     M.repositionAll();
   };
+
+  // Drag a whole measurement to reposition it (mouse/touch). Wired to the
+  // invisible wide "m-hit" element over each shape; only active when no measure
+  // tool is armed (so drawing a new measurement still works).
+  function startMeasureDrag(m, e) {
+    e.preventDefault(); e.stopPropagation();
+    M.select(m.id);
+    const z = App.state.zoom, sx = e.clientX, sy = e.clientY;
+    const orig = m.pts.map((p) => ({ vx: p.vx, vy: p.vy }));
+    App.History.snapshot();
+    function move(ev) {
+      let dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+      if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; } // lock to an axis
+      m.pts = orig.map((p) => ({ vx: p.vx + dx, vy: p.vy + dy }));
+      M.repositionAll();
+    }
+    function up() {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+    }
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+  M._startDrag = startMeasureDrag;
 
   M.remove = function (id) {
     App.History.snapshot();

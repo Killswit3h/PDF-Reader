@@ -296,12 +296,27 @@
       if (hit) { el.setAttribute('class', 'hit'); el.addEventListener('pointerdown', (e) => startDrag(an, e)); }
       svg.appendChild(el);
     };
+    // A wide, invisible grab twin so thin line-shapes are easy to click + drag.
+    const fatHit = (el) => {
+      el.setAttribute('class', 'hit');
+      el.setAttribute('stroke', 'transparent');
+      el.setAttribute('stroke-width', 16);
+      el.setAttribute('fill', 'none');
+      el.setAttribute('stroke-linejoin', 'round');
+      el.setAttribute('stroke-linecap', 'round');
+      el.addEventListener('pointerdown', (e) => startDrag(an, e));
+      svg.appendChild(el);
+    };
 
     if (an.type === 'line' || an.type === 'arrow') {
       const l = ns('line');
       l.setAttribute('x1', an.pts[0].vx * z); l.setAttribute('y1', an.pts[0].vy * z);
       l.setAttribute('x2', an.pts[1].vx * z); l.setAttribute('y2', an.pts[1].vy * z);
       l.setAttribute('fill', 'none'); common(l, true);
+      const hl = ns('line');
+      hl.setAttribute('x1', an.pts[0].vx * z); hl.setAttribute('y1', an.pts[0].vy * z);
+      hl.setAttribute('x2', an.pts[1].vx * z); hl.setAttribute('y2', an.pts[1].vy * z);
+      fatHit(hl);
       if (an.type === 'arrow') arrowHead(svg, an.pts[0], an.pts[1], z, stroke, s.width);
     } else if (an.type === 'rect' || an.type === 'highlight') {
       const b = bbox(an.pts);
@@ -321,6 +336,9 @@
       pl.setAttribute('points', pts2str(an.pts, z));
       pl.setAttribute('fill', 'none'); common(pl, true);
       if (an.type === 'ink') pl.setAttribute('stroke-linejoin', 'round'), pl.setAttribute('stroke-linecap', 'round');
+      const hp = ns('polyline');
+      hp.setAttribute('points', pts2str(an.pts, z));
+      fatHit(hp);
     } else if (an.type === 'polygon') {
       const pg = ns('polygon');
       pg.setAttribute('points', pts2str(an.pts, z)); common(pg, true);
