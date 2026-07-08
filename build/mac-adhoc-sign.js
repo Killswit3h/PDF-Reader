@@ -26,6 +26,13 @@ exports.default = async function adhocSign(context) {
   try {
     if (context.electronPlatformName !== 'darwin') return;
     if (process.env.CSC_LINK || process.env.CSC_NAME) return; // real signing configured
+    // A universal build packs each arch into a "*-temp" dir, then merges them.
+    // Signing those per-arch temps makes their _CodeSignature differ and breaks
+    // the merge ("Expected all non-binary files to have identical SHAs"). Sign
+    // ONLY the final app — the merged universal (or a single-arch) output — which
+    // afterPack also fires for, after the merge, and whose signature the merge
+    // invalidates anyway.
+    if (context.appOutDir.includes('-temp')) return;
     const appPath = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
     if (!fs.existsSync(appPath)) {
       console.warn('[afterPack] app not found, skipping ad-hoc sign:', appPath);
