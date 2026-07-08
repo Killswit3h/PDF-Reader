@@ -106,7 +106,9 @@ at runtime. Handwriting fonts are bundled with the app.
   no file path, Save behaves like Save As the first time, then remembers it.
 - **Markup tools** (Bluebeam-style) — under the **✏️ Markup** menu: **arrow, line,
   rectangle, ellipse, polyline, polygon, revision cloud, freehand ink, text box,
-  callout, and highlight**. Select to move/resize, edit properties (stroke color,
+  callout, and highlight**, plus **text-anchored Highlight / Underline /
+  Strikethrough** — select text in the page and apply, and the markup snaps to the
+  exact word rectangles (multi-line aware). Select to move/resize, edit properties (stroke color,
   fill, line width, opacity) in the properties bar, **undo/redo** (`Ctrl+Z`/`Ctrl+Y`),
   and delete. A **Markups List** panel lists every markup (select, delete, export CSV).
   On save, markups are **flattened** by default, or written as **real, editable PDF
@@ -159,6 +161,12 @@ at runtime. Handwriting fonts are bundled with the app.
 - **Tool Chest** (Document ▾ → Tool Chest) — save a markup tool's **type + style** as a reusable
   tool, or add an image as a reusable **stamp**; click to re-apply. Stored locally
   (localStorage) so it persists across launches.
+- **Compare Documents** (Document ▾ → Compare Documents) — overlay the open PDF (A)
+  against a chosen PDF (B) page-by-page. Shared content renders gray, content only
+  in **A** is red, content only in **B** is blue, with a per-page count of the
+  pixels that differ — a fast way to spot revisions between two versions of the
+  same drawing. Renderer-only (PDF.js canvas + pixel diff), so it runs on all three
+  platforms.
 
 ## Digital signatures (PKI / PAdES)
 

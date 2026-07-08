@@ -306,6 +306,52 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TMARK: text markups (highlight/underline/strikeout) render + export.
+      if (process.env.SMOKE_TMARK) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,900));
+              const A=App.state;
+              const add=(type,y,color)=>{ A.annoSeq=(A.annoSeq||0)+1; A.annotations.push({id:A.annoSeq,page:1,type,quads:[{x:60,y,w:140,h:14}],style:{stroke:color,fill:'none',width:2,opacity:1}}); };
+              add('texthighlight',60,'#ffd400'); add('underline',90,'#e5484d'); add('strikeout',120,'#2f6fed');
+              App.Markup.repositionAll();
+              const rects=document.querySelectorAll('#viewer .markup-svg rect').length;
+              const lines=document.querySelectorAll('#viewer .markup-svg line').length;
+              let bytesLen=0,err=''; try{ bytesLen=(await App.Save.buildBytes()).length; }catch(e){ err=e.message; }
+              return JSON.stringify({ann:A.annotations.length,rects,lines,bytesLen,err});
+            })()`, true);
+            console.log('[tmark] ' + r);
+          } catch (e) { console.log('[tmark] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_COMPARE: the compare overlay renders a diff canvas. Comparing the
+      // open document against a copy of itself must report zero differences.
+      if (process.env.SMOKE_COMPARE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const bytes=App.state.pdfBytes.slice();
+              window.api.openPdfDialog=async()=>({ok:true,data:bytes.buffer,name:'copy.pdf',path:null});
+              await App.Compare.open();
+              let cv=null;
+              for(let i=0;i<100;i++){cv=document.querySelector('#cmp-view canvas');if(cv&&cv.width>0)break;await new Promise(r=>setTimeout(r,100));}
+              const modalOpen=!document.querySelector('#compare-modal').classList.contains('hidden');
+              const changed=parseInt((document.querySelector('#cmp-changed').textContent.match(/[\\d,]+/)||['0'])[0].replace(/,/g,''),10);
+              const noDiff=/No differences/.test(document.querySelector('#cmp-changed').textContent);
+              return JSON.stringify({modalOpen,canvasW:cv?cv.width:0,canvasH:cv?cv.height:0,changed,noDiff});
+            })()`, true);
+            console.log('[compare] ' + r);
+          } catch (e) { console.log('[compare] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {

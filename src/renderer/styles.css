@@ -1002,3 +1002,27 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
   border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; font-size: 12px;
 }
 .ds-flatten { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+
+/* ============ Document compare ============ */
+.cmp-modal { width: 980px; max-width: 96vw; height: 90vh; }
+.cmp-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--border);
+}
+.cmp-names { font-size: 12px; color: var(--text-dim); }
+.cmp-legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-dim); }
+.cmp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cmp-sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.cmp-sw-shared { background: rgb(168,168,168); }
+.cmp-sw-a { background: rgb(228,52,52); }
+.cmp-sw-b { background: rgb(44,110,228); }
+.cmp-view {
+  flex: 1; overflow: auto; padding: 16px; text-align: center;
+  background: #333; color: var(--text-dim);
+}
+.cmp-view canvas { max-width: 100%; height: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5); background: #fff; }
+.cmp-note { color: #ffd479; font-size: 13px; margin: 6px 0; }
+.cmp-foot { justify-content: space-between; align-items: center; }
+.cmp-nav { display: flex; align-items: center; gap: 10px; }
+.cmp-page { font-size: 12px; color: var(--text-dim); min-width: 110px; text-align: center; }
+.cmp-changed { font-size: 12px; color: var(--text-dim); flex: 1; text-align: center; }

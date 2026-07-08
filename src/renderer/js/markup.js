@@ -175,7 +175,8 @@
     const an = annoById(App.state.annoSelectedId);
     if (!an) return;
     snapshot();
-    an.pts = an.pts.map((pt) => ({ vx: pt.vx + dx, vy: pt.vy + dy }));
+    if (an.quads) an.quads = an.quads.map((q) => ({ x: q.x + dx, y: q.y + dy, w: q.w, h: q.h }));
+    else an.pts = an.pts.map((pt) => ({ vx: pt.vx + dx, vy: pt.vy + dy }));
     K.repositionAll();
   };
 
@@ -199,7 +200,7 @@
       // Snap the anchor point onto a nearby vertex of another shape.
       if (snapEnabled()) {
         const cand = [];
-        App.state.annotations.forEach((o) => { if (o.id !== an.id && o.page === an.page) cand.push(...o.pts); });
+        App.state.annotations.forEach((o) => { if (o.id !== an.id && o.page === an.page && o.pts) cand.push(...o.pts); });
         const moved0 = { vx: orig[0].vx + dx, vy: orig[0].vy + dy };
         const s = App.Geom.nearestVertex(cand, moved0, 8 / z);
         if (s) { dx += s.vx - moved0.vx; dy += s.vy - moved0.vy; }
@@ -348,9 +349,11 @@
       path.setAttribute('fill', fill); common(path, true);
     } else if (an.type === 'text' || an.type === 'callout') {
       drawText(svg, an, z);
+    } else if (an.type === 'texthighlight' || an.type === 'underline' || an.type === 'strikeout') {
+      drawTextMarkup(svg, an, z);
     }
 
-    if (selected) drawSelection(svg, an, z);
+    if (selected) { if (an.quads) drawQuadsSel(svg, an, z); else drawSelection(svg, an, z); }
   }
 
   function drawText(svg, an, z) {
@@ -563,6 +566,125 @@
       });
     }
   };
+
+  /* ---------------- text markup: highlight / underline / strikeout ---------------- */
+  const TEXT_MARKUP = { texthighlight: 'Highlight', underline: 'Underline', strikeout: 'Strikeout' };
+  K.isTextTool = (t) => !!TEXT_MARKUP[t];
+
+  function quadsBBox(quads) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    quads.forEach((q) => { x0 = Math.min(x0, q.x); y0 = Math.min(y0, q.y); x1 = Math.max(x1, q.x + q.w); y1 = Math.max(y1, q.y + q.h); });
+    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  }
+
+  function drawTextMarkup(svg, an, z) {
+    const color = (an.style && an.style.stroke) || '#ffd400';
+    const width = Math.max(1.5, (an.style && an.style.width) || 2);
+    const sel = (e) => { e.stopPropagation(); K.select(an.id); };
+    (an.quads || []).forEach((q) => {
+      if (an.type === 'texthighlight') {
+        const r = ns('rect');
+        r.setAttribute('x', q.x * z); r.setAttribute('y', q.y * z);
+        r.setAttribute('width', q.w * z); r.setAttribute('height', q.h * z);
+        r.setAttribute('fill', color); r.setAttribute('opacity', 0.4); r.setAttribute('stroke', 'none');
+        r.setAttribute('class', 'hit'); r.addEventListener('pointerdown', sel);
+        svg.appendChild(r);
+      } else {
+        const yy = (an.type === 'underline' ? q.y + q.h - 1 : q.y + q.h / 2) * z;
+        [false, true].forEach((transparent) => {
+          const l = ns('line');
+          l.setAttribute('x1', q.x * z); l.setAttribute('y1', yy);
+          l.setAttribute('x2', (q.x + q.w) * z); l.setAttribute('y2', yy);
+          l.setAttribute('stroke', transparent ? 'transparent' : color);
+          l.setAttribute('stroke-width', transparent ? 12 : width);
+          l.setAttribute('class', 'hit'); l.addEventListener('pointerdown', sel);
+          svg.appendChild(l);
+        });
+      }
+    });
+  }
+
+  function drawQuadsSel(svg, an, z) {
+    const b = quadsBBox(an.quads);
+    const box = ns('rect');
+    box.setAttribute('x', b.x * z - 2); box.setAttribute('y', b.y * z - 2);
+    box.setAttribute('width', b.w * z + 4); box.setAttribute('height', b.h * z + 4);
+    box.setAttribute('class', 'sel-box'); box.setAttribute('fill', 'none');
+    svg.appendChild(box);
+  }
+
+  // Capture the current text selection as scale-1 viewport quads, grouped by page.
+  K.captureSelection = function () {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+    const z = App.state.zoom;
+    const byPage = {};
+    for (let ri = 0; ri < sel.rangeCount; ri++) {
+      const rects = sel.getRangeAt(ri).getClientRects();
+      for (const r of rects) {
+        if (r.width < 1 || r.height < 1) continue;
+        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+        for (let i = 0; i < App.state.pageEls.length; i++) {
+          const pe = App.state.pageEls[i];
+          if (!pe) continue;
+          const pr = pe.overlay.getBoundingClientRect();
+          if (cx >= pr.left && cx <= pr.right && cy >= pr.top && cy <= pr.bottom) {
+            (byPage[i + 1] = byPage[i + 1] || []).push({
+              x: (r.left - pr.left) / z, y: (r.top - pr.top) / z, w: r.width / z, h: r.height / z
+            });
+            break;
+          }
+        }
+      }
+    }
+    return Object.keys(byPage).length ? byPage : null;
+  };
+
+  // Turn the current (or provided) selection into highlight/underline/strikeout annotations.
+  K.applyTextMarkup = function (subtype, byPage) {
+    const groups = byPage || K.captureSelection();
+    if (!groups) { App.toast('Select some text on the page first.', 'info', 3000); return false; }
+    snapshot();
+    const base = defaults();
+    Object.keys(groups).forEach((page) => {
+      App.state.annoSeq = (App.state.annoSeq || 0) + 1;
+      App.state.annotations.push({
+        id: App.state.annoSeq, page: +page, type: subtype, quads: groups[page],
+        style: { stroke: base.stroke, fill: 'none', width: base.width, opacity: 1 }
+      });
+    });
+    const sel = window.getSelection(); if (sel) sel.removeAllRanges();
+    K.repositionAll();
+    if (App.MarkupPanel) App.MarkupPanel.render();
+    return true;
+  };
+
+  // Sticky "select text → apply" mode. We deliberately do NOT set body.tool-active
+  // (which would put the markup layer over the text layer); the text layer stays
+  // selectable and each finished selection is marked up on mouseup.
+  K.startTextMarkup = function (subtype) {
+    if (K.stop) K.stop();                 // leave any drawing tool
+    K.textTool = subtype;
+    document.body.classList.add('text-markup');
+    App.toast(`${TEXT_MARKUP[subtype]}: select text on the page. Press Esc to stop.`, 'info', 4000);
+  };
+  K.stopTextMarkup = function () {
+    if (!K.textTool) return;
+    K.textTool = null;
+    document.body.classList.remove('text-markup');
+  };
+
+  {
+    const prevInitTM = K.init;
+    K.init = function () {
+      prevInitTM();
+      document.addEventListener('mouseup', () => {
+        if (!K.textTool) return;
+        // Defer so the browser finalizes the selection first.
+        setTimeout(() => { if (K.textTool) K.applyTextMarkup(K.textTool); }, 0);
+      });
+    };
+  }
 
   App.Markup = K;
 })();

@@ -193,7 +193,7 @@
           ['#sig-modal', '#sig-cancel'], ['#scale-modal', '#scale-cancel'],
           ['#update-modal', '#upd-close'], ['#confirm-modal', '#confirm-no'],
           ['#docstamp-modal', '#ds-cancel'], ['#shortcuts-modal', '#sc-close'],
-          ['#digisign-modal', '#dsig-close']
+          ['#digisign-modal', '#dsig-close'], ['#compare-modal', '#cmp-close']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
         if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
       }
@@ -237,7 +237,8 @@
       if (e.key === 'Enter' && App.state.mode === 'measure') { e.preventDefault(); App.Measure.finishDrawing(); return; }
       if (e.key === 'Enter' && App.state.mode === 'markup') { e.preventDefault(); App.Markup.finishDrawing(); return; }
       if (e.key === 'Escape') {
-        if (App.state.mode === 'measure' && App.Measure._active) App.Measure.cancelActive();
+        if (App.Markup && App.Markup.textTool) App.Markup.stopTextMarkup();
+        else if (App.state.mode === 'measure' && App.Measure._active) App.Measure.cancelActive();
         else if (App.state.mode === 'markup' && App.Markup.active) App.Markup.cancelActive();
         else if (App.state.mode) App.setMode(null);
         else { App.Placement.deselect(); App.Markup.deselect(); }
@@ -380,8 +381,10 @@
     menu.querySelectorAll('button[data-mk]').forEach((b) => {
       b.addEventListener('click', () => {
         close();
-        if (b.dataset.mk === '__list') App.MarkupPanel.toggle();
-        else App.Markup.startTool(b.dataset.mk);
+        const mk = b.dataset.mk;
+        if (mk === '__list') App.MarkupPanel.toggle();
+        else if (App.Markup.isTextTool && App.Markup.isTextTool(mk)) App.Markup.startTextMarkup(mk);
+        else App.Markup.startTool(mk);
       });
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
@@ -409,6 +412,7 @@
         else if (d === 'stamp') App.DocStamp.open();
         else if (d === 'chest') App.ToolChest.toggle();
         else if (d === 'digisign') App.DigiSign.open();
+        else if (d === 'compare') App.Compare.open();
       });
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
@@ -693,6 +697,7 @@
     if (App.DocStamp) App.DocStamp.init();
     if (App.ToolChest) App.ToolChest.init();
     if (App.DigiSign) App.DigiSign.init();
+    if (App.Compare) App.Compare.init();
     setupUpdates();
     setupShortcuts();
     setupDragDrop();

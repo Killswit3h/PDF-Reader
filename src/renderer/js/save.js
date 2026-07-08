@@ -253,6 +253,24 @@
         const vp = App.state.baseViewports[an.page - 1];
         if (!vp) continue;
         const page = pdfDoc.getPage(an.page - 1);
+        // Text markups (highlight/underline/strikeout) are quad-based; always
+        // flatten-draw them (writeRealAnnot doesn't handle these types).
+        if (an.type === 'texthighlight' || an.type === 'underline' || an.type === 'strikeout') {
+          const tcol = hexRgb((an.style && an.style.stroke) || '#ffd400');
+          (an.quads || []).forEach((q) => {
+            const a0 = vp.convertToPdfPoint(q.x, q.y);
+            const a1 = vp.convertToPdfPoint(q.x + q.w, q.y + q.h);
+            const x = Math.min(a0[0], a1[0]), y = Math.min(a0[1], a1[1]);
+            const w = Math.abs(a1[0] - a0[0]), h = Math.abs(a1[1] - a0[1]);
+            if (an.type === 'texthighlight') {
+              page.drawRectangle({ x, y, width: w, height: h, color: tcol, opacity: 0.35 });
+            } else {
+              const yy = an.type === 'underline' ? y : y + h / 2;
+              page.drawLine({ start: { x, y: yy }, end: { x: x + w, y: yy }, thickness: Math.max(1, (an.style && an.style.width) || 1.5), color: tcol });
+            }
+          });
+          continue;
+        }
         if (App.state.saveAnnots) { writeRealAnnot(pdfDoc, page, an, vp); continue; }
         const s = an.style || {};
         const col = hexRgb(s.stroke || '#e5484d');
