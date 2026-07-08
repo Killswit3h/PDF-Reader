@@ -134,6 +134,22 @@ describe('PdfSign.signPdf', () => {
     expect(v.digestMatch).toBe(true);   // draw-then-sign composes correctly
   }, 30000);
 
+  it('reserves enough placeholder room for an enterprise-size (IdenTrust) signature', async () => {
+    // IdenTrust/AATL signatures embed the full cert chain (~5–6 KB). Reproduce a
+    // signature larger than the old 8192-char placeholder and confirm it now fits.
+    const doc = await PDFDocument.create();
+    doc.addPage([600, 400]);
+    PdfSign.addPlaceholder(doc, { signingTime: new Date(2026, 0, 1) });
+    const withPlaceholder = await doc.save({ useObjectStreams: false, updateFieldAppearances: false });
+
+    const bigSig = 'A'.repeat(6000); // 6000 bytes → 12000 hex chars (> the old 8192 limit)
+    // Would have thrown "Signature exceeds placeholder length" before the fix.
+    const signed = PdfSign.embedSignature(new Uint8Array(withPlaceholder), () => bigSig);
+    expect(signed).toBeInstanceOf(Uint8Array);
+    const hex = Array.from(bigSig).map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+    expect(u8ToBin(signed)).toContain(hex.slice(0, 400)); // the big signature landed
+  });
+
   it('rejects a wrong passphrase', async () => {
     const p12 = makeSelfSignedP12('right');
     const pdf = await makePdf();

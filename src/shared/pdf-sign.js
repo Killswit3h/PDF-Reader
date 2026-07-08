@@ -25,7 +25,12 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = factory();
   else { root.App = root.App || {}; Object.assign(root.App, factory()); }
 })(typeof self !== 'undefined' ? self : this, function () {
-  const DEFAULT_SIGNATURE_LENGTH = 8192;         // reserved bytes for the PKCS#7
+  // Hex characters reserved for the PKCS#7 signature (2 per byte → ~15 KB of
+  // signature). Enterprise/AATL certs (e.g. IdenTrust) embed the full cert
+  // chain and run ~5–6 KB, well over @signpdf's original 8192-char default —
+  // which failed with "Signature exceeds placeholder length". The extra
+  // zero-padding costs a few KB in the file and nothing else.
+  const DEFAULT_SIGNATURE_LENGTH = 30000;
   const BYTE_RANGE_PLACEHOLDER = '**********';   // 10 chars, matches @signpdf
   const SUBFILTER = 'adbe.pkcs7.detached';
 
