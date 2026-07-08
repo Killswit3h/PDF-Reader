@@ -414,6 +414,52 @@
     document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
   }
 
+  // ---------- Mobile top-bar overflow ----------
+  // On narrow screens the top bar can't hold every control, so the secondary
+  // ones (marked data-overflow in the HTML) are physically moved into a "⋯"
+  // dropdown. We relocate the real nodes — not copies — so their existing event
+  // wiring keeps working and desktop layout is untouched. Each node remembers
+  // its home (parent + next sibling) so it snaps back exactly when the viewport
+  // widens again.
+  function setupMobileOverflow() {
+    const moreBtn = App.$('#btn-more');
+    const menu = App.$('#more-menu');
+    if (!moreBtn || !menu) return;
+    const mq = window.matchMedia('(max-width: 820px)');
+    const nodes = Array.from(document.querySelectorAll('#toolbar [data-overflow]'));
+    nodes.forEach((n) => { n._home = { parent: n.parentNode, next: n.nextSibling }; });
+
+    const closeMenu = () => { menu.classList.add('hidden'); moreBtn.setAttribute('aria-expanded', 'false'); };
+
+    function apply() {
+      if (mq.matches) {
+        // Collapse: move secondary controls into the dropdown (in DOM order).
+        nodes.forEach((n) => menu.appendChild(n));
+      } else {
+        // Expand: return each control to its original slot, then hide the menu.
+        nodes.forEach((n) => n._home.parent.insertBefore(n, n._home.next));
+        closeMenu();
+      }
+    }
+
+    // matchMedia fires on rotation / window resize (and the Android split-screen).
+    if (mq.addEventListener) mq.addEventListener('change', apply);
+    else mq.addListener(apply); // older WebView fallback
+    apply();
+
+    moreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = menu.classList.toggle('hidden');
+      moreBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+    });
+    // Tapping an action button inside the sheet runs it and dismisses the sheet;
+    // taps on the page-number input keep it open so the value can be edited.
+    menu.addEventListener('click', (e) => {
+      if (e.target.closest('button')) closeMenu();
+    });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.g-more')) closeMenu(); });
+  }
+
   // ---------- Theme ----------
   function applyTheme(theme) {
     document.documentElement.dataset.theme = theme;
@@ -655,6 +701,7 @@
     setupMeasureMenu();
     setupMarkupMenu();
     setupDocumentMenu();
+    setupMobileOverflow();
     setupFind();
     App.Viewer.init();
 

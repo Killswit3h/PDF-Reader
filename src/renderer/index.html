@@ -31,12 +31,12 @@
       <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out (−)">−</button>
       <span id="zoom-label" class="tb-readout">100%</span>
       <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in (+)">+</button>
-      <button id="btn-fit-width" class="tb-btn" disabled title="Fit to width">↔ Fit</button>
+      <button id="btn-fit-width" class="tb-btn" data-overflow disabled title="Fit to width">↔ Fit</button>
     </div>
 
     <div class="tb-sep"></div>
 
-    <div class="tb-group">
+    <div class="tb-group" data-overflow>
       <button id="btn-prev" class="tb-btn icon" disabled title="Previous page">▲</button>
       <span class="tb-readout">
         <input id="page-input" type="number" min="1" value="1" disabled />
@@ -49,14 +49,22 @@
 
     <div class="tb-group g-save">
       <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
-      <button id="btn-save-as" class="tb-btn" disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
+      <button id="btn-save-as" class="tb-btn" data-overflow disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
     </div>
 
     <div class="tb-sep"></div>
 
-    <div class="tb-group">
+    <div class="tb-group" data-overflow>
       <button id="btn-theme" class="tb-btn icon ghost" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
       <button id="btn-updates" class="tb-btn ghost" title="Version — click to check for updates">v…</button>
+    </div>
+
+    <!-- Mobile-only overflow: secondary controls (marked data-overflow) are
+         relocated here by app.js when the viewport is narrow, so the top bar
+         never overflows. Empty + hidden on desktop. -->
+    <div class="tb-group g-more">
+      <button id="btn-more" class="tb-btn icon" title="More controls" aria-label="More controls" aria-haspopup="true" aria-expanded="false">⋯</button>
+      <div id="more-menu" class="tb-menu hidden"></div>
     </div>
   </header>
 
@@ -64,9 +72,9 @@
   <aside id="tool-rail" aria-label="Tools">
     <div class="rail-label">Stamp</div>
     <div class="rail-group">
-      <button id="btn-sign" class="tb-btn rail-btn" disabled title="Place a signature">✒️ Sign</button>
-      <button id="btn-initials" class="tb-btn rail-btn" disabled title="Place initials">🅰️ Initials</button>
-      <button id="btn-date" class="tb-btn rail-btn" disabled title="Place today's date">📅 Date</button>
+      <button id="btn-sign" class="tb-btn rail-btn" disabled title="Place a signature"><span class="rail-ico" aria-hidden="true">✒️</span><span class="rail-txt">Sign</span></button>
+      <button id="btn-initials" class="tb-btn rail-btn" disabled title="Place initials"><span class="rail-ico" aria-hidden="true">🅰️</span><span class="rail-txt">Initials</span></button>
+      <button id="btn-date" class="tb-btn rail-btn" disabled title="Place today's date"><span class="rail-ico" aria-hidden="true">📅</span><span class="rail-txt">Date</span></button>
     </div>
 
     <div class="rail-sep"></div>
@@ -74,7 +82,7 @@
     <div class="rail-label">Take-off</div>
     <div class="rail-group">
       <div class="tb-dropdown">
-        <button id="btn-measure" class="tb-btn rail-btn" disabled title="Measure tools">📐 Measure ▾</button>
+        <button id="btn-measure" class="tb-btn rail-btn" disabled title="Measure tools"><span class="rail-ico" aria-hidden="true">📐</span><span class="rail-txt">Measure</span><span class="rail-caret" aria-hidden="true">▾</span></button>
         <div id="measure-menu" class="tb-menu hidden">
           <button data-mtool="calibrate">📏 Set Scale…</button>
           <div class="tb-menu-sep"></div>
@@ -89,7 +97,7 @@
         </div>
       </div>
       <div class="tb-dropdown">
-        <button id="btn-markup" class="tb-btn rail-btn" disabled title="Markup tools">✏️ Markup ▾</button>
+        <button id="btn-markup" class="tb-btn rail-btn" disabled title="Markup tools"><span class="rail-ico" aria-hidden="true">✏️</span><span class="rail-txt">Markup</span><span class="rail-caret" aria-hidden="true">▾</span></button>
         <div id="markup-menu" class="tb-menu hidden">
           <button data-mk="arrow">➷ Arrow</button>
           <button data-mk="line">╱ Line</button>
@@ -113,7 +121,7 @@
     <div class="rail-label">Document</div>
     <div class="rail-group">
       <div class="tb-dropdown">
-        <button id="btn-document" class="tb-btn rail-btn" disabled title="Document tools">📄 Document ▾</button>
+        <button id="btn-document" class="tb-btn rail-btn" disabled title="Document tools"><span class="rail-ico" aria-hidden="true">📄</span><span class="rail-txt">Document</span><span class="rail-caret" aria-hidden="true">▾</span></button>
         <div id="document-menu" class="tb-menu hidden">
           <button data-doc="organize">🗂️ Organize Pages…</button>
           <button data-doc="stamp">#️⃣ Numbering &amp; Stamps…</button>
