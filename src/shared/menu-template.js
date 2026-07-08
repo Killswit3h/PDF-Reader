@@ -68,7 +68,8 @@ function buildMenuTemplate(opts) {
       { type: 'separator' },
       { label: 'Print…', accelerator: 'CmdOrCtrl+P', command: 'print', click: send('print') },
       { type: 'separator' },
-      isMac ? { role: 'close' } : { role: 'quit' }
+      { label: 'Close Tab', accelerator: 'CmdOrCtrl+W', command: 'close-tab', click: send('close-tab') },
+      isMac ? { role: 'close', accelerator: 'Shift+Cmd+W' } : { role: 'quit' }
     ]
   });
 

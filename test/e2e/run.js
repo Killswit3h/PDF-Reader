@@ -189,6 +189,18 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'tabs — open two PDFs, switch, each keeps isolated state',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TABS: BIG }, [SAMPLE]), 'tabs');
+      check(j.count === 2, `tab count ${j.count}`);
+      check(j.tabEls === 2, `tab elements ${j.tabEls}`);
+      check(j.one.name === 'sample.pdf' && j.one.pages === 3, `tab1 ${JSON.stringify(j.one)}`);
+      check(j.one.placements === 0 && j.one.dirty === false, `tab1 not isolated ${JSON.stringify(j.one)}`);
+      check(j.two.name === 'big.pdf' && j.two.pages === 12, `tab2 ${JSON.stringify(j.two)}`);
+      check(j.two.placements === 1 && j.two.dirty === true, `tab2 state lost ${JSON.stringify(j.two)}`);
+    }
+  },
+  {
     name: 'reopen — file opens after the window was closed (macOS lifecycle)',
     run: () => {
       const j = tagJson(runApp({ SMOKE_REOPEN: BIG }, [SAMPLE]), 'reopen');

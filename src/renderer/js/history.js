@@ -68,6 +68,9 @@
     // Drop all history (e.g. when a new document loads).
     reset() { undo = []; redo = []; App.state.dirty = false; },
     canUndo() { return undo.length > 0; },
-    canRedo() { return redo.length > 0; }
+    canRedo() { return redo.length > 0; },
+    // Save/restore the stacks so each open tab keeps its own undo history.
+    _export() { return { undo: undo.slice(), redo: redo.slice() }; },
+    _import(s) { undo = (s && s.undo) ? s.undo.slice() : []; redo = (s && s.redo) ? s.redo.slice() : []; }
   };
 })();

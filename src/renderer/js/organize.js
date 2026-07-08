@@ -277,7 +277,9 @@
       const name = App.state.fileName || 'document.pdf';
       const filePath = App.state.filePath;
       close();
-      await App.Viewer.load(bytes.buffer, name, filePath);
+      // Rebuild the CURRENT document in place (same tab), not a new tab.
+      if (App.Tabs) await App.Tabs.replaceActive(bytes.buffer, name, filePath);
+      else await App.Viewer.load(bytes.buffer, name, filePath);
       App.state.dirty = true;
       App.$('#btn-save').disabled = false;
       App.toast(`Rebuilt: ${live.length} page(s).`, 'success', 4000);

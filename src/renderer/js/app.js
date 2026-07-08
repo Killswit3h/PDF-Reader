@@ -630,6 +630,7 @@
       case 'toggle-theme': App.$('#btn-theme').click(); break;
       case 'check-updates': checkForUpdates(true); break;
       case 'shortcuts': App.Shortcuts.open(); break;
+      case 'close-tab': if (App.Tabs) App.Tabs.requestCloseActive(); break;
       default: break;
     }
   }
@@ -657,6 +658,7 @@
     setupFind();
     App.Viewer.init();
 
+    App.openViaDialog = openViaDialog;   // used by the tab bar "+" and native menu
     App.$('#btn-open').addEventListener('click', openViaDialog);
     App.$('#btn-open-empty').addEventListener('click', openViaDialog);
     App.$('#btn-sign').addEventListener('click', () => startImagePlacement('signature'));

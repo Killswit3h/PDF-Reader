@@ -39,6 +39,14 @@ describe('buildMenuTemplate', () => {
     expect(find(t, 'Save As…').accelerator).toBe('CmdOrCtrl+Shift+S');
     expect(find(t, 'Print…').accelerator).toBe('CmdOrCtrl+P');
     expect(find(t, 'Find…').accelerator).toBe('CmdOrCtrl+F');
+    expect(find(t, 'Close Tab').accelerator).toBe('CmdOrCtrl+W');
+  });
+
+  it('routes Close Tab through onCommand', () => {
+    const seen = [];
+    const t = buildMenuTemplate({ isMac: false, onCommand: (c) => seen.push(c) });
+    find(t, 'Close Tab').click();
+    expect(seen).toEqual(['close-tab']);
   });
 
   it('routes a command item through onCommand when clicked', () => {
