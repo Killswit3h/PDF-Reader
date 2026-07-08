@@ -202,6 +202,14 @@ cancel / close a modal / deselect · `Delete` remove selected. Press **`?`** (or
 Zoom: trackpad **pinch-to-zoom** (macOS & Windows precision trackpads) and
 **`Ctrl`/`Cmd` + scroll wheel** zoom toward the pointer.
 
+**Multiple documents (tabs).** Open several PDFs at once — each opens in its own
+tab; a tab bar appears once a second document is open. Opening a PDF (the toolbar
+**Open**, drag-drop, the tab bar's **＋**, or an **"Open with" / Outlook
+attachment**) adds a tab instead of replacing the current document, so nothing
+clobbers your unsaved work. Each tab keeps its own pages, markups, measurements,
+zoom, and undo history. Close a tab with its **✕** (or `Ctrl/Cmd+W`); you're
+prompted if it has unsaved changes.
+
 **Desktop (Windows / macOS)** adds a native **menu bar** — File · Edit · View ·
 Window · Help — so every shortcut above is discoverable and works even when
 focus is outside the page (on macOS the Edit menu also restores the standard

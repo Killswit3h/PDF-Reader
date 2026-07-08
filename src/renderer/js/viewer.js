@@ -53,6 +53,12 @@
       // ENABLE_FORMS renders interactive AcroForm widgets as real inputs and
       // keeps edits in the document's annotationStorage (baked in on save).
       annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS || 2,
+      // Disable PDF.js's own annotation EDITOR (we use our own markup layer).
+      // Left enabled, its UIManager is created with a null altTextManager and
+      // crashes in destroy() on the second setDocument — which broke switching
+      // between open documents (tabs).
+      annotationEditorMode: (pdfjsLib.AnnotationEditorType && pdfjsLib.AnnotationEditorType.DISABLE) != null
+        ? pdfjsLib.AnnotationEditorType.DISABLE : -1,
       removePageBorders: true,
       maxCanvasPixels: 16777216 // cap per-page canvas to bound memory on big pages
     });
@@ -62,12 +68,20 @@
     Viewer._eventBus = eventBus;
 
     eventBus.on('pagesinit', () => {
-      pdfViewer.currentScaleValue = 'page-width';
+      // On a tab switch we restore the saved zoom + page; on a fresh open we
+      // fit to width. `_restore` is set by Viewer._showActive() before setDocument.
+      const r = Viewer._restore; Viewer._restore = null;
+      if (r) {
+        try { if (r.scaleValue) pdfViewer.currentScaleValue = r.scaleValue; } catch (_) { /* ignore */ }
+        if (r.page) { try { pdfViewer.currentPageNumber = r.page; } catch (_) { /* ignore */ } }
+      } else {
+        pdfViewer.currentScaleValue = 'page-width';
+      }
       App.state.zoom = pdfViewer.currentScale;
       updateZoomLabel();
       Viewer._updateControls(true);
       App.$('#page-total').textContent = String(App.state.numPages);
-      App.$('#page-input').value = '1';
+      App.$('#page-input').value = String((r && r.page) || 1);
     });
 
     eventBus.on('pagechanging', (e) => {
@@ -196,23 +210,51 @@
   Viewer.refreshOverlays = refreshOverlays;
 
   // ---- Load a document ----
+  // Parse a PDF's bytes with PDF.js. Returns { doc, original } or throws.
+  Viewer._parse = async function (arrayBuffer) {
+    const original = new Uint8Array(arrayBuffer.byteLength);
+    original.set(new Uint8Array(arrayBuffer));
+    const forPdfJs = new Uint8Array(arrayBuffer.byteLength);
+    forPdfJs.set(new Uint8Array(arrayBuffer));
+    const doc = await pdfjsLib.getDocument({
+      data: forPdfJs,
+      cMapUrl: VENDOR + 'cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: VENDOR + 'standard_fonts/'
+    }).promise;
+    return { doc, original };
+  };
+
+  // Show the document currently in App.state (its pdfDoc/arrays) in the viewer.
+  // `restore` = { scaleValue, page } to reapply on a tab switch (else fit-width).
+  Viewer._showActive = function (restore) {
+    Viewer.init();
+    Viewer._restore = restore || null;
+    App.state.pageEls = [];
+    App.$('#empty-state').classList.add('hidden');
+    App.$('#viewerContainer').classList.add('active');
+    document.title = `${App.state.fileName || 'PDF'} — PDF Signer`;
+    pdfViewer.setDocument(App.state.pdfDoc);
+    linkService.setDocument(App.state.pdfDoc, null);
+    if (App.Measure) App.Measure.renderPanel();
+  };
+
+  // Public open entry point — delegates to the tab manager so every open adds a
+  // tab (the first open creates the first tab). Kept as Viewer.load so existing
+  // callers (dialog / drop / "Open with") don't change.
   Viewer.load = async function (arrayBuffer, name, filePath) {
+    if (App.Tabs) return App.Tabs.open(arrayBuffer, name, filePath);
+    // Fallback (no tabs module): original single-document behavior.
+    return Viewer._loadInto(arrayBuffer, name, filePath, true);
+  };
+
+  // Load bytes into the ACTIVE document (fresh state). Used by the tab manager
+  // and by the organizer (which rebuilds the current doc's pages in place).
+  Viewer._loadInto = async function (arrayBuffer, name, filePath) {
     Viewer.init();
     App.showLoading('Opening PDF…');
     try {
-      const original = new Uint8Array(arrayBuffer.byteLength);
-      original.set(new Uint8Array(arrayBuffer));
-      const forPdfJs = new Uint8Array(arrayBuffer.byteLength);
-      forPdfJs.set(new Uint8Array(arrayBuffer));
-
-      const doc = await pdfjsLib.getDocument({
-        data: forPdfJs,
-        cMapUrl: VENDOR + 'cmaps/',
-        cMapPacked: true,
-        standardFontDataUrl: VENDOR + 'standard_fonts/'
-      }).promise;
-
-      // reset state for the new document
+      const { doc, original } = await Viewer._parse(arrayBuffer);
       Viewer._clearState();
       App.state.pdfDoc = doc;
       App.state.pdfBytes = original;
@@ -221,16 +263,9 @@
       App.state.numPages = doc.numPages;
       App.state.currentPage = 1;
       App.state.baseViewports = [];
-
-      App.$('#empty-state').classList.add('hidden');
-      App.$('#viewerContainer').classList.add('active');
-      document.title = `${App.state.fileName} — PDF Signer`;
-
-      pdfViewer.setDocument(doc);
-      linkService.setDocument(doc, null);
-
-      if (App.Measure) App.Measure.renderPanel();
+      Viewer._showActive(null);
       App.toast(`Opened ${App.state.fileName}`, 'success');
+      return true;
     } catch (err) {
       console.error(err);
       Viewer._clearState();
@@ -241,9 +276,25 @@
         ? 'This PDF is password-protected / encrypted and cannot be opened.'
         : 'Could not open this file. It may be corrupt or not a valid PDF.';
       App.toast(msg, 'error', 6000);
+      return false;
     } finally {
       App.hideLoading();
     }
+  };
+
+  // Clear the viewer entirely (no document) and show the empty state.
+  Viewer.showEmpty = function () {
+    Viewer._clearState();
+    App.state.pdfDoc = null;
+    App.state.pdfBytes = null;
+    App.state.fileName = null;
+    App.state.filePath = null;
+    App.state.numPages = 0;
+    try { if (pdfViewer) pdfViewer.setDocument(null); } catch (_) { /* ignore */ }
+    Viewer._updateControls(false);
+    App.$('#empty-state').classList.remove('hidden');
+    App.$('#viewerContainer').classList.remove('active');
+    document.title = 'PDF Signer';
   };
 
   Viewer._clearState = function () {

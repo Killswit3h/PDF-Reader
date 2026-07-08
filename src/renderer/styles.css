@@ -104,6 +104,37 @@ html, body {
 }
 body.has-banner #viewer-wrap { top: calc(var(--toolbar-h) + 34px); }
 
+/* ---- Document tabs ---- */
+#tab-bar {
+  position: absolute; top: 0; left: 0; right: 0; height: var(--tab-h, 34px);
+  display: flex; align-items: flex-end; gap: 2px; z-index: 6;
+  padding: 0 6px; background: var(--bg-surface); border-bottom: 1px solid var(--border);
+  overflow-x: auto; overflow-y: hidden;
+}
+#tab-bar.hidden { display: none; }
+/* Make room for the bar; empty state is only shown with <2 tabs so it's moot there. */
+body.has-tabs #viewerContainer { top: var(--tab-h, 34px); }
+.tab {
+  display: flex; align-items: center; gap: 6px; max-width: 220px; min-width: 90px;
+  height: calc(var(--tab-h, 34px) - 6px); margin-top: 6px; padding: 0 6px 0 10px;
+  background: var(--bg-input); color: var(--text-dim);
+  border: 1px solid var(--border); border-bottom: none;
+  border-radius: 7px 7px 0 0; cursor: pointer; font-size: var(--fs-sm); user-select: none;
+}
+.tab.active { background: var(--bg-canvas); color: var(--text); }
+.tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab-close {
+  flex: none; border: none; background: transparent; color: var(--text-faint);
+  cursor: pointer; font-size: 11px; line-height: 1; padding: 3px 4px; border-radius: 4px;
+}
+.tab-close:hover { background: var(--border); color: var(--text); }
+.tab-add {
+  flex: none; align-self: center; margin-left: 4px; width: 24px; height: 24px;
+  border: 1px solid var(--border); background: var(--bg-input); color: var(--text-dim);
+  border-radius: 6px; cursor: pointer; font-size: 15px; line-height: 1;
+}
+.tab-add:hover { color: var(--text); border-color: var(--text-faint); }
+
 /* Official PDF.js viewer scroll container */
 #viewerContainer {
   position: absolute; inset: 0;

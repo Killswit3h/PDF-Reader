@@ -275,6 +275,37 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TABS: open a second file (as a tab), edit it, switch tabs, and
+      // verify each document keeps its own isolated state.
+      if (process.env.SMOKE_TABS) {
+        setTimeout(async () => {
+          try {
+            await mainWindow.webContents.executeJavaScript(
+              `(async()=>{for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));})()`, true);
+            mainWindow.webContents.send('open-file-path', process.env.SMOKE_TABS);
+            await mainWindow.webContents.executeJavaScript(
+              `(async()=>{for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,100));if(App.state.fileName==='big.pdf'&&App.state.numPages)break;}})()`, true);
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              const count = App.Tabs.count();
+              const tabEls = document.querySelectorAll('#tab-bar .tab').length;
+              App.state.placements.push({id:99,type:'date',page:1,vx:10,vy:10,vw:80,vh:18,text:'x',fontPt:12});
+              App.state.dirty = true;
+              App.Tabs.switchTo(1);
+              for(let i=0;i<60&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,300));
+              const one = { name:App.state.fileName, pages:App.state.numPages, placements:App.state.placements.length, dirty:App.state.dirty };
+              App.Tabs.switchTo(2);
+              for(let i=0;i<60&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,300));
+              const two = { name:App.state.fileName, pages:App.state.numPages, placements:App.state.placements.length, dirty:App.state.dirty };
+              return JSON.stringify({ count, tabEls, one, two });
+            })()`, true);
+            console.log('[tabs] ' + r);
+          } catch (e) { console.log('[tabs] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_ZOOM: verify trackpad/ctrl-wheel zoom changes the scale.
       if (process.env.SMOKE_ZOOM) {
         setTimeout(async () => {
@@ -700,7 +731,7 @@ function createWindow() {
     let dirty = false;
     try {
       dirty = await mainWindow.webContents.executeJavaScript(
-        '!!(window.App && App.state && App.state.dirty)');
+        '!!(window.App && ((App.Tabs && App.Tabs.anyDirty()) || (App.state && App.state.dirty)))');
     } catch (_) { /* renderer gone → just close */ }
     if (!dirty) { mainWindow._forceClose = true; mainWindow.close(); return; }
 
