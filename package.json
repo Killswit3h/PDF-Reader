@@ -1,6 +1,6 @@
 {
   "name": "pdf-signer",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "Offline app (Windows + macOS + Android) to view large PDFs, organize/merge pages, mark them up, measure by scale, fill forms, number/stamp, add cosmetic signatures/initials/dates, and apply certified (PKI) digital signatures.",
   "main": "src/main.js",
   "author": "",

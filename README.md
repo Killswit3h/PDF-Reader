@@ -116,6 +116,16 @@ at runtime. Handwriting fonts are bundled with the app.
   *"Save markups as editable PDF annotations"* in the Markups List — interoperable
   with other PDF tools. (Existing annotations from other apps are displayed and
   preserved on save; importing them for in-app editing is planned.)
+- **Marks stay editable after saving** — a saved file embeds an editable copy of
+  your measurements, markups, and text placements (plus a pristine copy of the base
+  PDF). Reopen it in PDF Signer and every mark comes back as a **live, movable /
+  deletable object** — nothing is stuck to the page. Other apps (Adobe/Bluebeam)
+  still see the flattened marks as usual; the editable data rides along as an inert
+  attachment. (This roughly doubles a marked-up file's size, since it carries both
+  the flattened view and the editable source.)
+- **Select & copy text** — drag to select text on any PDF page and a floating
+  **📋 Copy** button appears; click it or press **Ctrl/Cmd+C** to copy the text to
+  your clipboard.
 - **Measure by scale** (Bluebeam-style takeoff) — under the **📐 Measure** menu:
   - **Set Scale** — calibrate by drawing a line of known length, or enter a
     ratio / pick a preset (`1/4" = 1'-0"`, `1:100`, …). **Applies to all pages by

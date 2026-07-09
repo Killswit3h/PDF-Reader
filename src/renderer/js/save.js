@@ -329,7 +329,49 @@
       // last so they sit above the flattened content.
       if (App.DocStamp) App.DocStamp.applyToPdf(pdfDoc, helv);
 
+      // Editable round-trip: embed a JSON copy of the marks plus a pristine copy
+      // of the base PDF (the same bytes we flattened onto — form values included,
+      // our marks excluded). Reopening in this app restores every mark as a live,
+      // movable object; other viewers just see the flattened content above and
+      // ignore these attachments. Only embed when there's something to preserve.
+      try {
+        const model = S.serializeModel();
+        if (model.__count > 0) {
+          delete model.__count;
+          const json = new TextEncoder().encode(JSON.stringify(model));
+          await pdfDoc.attach(json, App.SIDECAR.MODEL, {
+            mimeType: 'application/json', description: 'PDF Signer editable markups'
+          });
+          await pdfDoc.attach(new Uint8Array(baseBytes), App.SIDECAR.BASE, {
+            mimeType: 'application/pdf', description: 'PDF Signer base document'
+          });
+        }
+      } catch (e) { if (window.console) console.warn('sidecar embed skipped:', e && e.message); }
+
       return await pdfDoc.save();
+  };
+
+  // Serialize the in-app marks (geometry in scale-1 viewport points) so a saved
+  // PDF can be reopened here with everything still editable. __count lets the
+  // caller skip embedding when there's nothing to preserve.
+  S.serializeModel = function () {
+    const st = App.state;
+    const clone = (x) => JSON.parse(JSON.stringify(x || []));
+    const m = {
+      v: 1,
+      seqs: {
+        placementSeq: st.placementSeq || 0, measureSeq: st.measureSeq || 0,
+        viewportSeq: st.viewportSeq || 0, annoSeq: st.annoSeq || 0
+      },
+      saveAnnots: !!st.saveAnnots,
+      scales: JSON.parse(JSON.stringify(st.scales || {})),
+      viewports: JSON.parse(JSON.stringify(st.viewports || {})),
+      placements: clone(st.placements),
+      measurements: clone(st.measurements),
+      annotations: clone(st.annotations)
+    };
+    m.__count = m.placements.length + m.measurements.length + m.annotations.length;
+    return m;
   };
 
   // Save: overwrite the file that was opened, in place, with no dialog.

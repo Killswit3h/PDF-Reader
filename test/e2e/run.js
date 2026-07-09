@@ -221,6 +221,26 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'round-trip — saved marks reopen as editable objects (not baked in)',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_RT: '1' }, [SAMPLE]), 'rt');
+      check(j.hasModel === true && j.hasBase === true, 'saved PDF is missing the editable sidecar');
+      check(j.m === 1 && j.a === 1 && j.p === 1, `marks did not rehydrate (m${j.m} a${j.a} p${j.p})`);
+      check(j.baseLen < j.savedLen, `reopened doc is not the pristine base (${j.baseLen} !< ${j.savedLen})`);
+      check(j.moved === true, 'rehydrated measurement could not be moved');
+      check(j.p === 1 && j.pAfter === 0, 'rehydrated placement could not be deleted');
+    }
+  },
+  {
+    name: 'text copy — selecting PDF text shows the copy button',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_COPY: '1' }, [SAMPLE]), 'copy');
+      check(j.spans >= 3, `text layer not rendered (${j.spans} spans)`);
+      check(j.textLen > 0, 'no text captured from the selection');
+      check(j.fabShown === true, 'copy button did not appear on selection');
+    }
+  },
+  {
     name: 'measure drag — a placed measurement can be grabbed and moved',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MDRAG: '1' }, [SAMPLE]), 'mdrag');

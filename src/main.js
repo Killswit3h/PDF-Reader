@@ -376,6 +376,65 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_RT: marks survive a save→reopen as editable objects (round-trip via
+      // the embedded sidecar), and the reopened working doc is the pristine base.
+      if (process.env.SMOKE_RT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const st=App.state;
+              st.measureSeq++; st.measurements.push({id:st.measureSeq,page:1,type:'length',pts:[{vx:60,vy:80},{vx:240,vy:80}],value:12.5,unit:'ft',label:"12.5'"});
+              st.annoSeq++; st.annotations.push({id:st.annoSeq,page:1,type:'line',pts:[{vx:60,vy:140},{vx:260,vy:200}],style:{stroke:'#e5484d',fill:'none',width:2,opacity:1}});
+              st.placementSeq++; st.placements.push({id:st.placementSeq,type:'text',page:1,vx:60,vy:300,vw:120,vh:20,text:'APPROVED',fontPt:14});
+              const bytes=await App.Save.buildBytes();
+              const doc=await window.pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
+              const att=await doc.getAttachments();
+              const hasModel=!!(att&&att['pdfsigner-model.json']); const hasBase=!!(att&&att['pdfsigner-base.pdf']);
+              const savedLen=bytes.length;
+              await App.Viewer._loadInto(bytes.buffer.slice(0),'rt.pdf',null);
+              const R=App.state;
+              const baseLen=R.pdfBytes.byteLength||R.pdfBytes.length;
+              // editability after reopen: move the measurement, delete the placement
+              const before=R.measurements[0]&&R.measurements[0].pts[0].vx;
+              if(R.measurements[0]) R.measurements[0].pts=R.measurements[0].pts.map(p=>({vx:p.vx+25,vy:p.vy+25}));
+              const moved=R.measurements[0]&&R.measurements[0].pts[0].vx===before+25;
+              const pBefore=R.placements.length; R.placements=R.placements.filter(p=>p.text!=='APPROVED');
+              return JSON.stringify({hasModel,hasBase,savedLen,baseLen,m:R.measurements.length,a:R.annotations.length,p:pBefore,moved,pAfter:R.placements.length});
+            })()`, true);
+            console.log('[rt] ' + r);
+          } catch (e) { console.log('[rt] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_COPY: selecting PDF text surfaces the copy button + a non-empty
+      // text selection (the clipboard path itself can't be asserted headless).
+      if (process.env.SMOKE_COPY) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<120&&document.querySelectorAll('.textLayer span').length<3;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,300));
+              const spans=Array.from(document.querySelectorAll('.textLayer span')).filter(s=>s.textContent.trim());
+              const range=document.createRange();
+              range.setStart(spans[0].firstChild||spans[0],0);
+              const last=spans[Math.min(4,spans.length-1)];
+              range.setEnd(last.firstChild||last,(last.firstChild?last.firstChild.length:0));
+              const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+              document.dispatchEvent(new Event('selectionchange'));
+              await new Promise(r=>setTimeout(r,120));
+              const text=String(sel).trim();
+              const fabShown=!document.querySelector('#copy-fab').classList.contains('hidden');
+              return JSON.stringify({spans:spans.length,textLen:text.length,fabShown});
+            })()`, true);
+            console.log('[copy] ' + r);
+          } catch (e) { console.log('[copy] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {

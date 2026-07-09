@@ -719,6 +719,7 @@
     if (App.ToolChest) App.ToolChest.init();
     if (App.DigiSign) App.DigiSign.init();
     if (App.Compare) App.Compare.init();
+    if (App.TextCopy) App.TextCopy.init();
     setupUpdates();
     setupShortcuts();
     setupDragDrop();
