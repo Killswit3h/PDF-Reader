@@ -241,6 +241,17 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'text one-shot — placing a text box disarms the tool; no runaway boxes',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TEXT1: '1' }, [SAMPLE]), 'text1');
+      check(j.armed === true, 'text tool did not arm');
+      check(j.disarmed === true, 'text tool stayed armed after placing a box');
+      check(j.draggable === true, 'placed text box is not grabbable');
+      check(j.after1 === 1, `expected 1 box after placing, got ${j.after1}`);
+      check(j.after2 === 1, `a second click added another box (${j.after2})`);
+    }
+  },
+  {
     name: 'measure drag — a placed measurement can be grabbed and moved',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MDRAG: '1' }, [SAMPLE]), 'mdrag');

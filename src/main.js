@@ -435,6 +435,33 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TEXT1: the Text tool is one-shot — placing a box disarms the tool
+      // (so the box is immediately movable) and a second click adds no new box.
+      if (process.env.SMOKE_TEXT1) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              App.Markup.startTool('text');
+              const armed=App.state.mode==='markup';
+              const layer=document.querySelector('.page .markup-layer');
+              const rc=layer.getBoundingClientRect();
+              App.Markup.handleClick(1,layer,{clientX:rc.left+120,clientY:rc.top+120,shiftKey:false});
+              const disarmed=App.Markup.tool===null&&App.state.mode===null&&!document.body.classList.contains('tool-active');
+              const fo=document.querySelector('.markup-svg foreignObject.hit');
+              const draggable=fo?getComputedStyle(fo).pointerEvents!=='none':false;
+              const after1=App.state.annotations.length;
+              if(App.state.mode==='markup') App.Markup.handleClick(1,layer,{clientX:rc.left+300,clientY:rc.top+300,shiftKey:false});
+              const after2=App.state.annotations.length;
+              return JSON.stringify({armed,disarmed,draggable,after1,after2});
+            })()`, true);
+            console.log('[text1] ' + r);
+          } catch (e) { console.log('[text1] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {
