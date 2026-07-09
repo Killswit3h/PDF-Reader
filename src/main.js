@@ -1094,9 +1094,22 @@ ipcMain.handle('app:print', async (_e, bytes) => {
     fs.writeFileSync(tmpFile, Buffer.from(bytes));
     printWin = new BrowserWindow({
       show: false,
-      webPreferences: { plugins: true } // enable Chromium's built-in PDF viewer
+      // paintWhenInitiallyHidden keeps the offscreen window rendering (else a
+      // hidden window can skip painting the PDF → a blank print); backgroundThrottling
+      // off stops Chromium from pausing the PDF viewer while it's not visible.
+      paintWhenInitiallyHidden: true,
+      webPreferences: { plugins: true, backgroundThrottling: false } // built-in PDF viewer
     });
-    await printWin.loadURL('file://' + tmpFile);
+    // Wait for the document to finish loading, and fail loudly if it can't.
+    await new Promise((resolve, reject) => {
+      printWin.webContents.once('did-finish-load', resolve);
+      printWin.webContents.once('did-fail-load', (_ev, code, desc) => reject(new Error(desc || ('load error ' + code))));
+      printWin.loadURL('file://' + tmpFile);
+    });
+    // Chromium's PDF viewer paints its pages asynchronously after load, and there
+    // is no "PDF rendered" event — printing too early captures a blank page. Give
+    // the viewer a moment to render before sending it to the printer.
+    await new Promise((r) => setTimeout(r, 1500));
     const result = await new Promise((resolve) => {
       printWin.webContents.print({ printBackground: true }, (success, reason) => {
         resolve({ ok: success, error: success ? undefined : reason });
