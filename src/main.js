@@ -856,7 +856,7 @@ function createWindow() {
             const r = await mainWindow.webContents.executeJavaScript(`(async () => {
               for (let i = 0; i < 80 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
               await new Promise(r => setTimeout(r, 600));
-              const forge = window.forge;
+              const forge = await App.ensureLib('forge'); // lazy-loaded on demand (see util.js)
               // Throwaway self-signed identity generated in-renderer (never a real key).
               const keys = forge.pki.rsa.generateKeyPair(1024);
               const cert = forge.pki.createCertificate();

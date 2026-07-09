@@ -118,5 +118,36 @@ App.confirm = (message, opts = {}) => {
   });
 };
 
+// -------- Lazy vendor libraries --------
+// Heavy dependencies that aren't needed just to open and view a PDF are loaded
+// on first use instead of at startup, to cut cold-start download + parse (most
+// noticeable on the Android WebView). The vendor files are still bundled locally
+// (offline-safe) — we only defer *when* the <script> runs. Electron resolves
+// them from node_modules; the web/APK build copies them under vendor/ and sets
+// window.PDFJS_VENDOR, which we use to pick the right path.
+const VENDOR_LIBS = {
+  // key: [ global the script defines, electron path, web/vendor path ]
+  forge: ['forge', '../../node_modules/node-forge/dist/forge.min.js', 'vendor/node-forge/forge.min.js']
+};
+const _libPromises = {};
+App.ensureLib = function (key) {
+  const spec = VENDOR_LIBS[key];
+  if (!spec) return Promise.reject(new Error('unknown vendor lib: ' + key));
+  const [globalName, electronPath, webPath] = spec;
+  if (window[globalName]) return Promise.resolve(window[globalName]);
+  if (!_libPromises[key]) {
+    _libPromises[key] = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = window.PDFJS_VENDOR ? webPath : electronPath;
+      s.onload = () => (window[globalName]
+        ? resolve(window[globalName])
+        : reject(new Error(key + ' loaded but window.' + globalName + ' is missing')));
+      s.onerror = () => { _libPromises[key] = null; reject(new Error('failed to load ' + key)); };
+      document.head.appendChild(s);
+    });
+  }
+  return _libPromises[key];
+};
+
 // -------- Misc --------
 App.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
