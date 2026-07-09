@@ -17,7 +17,33 @@
 (function () {
   const D = {};
   let p12Bytes = null;   // held only while the dialog is open
+  let presetName = null; // display name of the loaded/attached digital ID
   const $ = (s) => App.$(s);
+  const PRESET_KEY = 'digitalId';
+
+  // The digital ID + password can be saved on this device (localStorage via
+  // App.Prefs) so it prepopulates next time — the user opted in per the
+  // "Remember this digital ID" checkbox. Single-user, offline machine.
+  const toB64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]); return btoa(s); };
+  const fromB64 = (b) => { const s = atob(b); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+  const loadPreset = () => { const p = App.Prefs && App.Prefs.get(PRESET_KEY, null); return p && p.p12 ? p : null; };
+  function savePreset() {
+    if (!App.Prefs || !p12Bytes) return;
+    App.Prefs.set(PRESET_KEY, {
+      p12: toB64(p12Bytes), pass: $('#dsig-pass').value,
+      name: $('#dsig-name').value.trim(), reason: $('#dsig-reason').value.trim(),
+      location: $('#dsig-loc').value.trim(), fileName: presetName || 'digital ID'
+    });
+  }
+  function forgetPreset() {
+    if (App.Prefs) App.Prefs.set(PRESET_KEY, null);
+    $('#dsig-saved').classList.add('hidden');
+  }
+  // Persist (or clear) the preset after a successful signing — called by doSign.
+  D._onSigned = function () {
+    if ($('#dsig-remember') && $('#dsig-remember').checked) savePreset();
+    else forgetPreset();
+  };
 
   function setStatus(msg, kind) {
     const s = $('#dsig-status');
@@ -55,9 +81,10 @@
       p12Bytes = null;
       const f = fileInput.files && fileInput.files[0];
       if (f) {
-        try { p12Bytes = new Uint8Array(await f.arrayBuffer()); }
+        try { p12Bytes = new Uint8Array(await f.arrayBuffer()); presetName = f.name; }
         catch (_) { setStatus('Could not read that file.', 'err'); }
       }
+      $('#dsig-saved').classList.add('hidden'); // a freshly attached file replaces any saved one
       updateReady();
     });
     $('#dsig-pass').addEventListener('input', updateReady);
@@ -65,6 +92,8 @@
     $('#dsig-cancel').addEventListener('click', close);
     $('#dsig-close').addEventListener('click', close);
     $('#dsig-go').addEventListener('click', sign);
+    const forget = $('#dsig-forget');
+    if (forget) forget.addEventListener('click', () => { forgetPreset(); p12Bytes = null; presetName = null; $('#dsig-pass').value = ''; updateReady(); });
   };
 
   D.open = function () {
@@ -75,8 +104,27 @@
     const pageEl = $('#dsig-page');
     pageEl.value = String(App.state.currentPage || 1);
     pageEl.max = String(App.state.numPages || 1);
-    p12Bytes = null;
+    p12Bytes = null; presetName = null;
     setStatus('');
+
+    // Prepopulate from a saved digital ID (attached + password verified once).
+    const preset = loadPreset();
+    if (preset) {
+      try {
+        p12Bytes = fromB64(preset.p12);
+        presetName = preset.fileName || 'saved digital ID';
+        $('#dsig-pass').value = preset.pass || '';
+        $('#dsig-name').value = preset.name || '';
+        $('#dsig-reason').value = preset.reason || '';
+        $('#dsig-loc').value = preset.location || '';
+        $('#dsig-saved-name').textContent = presetName;
+        $('#dsig-saved').classList.remove('hidden');
+        if ($('#dsig-remember')) $('#dsig-remember').checked = true;
+      } catch (_) { p12Bytes = null; $('#dsig-saved').classList.add('hidden'); }
+    } else {
+      $('#dsig-saved').classList.add('hidden');
+    }
+
     updateReady();
     $('#digisign-modal').classList.remove('hidden');
   };
@@ -117,7 +165,9 @@
     $('#dsig-go').disabled = true;
     setStatus('Building document…');
     try {
-      const bytes = await App.Save.buildBytes();
+      // A signed document is final: build it flattened, with no editable sidecar
+      // (an embedded editable copy would let a later edit break the signature).
+      const bytes = await App.Save.buildBytes({ noSidecar: true });
       setStatus('Signing…');
       const signed = await App.PdfSign.signPdf(bytes, p12Bytes, opts);
       let res;
@@ -134,8 +184,15 @@
       }
       if (res && res.ok) {
         App.state.dirty = false;
+        if (D._onSigned) { try { D._onSigned(); } catch (_) { /* preset */ } }
         App.toast(`Document digitally signed & saved${res.path ? ': ' + res.path : ''}.`, 'success', 4000);
         close();
+        // Show the signed result (with the visible block) in the viewer, so the
+        // signature actually appears on the page instead of only on disk.
+        try {
+          const copy = new Uint8Array(signed.length); copy.set(signed);
+          await App.Viewer._loadInto(copy.buffer, App.state.fileName, App.state.filePath);
+        } catch (_) { /* view refresh is best-effort */ }
       } else if (res && res.canceled) {
         setStatus('Save cancelled.'); reopenForRetry();
       } else {

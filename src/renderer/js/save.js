@@ -174,7 +174,11 @@
   }
 
   // Build the final PDF bytes with all placements flattened onto their pages.
-  S.buildBytes = async function () {
+  // opts.noSidecar skips the editable round-trip attachments — used when signing,
+  // where the output must be a final, flattened document (an embedded editable
+  // copy would let a later edit silently break the signature).
+  S.buildBytes = async function (opts) {
+    opts = opts || {};
     const { PDFDocument, StandardFonts, degrees, rgb } = window.PDFLib;
 
     const pdfDoc = await PDFDocument.load(App.state.pdfBytes);
@@ -369,7 +373,7 @@
       // ignore these attachments. Only embed when there's something to preserve.
       try {
         const model = S.serializeModel();
-        if (model.__count > 0) {
+        if (!opts.noSidecar && model.__count > 0) {
           delete model.__count;
           const json = new TextEncoder().encode(JSON.stringify(model));
           await pdfDoc.attach(json, App.SIDECAR.MODEL, {
