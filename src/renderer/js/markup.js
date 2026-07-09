@@ -153,7 +153,7 @@
     if (K.inkDrawing) { inkMove(page, layer, e); return; }
     if (!K.active || K.active.page !== page || !K.active.pts.length) return;
     K.active.hover = ptFromEvent(layer, e);
-    K.repositionAll();
+    K.scheduleReposition(page);
   };
 
   K.finishDrawing = function () { K.commitActive(); K.repositionAll(); };
@@ -169,7 +169,7 @@
     const p = ptFromEvent(layer, e);
     const last = K.active.pts[K.active.pts.length - 1];
     if (!last || Math.hypot(p.vx - last.vx, p.vy - last.vy) > 1.2) K.active.pts.push(p);
-    K.repositionAll();
+    K.scheduleReposition(page);
   }
   K.inkEnd = function () {
     if (!K.inkDrawing) return;
@@ -219,9 +219,9 @@
         if (s) { dx += s.vx - moved0.vx; dy += s.vy - moved0.vy; }
       }
       an.pts = orig.map((p) => ({ vx: p.vx + dx, vy: p.vy + dy }));
-      K.repositionAll();
+      K.scheduleReposition(an.page);
     }
-    function up() { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); }
+    function up() { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); K.repositionAll(); }
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
 
@@ -239,18 +239,36 @@
       const sw = b.w ? (b.w + dx) / b.w : 1;
       const sh = b.h ? (b.h + dy) / b.h : 1;
       an.pts = orig.map((p) => ({ vx: b.x + (p.vx - b.x) * sw, vy: b.y + (p.vy - b.y) * sh }));
-      K.repositionAll();
+      K.scheduleReposition(an.page);
     }
-    function up() { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); }
+    function up() { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); K.repositionAll(); }
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
   }
 
   /* ---------------- rendering ---------------- */
-  K.repositionAll = function () {
+  // A drag/draw fires `pointermove` faster than the display refreshes (120–240 Hz
+  // trackpads/pens), and each rebuild retears the SVG for every page. Coalesce
+  // the hot-path calls to one rebuild per animation frame and, since a single
+  // gesture only touches one page, let callers restrict the rebuild to that page
+  // so a 200-markup document doesn't re-render all pages on every pointer tick.
+  let _repoRAF = 0, _repoPage;
+  K.scheduleReposition = function (onlyPage) {
+    if (_repoRAF) return; // a frame is already queued; it renders the latest state
+    _repoPage = onlyPage;
+    _repoRAF = requestAnimationFrame(() => { const p = _repoPage; _repoRAF = 0; _repoPage = undefined; doReposition(p); });
+  };
+  // Any direct (non-scheduled) rebuild also cancels a pending frame and renders in
+  // full, so gesture-end commits always land the exact, all-pages-consistent state.
+  K.repositionAll = function (onlyPage) {
+    if (_repoRAF) { cancelAnimationFrame(_repoRAF); _repoRAF = 0; _repoPage = undefined; }
+    doReposition(onlyPage);
+  };
+  function doReposition(onlyPage) {
     const z = App.state.zoom;
     (App.state.pageEls || []).forEach((pe, i) => {
       if (!pe) return;
       const page = i + 1;
+      if (onlyPage != null && page !== onlyPage) return;
       let svg = pe.holder.querySelector('.markup-svg');
       if (svg) svg.remove();
       svg = ns('svg');

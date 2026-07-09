@@ -154,7 +154,7 @@
     if (!M._active || M._active.page !== page || !M._active.pts.length) return;
     const p = pointFromEvent(page, overlay, e);
     M._active.hover = p;
-    M.repositionAll();
+    M.scheduleReposition(page);
   };
 
   M.finishDrawing = function () { // Enter / double-click
@@ -189,11 +189,25 @@
   /* ---------------- rendering (SVG per page) ---------------- */
   function ns(tag) { return document.createElementNS(SVGNS, tag); }
 
-  M.repositionAll = function () {
+  // Coalesce the high-frequency draw/drag rebuilds to one per animation frame,
+  // and let a single-page gesture rebuild only its own page (see markup.js for
+  // the rationale). `repositionAll()` with no arg still rebuilds every page.
+  let _repoRAF = 0, _repoPage;
+  M.scheduleReposition = function (onlyPage) {
+    if (_repoRAF) return;
+    _repoPage = onlyPage;
+    _repoRAF = requestAnimationFrame(() => { const p = _repoPage; _repoRAF = 0; _repoPage = undefined; doReposition(p); });
+  };
+  M.repositionAll = function (onlyPage) {
+    if (_repoRAF) { cancelAnimationFrame(_repoRAF); _repoRAF = 0; _repoPage = undefined; }
+    doReposition(onlyPage);
+  };
+  function doReposition(onlyPage) {
     const z = App.state.zoom;
     App.state.pageEls.forEach((pe, i) => {
       if (!pe) return;
       const page = i + 1;
+      if (onlyPage != null && page !== onlyPage) return;
       let layer = pe.holder.querySelector('.measure-layer');
       if (layer) layer.remove();
       layer = ns('svg');
@@ -486,12 +500,13 @@
       let dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
       if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; } // lock to an axis
       m.pts = orig.map((p) => ({ vx: p.vx + dx, vy: p.vy + dy }));
-      M.repositionAll();
+      M.scheduleReposition(m.page);
     }
     function up() {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      M.repositionAll();
     }
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);

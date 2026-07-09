@@ -54,8 +54,8 @@ copyDir(path.join(ROOT, 'src/assets'), path.join(OUT, 'assets'));
 
 // 4. Vendored libraries -> www/vendor (only the files the renderer actually loads).
 const VENDOR = [
-  ['node_modules/pdfjs-dist/build/pdf.js', 'vendor/pdfjs/build/pdf.js'],
-  ['node_modules/pdfjs-dist/build/pdf.worker.js', 'vendor/pdfjs/build/pdf.worker.js'],
+  ['node_modules/pdfjs-dist/build/pdf.min.js', 'vendor/pdfjs/build/pdf.min.js'],
+  ['node_modules/pdfjs-dist/build/pdf.worker.min.js', 'vendor/pdfjs/build/pdf.worker.min.js'],
   ['node_modules/pdfjs-dist/web/pdf_viewer.js', 'vendor/pdfjs/web/pdf_viewer.js'],
   ['node_modules/pdfjs-dist/web/pdf_viewer.css', 'vendor/pdfjs/web/pdf_viewer.css'],
   ['node_modules/pdf-lib/dist/pdf-lib.min.js', 'vendor/pdf-lib/pdf-lib.min.js'],
