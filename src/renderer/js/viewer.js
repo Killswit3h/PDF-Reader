@@ -113,7 +113,7 @@
       if (pv && pv.pdfPage && !App.state.baseViewports[pageNum - 1]) {
         App.state.baseViewports[pageNum - 1] = pv.pdfPage.getViewport({ scale: 1 });
       }
-      refreshOverlays();
+      scheduleOverlays();
     });
 
     eventBus.on('updatefindmatchescount', (e) => showFindCount(e.matchesCount));
@@ -148,9 +148,10 @@
       else if (e.deltaMode === 2) delta *= container.clientHeight; // pages → px
 
       // Exponential so zoom feels consistent at every scale. Negative delta
-      // (scroll up / pinch out) zooms in.
+      // (scroll up / pinch out) zooms in. Preview via CSS transform; commit the
+      // real re-render when the gesture settles.
       const factor = Math.exp(-delta * 0.0025);
-      Viewer.zoomByAt(factor, e.clientX, e.clientY);
+      Viewer.zoomPreviewBy(factor, e.clientX, e.clientY);
     }, { passive: false, capture: true });
   }
 
@@ -177,10 +178,12 @@
       const d = dist(e.touches);
       if (d <= 0) return;
       const m = mid(e.touches);
-      Viewer.zoomByAt(d / lastDist, m.x, m.y);
+      Viewer.zoomPreviewBy(d / lastDist, m.x, m.y);
       lastDist = d;
     }, { passive: false });
-    const end = (e) => { if (e.touches.length < 2) lastDist = 0; };
+    const end = (e) => {
+      if (e.touches.length < 2) { lastDist = 0; if (Viewer.isZoomPreviewing()) Viewer.commitZoomPreview(); }
+    };
     container.addEventListener('touchend', end, { passive: true });
     container.addEventListener('touchcancel', end, { passive: true });
   }
@@ -219,6 +222,15 @@
     if (App.DocStamp) App.DocStamp.repositionAll();
   }
   Viewer.refreshOverlays = refreshOverlays;
+
+  // Coalesce bursts of overlay refreshes (e.g. many pages rendering while
+  // scrolling fast) into one rebuild per animation frame, so redrawing the
+  // markup/measure SVGs never stutters the scroll.
+  let _overlayRAF = 0;
+  function scheduleOverlays() {
+    if (_overlayRAF) return;
+    _overlayRAF = requestAnimationFrame(() => { _overlayRAF = 0; refreshOverlays(); });
+  }
 
   // ---- Load a document ----
   // Parse a PDF's bytes with PDF.js. Returns { doc, original } or throws.
@@ -414,6 +426,53 @@
     if (!pdfViewer) return;
     Viewer.zoomToAt(pdfViewer.currentScale * factor, clientX, clientY);
   };
+
+  // ---- Smooth (preview) zoom ----
+  // Re-rasterizing every PDF page on every wheel/pinch tick is what makes zoom
+  // stutter. Instead, during the gesture we apply a cheap GPU-composited CSS
+  // transform to the page container for instant feedback, and only commit the
+  // real (crisp) re-render once the gesture settles. The markup/text overlays
+  // live inside #viewer, so they scale with the transform for free.
+  let _zoom = null; // { base, scale, ox, oy, cx, cy, timer }
+
+  Viewer.zoomPreviewBy = function (factor, clientX, clientY) {
+    if (!pdfViewer) return;
+    const container = App.$('#viewerContainer');
+    const viewerEl = App.$('#viewer');
+    if (!_zoom) {
+      const rect = container.getBoundingClientRect();
+      const cx = clientX == null ? rect.width / 2 : clientX - rect.left;
+      const cy = clientY == null ? rect.height / 2 : clientY - rect.top;
+      _zoom = {
+        base: pdfViewer.currentScale, scale: 1,
+        // transform-origin fixed at the gesture's start point (in #viewer space)
+        ox: container.scrollLeft + cx, oy: container.scrollTop + cy,
+        cx: clientX, cy: clientY, timer: 0
+      };
+      viewerEl.style.transformOrigin = _zoom.ox + 'px ' + _zoom.oy + 'px';
+      viewerEl.style.willChange = 'transform';
+    }
+    const target = App.clamp(_zoom.base * _zoom.scale * factor, ZOOM_MIN, ZOOM_MAX);
+    _zoom.scale = target / _zoom.base;
+    viewerEl.style.transform = 'scale(' + _zoom.scale + ')';
+    App.$('#zoom-label').textContent = Math.round(_zoom.base * _zoom.scale * 100) + '%';
+    clearTimeout(_zoom.timer);
+    _zoom.timer = setTimeout(Viewer.commitZoomPreview, 140);
+  };
+
+  // Drop the preview transform and apply the real scale (one crisp re-render),
+  // anchored at the gesture's start point so there's no visible jump.
+  Viewer.commitZoomPreview = function () {
+    if (!_zoom) return;
+    const p = _zoom; _zoom = null;
+    clearTimeout(p.timer);
+    const viewerEl = App.$('#viewer');
+    viewerEl.style.transform = '';
+    viewerEl.style.transformOrigin = '';
+    viewerEl.style.willChange = '';
+    Viewer.zoomToAt(App.clamp(p.base * p.scale, ZOOM_MIN, ZOOM_MAX), p.cx, p.cy);
+  };
+  Viewer.isZoomPreviewing = () => !!_zoom;
 
   // ---- Navigation ----
   Viewer.goToPage = function (n) {

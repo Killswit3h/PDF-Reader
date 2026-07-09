@@ -600,18 +600,39 @@ function createWindow() {
               App.Viewer.zoomByAt(0.5, 400, 400);
               const afterOut=V.currentScale;
               // real synthetic wheel gesture (ctrlKey) over a page element — exercises
-              // the window/capture handler + container.contains guard (the PR #3 fix)
-              const target = document.querySelector('#viewer .page canvas') || document.querySelector('#viewer .page');
+              // the window/capture handler + container.contains guard (the PR #3 fix).
+              // Re-query the target on every dispatch: a zoom commit re-renders the
+              // page and REPLACES its <canvas>, so a captured canvas node goes stale
+              // (detached → container.contains() false → handler bails). The .page
+              // div persists across re-renders, so it's a stable dispatch target.
+              const live=()=>document.querySelector('#viewer .page')||App.$('#viewerContainer');
               const wheelBefore=V.currentScale;
-              target.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,ctrlKey:true,clientX:400,clientY:400,bubbles:true,cancelable:true}));
-              await new Promise(r=>setTimeout(r,50));
+              live().dispatchEvent(new WheelEvent('wheel',{deltaY:-120,ctrlKey:true,clientX:400,clientY:400,bubbles:true,cancelable:true}));
+              await new Promise(r=>setTimeout(r,260)); // ride preview + debounced commit
               const wheelAfter=V.currentScale;
               // a plain wheel (no ctrl) must NOT zoom
               const plainBefore=V.currentScale;
-              target.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,ctrlKey:false,clientX:400,clientY:400,bubbles:true,cancelable:true}));
+              live().dispatchEvent(new WheelEvent('wheel',{deltaY:-120,ctrlKey:false,clientX:400,clientY:400,bubbles:true,cancelable:true}));
               await new Promise(r=>setTimeout(r,50));
               const plainAfter=V.currentScale;
-              return JSON.stringify({before:+before.toFixed(3), afterIn:+afterIn.toFixed(3), afterOut:+afterOut.toFixed(3), zoomedIn: afterIn>before, zoomedOut: afterOut<afterIn, wheelZoomed: wheelAfter>wheelBefore, plainIgnored: plainAfter===plainBefore});
+              // Smooth-zoom preview: a burst of ctrl-wheel events must ride a GPU
+              // CSS transform (no per-event re-render), then commit exactly one
+              // real re-render when the gesture settles. Anchor at a low scale first
+              // so the zoom-in burst has headroom below ZOOM_MAX to actually grow.
+              V.currentScale=0.5; await new Promise(r=>setTimeout(r,300));
+              let rerenders=0; const onScale=()=>rerenders++;
+              App.Viewer._eventBus.on('scalechanging', onScale);
+              const previewBefore=V.currentScale;
+              for(let i=0;i<15;i++) live().dispatchEvent(new WheelEvent('wheel',{deltaY:-40,ctrlKey:true,clientX:400,clientY:400,bubbles:true,cancelable:true}));
+              const midTransform=document.querySelector('#viewer').style.transform;
+              const midScale=V.currentScale, midRerenders=rerenders;
+              await new Promise(r=>setTimeout(r,260)); // let the debounced commit fire
+              const endTransform=document.querySelector('#viewer').style.transform;
+              const endScale=V.currentScale, endRerenders=rerenders;
+              App.Viewer._eventBus.off('scalechanging', onScale);
+              return JSON.stringify({before:+before.toFixed(3), afterIn:+afterIn.toFixed(3), afterOut:+afterOut.toFixed(3), zoomedIn: afterIn>before, zoomedOut: afterOut<afterIn, wheelZoomed: wheelAfter>wheelBefore, plainIgnored: plainAfter===plainBefore,
+                previewTransformed: /scale\\(/.test(midTransform), previewNoRerender: midRerenders===0 && Math.abs(midScale-previewBefore)<1e-6,
+                commitOneRerender: endRerenders===1, commitCleared: endTransform==='' && endScale>previewBefore});
             })()`, true);
             console.log('[zoom] ' + r);
           } catch (e) { console.log('[zoom] error', e && e.message); }
