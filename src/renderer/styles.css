@@ -147,6 +147,28 @@ body.has-tabs #viewerContainer { top: var(--tab-h, 34px); }
   background: #fff;
 }
 
+/* PDF text is selectable/copyable even though the app chrome sets
+   user-select:none globally. The text layer sits under the markup overlay
+   (z-index 2 vs 5), so selection works over empty page area; over a placed
+   item the overlay takes the pointer, which is fine. */
+.textLayer {
+  -webkit-user-select: text; -moz-user-select: text; user-select: text;
+}
+.textLayer ::selection { background: rgba(47, 111, 237, 0.35); }
+.textLayer ::-moz-selection { background: rgba(47, 111, 237, 0.35); }
+
+/* Floating "Copy" button shown while PDF text is selected. */
+#copy-fab {
+  position: fixed; z-index: 45;
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; font-size: 13px; font-weight: 500;
+  background: var(--accent); color: #fff; border: none; border-radius: 8px;
+  box-shadow: var(--shadow-2); cursor: pointer;
+  transform: translate(-50%, -100%);
+}
+#copy-fab:hover { background: var(--accent-hover); }
+#copy-fab.hidden { display: none; }
+
 /* Per-page markup overlay (signatures, dates, measurements) */
 .markup-layer {
   position: absolute; top: 0; left: 0;

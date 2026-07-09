@@ -225,6 +225,42 @@
     return { doc, original };
   };
 
+  // Read the editable-round-trip attachments from a parsed pdf.js doc.
+  // Returns { data, base } when our marks model is present (base may be null),
+  // or null when the file has no sidecar.
+  Viewer._readSidecar = async function (doc) {
+    try {
+      const att = await doc.getAttachments();
+      if (!att) return null;
+      const modelEntry = att[App.SIDECAR.MODEL];
+      if (!modelEntry || !modelEntry.content) return null;
+      const data = JSON.parse(new TextDecoder().decode(modelEntry.content));
+      const baseEntry = att[App.SIDECAR.BASE];
+      return { data, base: baseEntry && baseEntry.content ? baseEntry.content : null };
+    } catch (_) { return null; }
+  };
+
+  // Restore the in-app marks from a serialized model onto fresh state. Called
+  // right after _clearState, so it simply repopulates the arrays; the overlay
+  // draws them as each page renders.
+  Viewer._rehydrate = function (m) {
+    if (!m) return;
+    const st = App.state;
+    st.placements = Array.isArray(m.placements) ? m.placements : [];
+    st.measurements = Array.isArray(m.measurements) ? m.measurements : [];
+    st.annotations = Array.isArray(m.annotations) ? m.annotations : [];
+    st.scales = m.scales && typeof m.scales === 'object' ? m.scales : {};
+    st.viewports = m.viewports && typeof m.viewports === 'object' ? m.viewports : {};
+    st.saveAnnots = !!m.saveAnnots;
+    const maxId = (arr) => arr.reduce((n, o) => Math.max(n, o && o.id || 0), 0);
+    const s = m.seqs || {};
+    st.placementSeq = Math.max(s.placementSeq || 0, maxId(st.placements));
+    st.measureSeq = Math.max(s.measureSeq || 0, maxId(st.measurements));
+    st.viewportSeq = s.viewportSeq || 0;
+    st.annoSeq = Math.max(s.annoSeq || 0, maxId(st.annotations));
+    st.dirty = false;
+  };
+
   // Show the document currently in App.state (its pdfDoc/arrays) in the viewer.
   // `restore` = { scaleValue, page } to reapply on a tab switch (else fit-width).
   Viewer._showActive = function (restore) {
@@ -254,7 +290,17 @@
     Viewer.init();
     App.showLoading('Opening PDF…');
     try {
-      const { doc, original } = await Viewer._parse(arrayBuffer);
+      let { doc, original } = await Viewer._parse(arrayBuffer);
+      // Editable round-trip: if this file carries our sidecar (a marks model + a
+      // pristine base), reopen the pristine base as the working document and
+      // restore the marks as live objects — so nothing saved here is stuck to
+      // the page. Requires the base attachment; without it we'd double-draw the
+      // flattened copy, so fall back to opening the file as-is.
+      const sidecar = await Viewer._readSidecar(doc);
+      if (sidecar && sidecar.base) {
+        const reparsed = await Viewer._parse(sidecar.base);
+        doc = reparsed.doc; original = reparsed.original;
+      }
       Viewer._clearState();
       App.state.pdfDoc = doc;
       App.state.pdfBytes = original;
@@ -263,6 +309,7 @@
       App.state.numPages = doc.numPages;
       App.state.currentPage = 1;
       App.state.baseViewports = [];
+      if (sidecar && sidecar.base) Viewer._rehydrate(sidecar.data);
       Viewer._showActive(null);
       App.toast(`Opened ${App.state.fileName}`, 'success');
       return true;

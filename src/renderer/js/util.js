@@ -6,6 +6,10 @@
  */
 window.App = window.App || {};
 
+// Names of the attachments used for the editable round-trip: a JSON copy of the
+// in-app marks and a pristine copy of the base PDF (see save.js / viewer.js).
+App.SIDECAR = { MODEL: 'pdfsigner-model.json', BASE: 'pdfsigner-base.pdf' };
+
 App.state = {
   // Source PDF
   pdfDoc: null, // pdf.js document proxy
