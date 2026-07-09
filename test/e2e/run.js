@@ -252,6 +252,15 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'wysiwyg — a clicked text mark flattens where it shows on screen',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_WYSIWYG: '1' }, [SAMPLE]), 'wysiwyg');
+      check(j.flFx >= 0, 'no flattened text found');
+      check(Math.abs(j.dfx) < 0.02, `horizontal drift ${(j.dfx * 100).toFixed(1)}% (scale bug?)`);
+      check(Math.abs(j.dfy) < 0.03, `vertical drift ${(j.dfy * 100).toFixed(1)}%`);
+    }
+  },
+  {
     name: 'measure drag — a placed measurement can be grabbed and moved',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MDRAG: '1' }, [SAMPLE]), 'mdrag');

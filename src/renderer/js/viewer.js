@@ -7,12 +7,23 @@
  *
  * Our markup overlays (signatures, dates, measurements) attach a per-page
  * `.markup-layer` div inside each rendered `.page` div. Geometry stays in
- * scale-1 viewport points; `App.state.zoom` mirrors the viewer's current scale,
- * so the existing placement/measure code positions items with `pt * zoom`.
+ * scale-1 viewport points; `App.state.zoom` is the CSS-pixels-per-scale-1-point
+ * ratio, so the existing placement/measure code positions items with `pt * zoom`
+ * and exports them with `viewport.convertToPdfPoint(pt)` (1 scale-1 point == 1
+ * PDF point).
+ *
+ * NOTE: PDF.js renders a page at `currentScale * CSS_UNITS` CSS pixels per PDF
+ * point (CSS_UNITS = 96/72). `currentScale` alone is NOT the on-screen ratio, so
+ * App.state.zoom must fold in CSS_UNITS — otherwise captured points come out
+ * CSS_UNITS× too large and, while they look right on screen (the factor cancels
+ * on redraw), they flatten to the wrong spot on save.
  */
 (function () {
   const pdfjsLib = window.pdfjsLib;
   const pdfjsViewer = window.pdfjsViewer;
+  // PDF.js CSS unit factor (96 CSS px per inch / 72 PDF pt per inch).
+  const CSS_UNITS = 96 / 72;
+  const cssScale = () => (pdfViewer ? pdfViewer.currentScale * CSS_UNITS : CSS_UNITS);
   // Where the bundled PDF.js assets (worker) live. Electron loads the renderer
   // straight from the source tree, so it resolves them under node_modules. The
   // mobile/web build (scripts/build-web.js) copies them into a self-contained
@@ -77,7 +88,7 @@
       } else {
         pdfViewer.currentScaleValue = 'page-width';
       }
-      App.state.zoom = pdfViewer.currentScale;
+      App.state.zoom = cssScale();
       updateZoomLabel();
       Viewer._updateControls(true);
       App.$('#page-total').textContent = String(App.state.numPages);
@@ -90,7 +101,7 @@
     });
 
     eventBus.on('scalechanging', () => {
-      App.state.zoom = pdfViewer.currentScale;
+      App.state.zoom = cssScale();
       updateZoomLabel();
       refreshOverlays();
     });
@@ -200,7 +211,7 @@
   }
 
   function refreshOverlays() {
-    App.state.zoom = pdfViewer.currentScale;
+    App.state.zoom = cssScale();
     syncPageEls();
     if (App.Placement) App.Placement.repositionAll();
     if (App.Measure) App.Measure.repositionAll();

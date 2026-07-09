@@ -462,6 +462,41 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_WYSIWYG: a text mark placed by clicking flattens to the SAME spot
+      // it shows on screen (guards the CSS-units scale fix — see viewer.js).
+      if (process.env.SMOKE_WYSIWYG) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<120&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const layer=document.querySelector('.page .markup-layer');
+              const lr=layer.getBoundingClientRect();
+              App.Markup.startTool('text');
+              App.Markup.handleClick(1,layer,{clientX:lr.left+lr.width*0.45,clientY:lr.top+lr.height*0.30,shiftKey:false});
+              const div=document.querySelector('.markup-svg foreignObject .anno-text');
+              if(div){div.textContent='H';div.dispatchEvent(new Event('blur'));}
+              App.Markup.deselect&&App.Markup.deselect();
+              const fo=document.querySelector('.markup-svg foreignObject');
+              const fr=fo.getBoundingClientRect();
+              const onFx=(fr.left-lr.left)/lr.width, onFy=(fr.top-lr.top)/lr.height;
+              const bytes=await App.Save.buildBytes();
+              const doc=await window.pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
+              const p1=await doc.getPage(1); const vpR=p1.getViewport({scale:2});
+              const cv=document.createElement('canvas');cv.width=Math.ceil(vpR.width);cv.height=Math.ceil(vpR.height);
+              const ctx=cv.getContext('2d'); await p1.render({canvasContext:ctx,viewport:vpR}).promise;
+              const d=ctx.getImageData(0,0,cv.width,cv.height).data;
+              let minX=1e9,minY=1e9,count=0;
+              for(let y=0;y<cv.height;y++)for(let x=0;x<cv.width;x++){const i=(y*cv.width+x)*4;if(d[i]>170&&d[i+1]<120&&d[i+2]<120){count++;if(x<minX)minX=x;if(y<minY)minY=y;}}
+              const flFx=count?minX/cv.width:-1, flFy=count?minY/cv.height:-1;
+              return JSON.stringify({onFx:+onFx.toFixed(4),onFy:+onFy.toFixed(4),flFx:+flFx.toFixed(4),flFy:+flFy.toFixed(4),dfx:+(flFx-onFx).toFixed(4),dfy:+(flFy-onFy).toFixed(4)});
+            })()`, true);
+            console.log('[wysiwyg] ' + r);
+          } catch (e) { console.log('[wysiwyg] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {
