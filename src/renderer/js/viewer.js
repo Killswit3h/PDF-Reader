@@ -29,7 +29,7 @@
   // mobile/web build (scripts/build-web.js) copies them into a self-contained
   // www/ and sets window.PDFJS_VENDOR before this module runs to point here.
   const VENDOR = window.PDFJS_VENDOR || '../../node_modules/pdfjs-dist/';
-  pdfjsLib.GlobalWorkerOptions.workerSrc = VENDOR + 'build/pdf.worker.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = VENDOR + 'build/pdf.worker.min.js';
 
   const ZOOM_MIN = 0.1;
   const ZOOM_MAX = 8.0;

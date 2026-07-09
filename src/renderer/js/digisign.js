@@ -169,6 +169,7 @@
       // (an embedded editable copy would let a later edit break the signature).
       const bytes = await App.Save.buildBytes({ noSidecar: true });
       setStatus('Signing…');
+      await App.ensureLib('forge'); // crypto lib is loaded on demand (see util.js)
       const signed = await App.PdfSign.signPdf(bytes, p12Bytes, opts);
       let res;
       if (App.state.filePath && window.api.writePdf) {
