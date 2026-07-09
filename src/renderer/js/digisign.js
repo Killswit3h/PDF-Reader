@@ -81,34 +81,45 @@
     $('#digisign-modal').classList.remove('hidden');
   };
 
-  async function sign() {
+  // Gather the passphrase + identity fields from the dialog.
+  function gatherOpts() {
+    return {
+      passphrase: $('#dsig-pass').value,
+      name: $('#dsig-name').value.trim(),
+      reason: $('#dsig-reason').value.trim(),
+      location: $('#dsig-loc').value.trim()
+    };
+  }
+
+  function reopenForRetry() { $('#digisign-modal').classList.remove('hidden'); }
+
+  function sign() {
     if (!p12Bytes || !$('#dsig-pass').value) return;
-    const passphrase = $('#dsig-pass').value;
+    const opts = gatherOpts();
+    if ($('#dsig-visible').checked && ($('#dsig-corner').value || 'click') === 'click') {
+      // Free placement: leave the dialog, let the user click a spot on the page.
+      armPlaceOnPage(opts);
+      return;
+    }
+    if ($('#dsig-visible').checked) {
+      const pageIndex = Math.max(0, Math.min((App.state.numPages || 1) - 1, (parseInt($('#dsig-page').value, 10) || 1) - 1));
+      opts.visible = {
+        pageIndex, corner: $('#dsig-corner').value || 'bl',
+        name: opts.name || 'Signer', reason: opts.reason, location: opts.location
+      };
+    }
+    doSign(opts);
+  }
+
+  // Build the document, apply the signature with `opts`, and save it into the
+  // file being worked on (in place; falls back to Save As for raw-bytes docs).
+  async function doSign(opts) {
     $('#dsig-go').disabled = true;
     setStatus('Building document…');
     try {
       const bytes = await App.Save.buildBytes();
-      const opts = {
-        passphrase,
-        name: $('#dsig-name').value.trim(),
-        reason: $('#dsig-reason').value.trim(),
-        location: $('#dsig-loc').value.trim()
-      };
-      if ($('#dsig-visible').checked) {
-        const pageIndex = Math.max(0, Math.min((App.state.numPages || 1) - 1, (parseInt($('#dsig-page').value, 10) || 1) - 1));
-        // pdf-sign draws the Adobe-style two-column block (name left, "Digitally
-        // signed by … / Date …" right) and formats the date to match the signature.
-        opts.visible = {
-          pageIndex, corner: $('#dsig-corner').value || 'bl',
-          name: opts.name || 'Signer', reason: opts.reason, location: opts.location
-        };
-      }
       setStatus('Signing…');
       const signed = await App.PdfSign.signPdf(bytes, p12Bytes, opts);
-      // Save the signature into the file being worked on, in place, when it has a
-      // known path (a signature applied to a file replaces that file — no
-      // "-signed" copy). Only fall back to a Save As dialog for documents opened
-      // from raw bytes with no path yet.
       let res;
       if (App.state.filePath && window.api.writePdf) {
         setStatus('Saving…');
@@ -126,19 +137,62 @@
         App.toast(`Document digitally signed & saved${res.path ? ': ' + res.path : ''}.`, 'success', 4000);
         close();
       } else if (res && res.canceled) {
-        setStatus('Save cancelled.');
+        setStatus('Save cancelled.'); reopenForRetry();
       } else {
-        setStatus('Save failed: ' + ((res && res.error) || 'unknown error'), 'err');
+        setStatus('Save failed: ' + ((res && res.error) || 'unknown error'), 'err'); reopenForRetry();
       }
     } catch (e) {
       const msg = (e && e.message) || String(e);
       const friendly = /mac could not be verified|invalid password|integrity|unable to|bad decrypt/i.test(msg)
         ? 'Wrong password for this digital ID (or the file is not a valid .p12/.pfx).'
         : msg;
-      setStatus('Could not sign: ' + friendly, 'err');
+      setStatus('Could not sign: ' + friendly, 'err'); reopenForRetry();
     } finally {
       updateReady();
     }
+  }
+
+  // Free placement: hide the dialog, let the user click the page where the
+  // visible block should go, convert that point to a PDF-space rect, and sign.
+  function armPlaceOnPage(opts) {
+    const W = 260, H = 74; // signature block size, PDF points
+    $('#digisign-modal').classList.add('hidden');
+    document.body.classList.add('dsig-placing');
+    App.toast('Click on the page where the signature should go (Esc to cancel).', 'info', 6000);
+
+    function cleanup() {
+      document.removeEventListener('click', onClick, true);
+      document.removeEventListener('keydown', onKey, true);
+      document.body.classList.remove('dsig-placing');
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cleanup(); reopenForRetry(); }
+    }
+    function onClick(e) {
+      const pageDiv = e.target.closest && e.target.closest('.page');
+      if (!pageDiv) return; // clicked outside a page — ignore, keep waiting
+      e.preventDefault(); e.stopPropagation();
+      const page = parseInt(pageDiv.dataset.pageNumber, 10);
+      const layer = pageDiv.querySelector('.markup-layer') || pageDiv;
+      const r = layer.getBoundingClientRect();
+      const z = App.state.zoom || 1;
+      const vx = (e.clientX - r.left) / z, vy = (e.clientY - r.top) / z;
+      const vp = App.state.baseViewports[page - 1];
+      if (!vp) { cleanup(); reopenForRetry(); return; }
+      const tl = vp.convertToPdfPoint(vx, vy); // click point in PDF space (block top-left)
+      let x = tl[0], y = tl[1] - H;             // pdf-lib rect origin is bottom-left
+      x = Math.max(4, Math.min(vp.width - W - 4, x));
+      y = Math.max(4, Math.min(vp.height - H - 4, y));
+      cleanup();
+      opts.visible = {
+        pageIndex: page - 1, rect: [x, y, W, H],
+        name: opts.name || 'Signer', reason: opts.reason, location: opts.location
+      };
+      doSign(opts);
+    }
+    // Capture phase so we intercept the click before the page's own handlers.
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKey, true);
   }
 
   App.DigiSign = D;

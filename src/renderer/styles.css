@@ -185,6 +185,8 @@ body.tool-active .markup-layer { pointer-events: auto; }
 .markup-svg { touch-action: none; }
 body.tool-active .markup-layer { touch-action: none; }
 body.tool-active #viewerContainer .page { cursor: crosshair; }
+/* Placing a digital-signature block by clicking the page. */
+body.dsig-placing #viewerContainer .page { cursor: crosshair; }
 
 /* Find bar */
 #find-bar {
