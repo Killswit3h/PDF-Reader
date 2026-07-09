@@ -105,10 +105,25 @@
       }
       setStatus('Signing…');
       const signed = await App.PdfSign.signPdf(bytes, p12Bytes, opts);
-      const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
-      const res = await window.api.savePdfDialog(base + '-signed.pdf', signed);
+      // Save the signature into the file being worked on, in place, when it has a
+      // known path (a signature applied to a file replaces that file — no
+      // "-signed" copy). Only fall back to a Save As dialog for documents opened
+      // from raw bytes with no path yet.
+      let res;
+      if (App.state.filePath && window.api.writePdf) {
+        setStatus('Saving…');
+        res = await window.api.writePdf(App.state.filePath, signed);
+      } else {
+        const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
+        res = await window.api.savePdfDialog(base + '.pdf', signed);
+        if (res && res.ok && res.path) {
+          App.state.filePath = res.path;
+          App.state.fileName = res.path.replace(/^.*[\\/]/, '');
+        }
+      }
       if (res && res.ok) {
-        App.toast('Document digitally signed.', 'success');
+        App.state.dirty = false;
+        App.toast(`Document digitally signed & saved${res.path ? ': ' + res.path : ''}.`, 'success', 4000);
         close();
       } else if (res && res.canceled) {
         setStatus('Save cancelled.');

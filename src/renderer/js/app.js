@@ -97,7 +97,19 @@
     if (!creation) return; // cancelled
     if (kind === 'initials') App.state.lastInitials = creation;
     else App.state.lastSignature = creation;
+    // Remember it on this computer so "Sign"/"Initials" re-places it next launch
+    // without redrawing (App.Prefs persists to localStorage).
+    if (App.Prefs) { try { App.Prefs.set(kind === 'initials' ? 'lastInitials' : 'lastSignature', creation); } catch (_) { /* quota */ } }
     armImage(kind, creation);
+  }
+
+  // Restore a remembered signature/initials image from a previous session.
+  function loadRememberedSignatures() {
+    if (!App.Prefs) return;
+    const sig = App.Prefs.get('lastSignature', null);
+    const ini = App.Prefs.get('lastInitials', null);
+    if (sig && sig.dataUrl) App.state.lastSignature = sig;
+    if (ini && ini.dataUrl) App.state.lastInitials = ini;
   }
 
   // Sign / Initials button: reuse remembered creation, else open modal.
@@ -720,6 +732,7 @@
     if (App.DigiSign) App.DigiSign.init();
     if (App.Compare) App.Compare.init();
     if (App.TextCopy) App.TextCopy.init();
+    loadRememberedSignatures();
     setupUpdates();
     setupShortcuts();
     setupDragDrop();
