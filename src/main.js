@@ -17,6 +17,13 @@ const { addRecent, pruneRecent } = require('./shared/recent-files');
 const { sanitizeBounds } = require('./shared/window-state');
 const { createStore } = require('./desktop-store');
 
+// The app's display name changed to "FieldMark" (was "PDF Signer"), which would
+// otherwise move Electron's userData to a new folder and orphan existing users'
+// saved signature, preferences, recent files and window bounds. Pin userData to
+// the original location so an in-place update keeps all of it. Must run before
+// the app is ready (and before anything below reads userData).
+try { app.setPath('userData', path.join(app.getPath('appData'), 'PDF Signer')); } catch (_) { /* fall back to default */ }
+
 // Persisted desktop-only state (window bounds + recent files). Skipped under the
 // e2e smoke harness so scenarios run against deterministic default bounds.
 const store = process.env.SMOKE_TEST ? null : createStore(app.getPath('userData'));
@@ -153,7 +160,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#16171a',
     show: false,
-    title: 'PDF Signer',
+    title: 'FieldMark',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

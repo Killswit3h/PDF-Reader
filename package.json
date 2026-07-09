@@ -30,7 +30,7 @@
   },
   "build": {
     "appId": "com.pdfsigner.app",
-    "productName": "PDF Signer",
+    "productName": "FieldMark",
     "asar": false,
     "npmRebuild": false,
     "files": [

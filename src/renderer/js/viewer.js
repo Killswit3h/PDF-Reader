@@ -280,7 +280,7 @@
     App.state.pageEls = [];
     App.$('#empty-state').classList.add('hidden');
     App.$('#viewerContainer').classList.add('active');
-    document.title = `${App.state.fileName || 'PDF'} — PDF Signer`;
+    document.title = `${App.state.fileName || 'PDF'} — FieldMark`;
     pdfViewer.setDocument(App.state.pdfDoc);
     linkService.setDocument(App.state.pdfDoc, null);
     if (App.Measure) App.Measure.renderPanel();
@@ -352,7 +352,7 @@
     Viewer._updateControls(false);
     App.$('#empty-state').classList.remove('hidden');
     App.$('#viewerContainer').classList.remove('active');
-    document.title = 'PDF Signer';
+    document.title = 'FieldMark';
   };
 
   Viewer._clearState = function () {

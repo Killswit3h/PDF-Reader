@@ -552,7 +552,8 @@ input:focus-visible, select:focus-visible, [contenteditable]:focus-visible {
 
 /* ---- Brand ---- */
 .tb-group.brand { gap: var(--sp-2); padding-right: var(--sp-2); }
-.brand-mark { font-size: 20px; color: var(--accent); line-height: 1; }
+.brand-mark { font-size: 20px; color: var(--accent); line-height: 1; display: inline-flex; align-items: center; }
+.brand-mark svg { display: block; border-radius: 5px; }
 .brand-name { font-weight: 700; font-size: var(--fs-lg); letter-spacing: -0.01em; color: var(--text); }
 #btn-theme { font-size: 15px; }
 

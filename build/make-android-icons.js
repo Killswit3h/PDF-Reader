@@ -19,14 +19,16 @@ const RES = process.argv[2] || path.join(__dirname, '..', 'android', 'app', 'src
 // Blueprint blue (top of the desktop icon's gradient); used as the adaptive
 // background color and the tile fill.
 const BLUE = { r: 47, g: 111, b: 237 };
+const AMBER = { r: 232, g: 163, b: 61 }; // FieldMark marker dot
 
-// ---- Signature squiggle path, in normalized [0,1] coordinates ----
-// Same curve as build/make-icon.js (which works in a 256px space), divided by
-// 256 so it can be placed into any target box / canvas size.
+// ---- FieldMark check path, in normalized [0,1] coordinates ----
+// A bold two-segment check (matches src/assets/logo.svg, scaled from its 1024
+// space). The marker dot sits at the check's tip (point C).
+const MK = { A: { x: 0.279, y: 0.545 }, B: { x: 0.430, y: 0.690 }, C: { x: 0.721, y: 0.372 } };
+const DOT = { x: 0.721, y: 0.359, r: 0.052 };
 function squigglePoint(u) {
-  const x = (46 + u * 164) / 256;
-  const y = (150 + Math.sin(u * Math.PI * 3) * 34 - u * 10) / 256;
-  return { x, y };
+  if (u < 0.5) { const t = u / 0.5; return { x: MK.A.x + (MK.B.x - MK.A.x) * t, y: MK.A.y + (MK.B.y - MK.A.y) * t }; }
+  const t = (u - 0.5) / 0.5; return { x: MK.B.x + (MK.C.x - MK.B.x) * t, y: MK.B.y + (MK.C.y - MK.B.y) * t };
 }
 // Bounding box of the path (precomputed by sampling) — used to re-center and
 // scale the mark into the adaptive foreground's safe zone.
@@ -37,6 +39,9 @@ const BBOX = (() => {
     x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
     y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
   }
+  // include the marker dot so the whole mark centers in the safe zone
+  x0 = Math.min(x0, DOT.x - DOT.r); x1 = Math.max(x1, DOT.x + DOT.r);
+  y0 = Math.min(y0, DOT.y - DOT.r); y1 = Math.max(y1, DOT.y + DOT.r);
   return { x0, x1, y0, y1, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
 })();
 
@@ -85,7 +90,7 @@ function render(S, mode) {
   // tile/round use the artwork's native placement; foreground re-centers it into
   // the central ~60% (Android masks the outer ring of an adaptive icon).
   let map, brushR;
-  const baseBrush = 7 / 256; // brush radius as a fraction of side
+  const baseBrush = 13 / 256; // brush radius as a fraction of side (bold check)
   if (mode === 'foreground') {
     const scale = 0.60 / Math.max(BBOX.w, BBOX.h);
     map = (p) => ({ x: (0.5 + (p.x - BBOX.cx) * scale) * S, y: (0.5 + (p.y - BBOX.cy) * scale) * S });
@@ -108,6 +113,12 @@ function render(S, mode) {
     }
     prev = p;
   }
+  // amber marker dot at the check's tip
+  const dc = map(DOT);
+  const dr = DOT.r * (mode === 'foreground' ? (0.60 / Math.max(BBOX.w, BBOX.h)) : 1) * S;
+  const drc = Math.ceil(dr);
+  for (let dy = -drc; dy <= drc; dy++) for (let dx = -drc; dx <= drc; dx++)
+    if (dx * dx + dy * dy <= dr * dr) px(dc.x + dx, dc.y + dy, AMBER.r, AMBER.g, AMBER.b, 255);
   return buf;
 }
 
