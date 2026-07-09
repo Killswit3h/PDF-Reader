@@ -531,6 +531,33 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_PRINT: the print path rasterizes every page to a non-blank image
+      // (guards the image-based print that replaced the blank PDF-viewer print).
+      if (process.env.SMOKE_PRINT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const bytes=await App.Save.buildBytes();
+              const html=await App.buildPrintHtml(bytes);
+              const imgCount=(html.match(/<img /g)||[]).length;
+              const hasData=/data:image\\/png;base64,/.test(html);
+              // decode the first page image and check it isn't blank
+              const url=(html.match(/data:image\\/png;base64,[A-Za-z0-9+/=]+/)||[])[0];
+              let darkPx=0,w=0,h=0;
+              if(url){ const im=new Image(); await new Promise(res=>{im.onload=res;im.onerror=res;im.src=url;});
+                const c=document.createElement('canvas'); c.width=w=im.naturalWidth; c.height=h=im.naturalHeight;
+                const x=c.getContext('2d'); x.drawImage(im,0,0); const d=x.getImageData(0,0,c.width,c.height).data;
+                for(let i=0;i<d.length;i+=4){ if(d[i]<200&&d[i+1]<200&&d[i+2]<200)darkPx++; } }
+              return JSON.stringify({imgCount,numPages:App.state.numPages,hasData,w,h,darkPx});
+            })()`, true);
+            console.log('[print] ' + r);
+          } catch (e) { console.log('[print] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {
@@ -1110,6 +1137,46 @@ ipcMain.handle('app:print', async (_e, bytes) => {
     // is no "PDF rendered" event — printing too early captures a blank page. Give
     // the viewer a moment to render before sending it to the printer.
     await new Promise((r) => setTimeout(r, 1500));
+    const result = await new Promise((resolve) => {
+      printWin.webContents.print({ printBackground: true }, (success, reason) => {
+        resolve({ ok: success, error: success ? undefined : reason });
+      });
+    });
+    return result;
+  } catch (err) {
+    return { ok: false, error: err.message };
+  } finally {
+    if (printWin && !printWin.isDestroyed()) printWin.close();
+    if (tmpFile) { try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore */ } }
+  }
+});
+
+// Print an HTML document of pre-rendered page images (built by the renderer with
+// PDF.js). This avoids Chromium's offscreen PDF viewer entirely — images always
+// paint, so the print is never blank — at the cost of raster (vs vector) output.
+ipcMain.handle('app:printHtml', async (_e, html) => {
+  if (!html) return { ok: false, error: 'Nothing to print' };
+  let tmpFile = null;
+  let printWin = null;
+  try {
+    tmpFile = path.join(app.getPath('temp'), `pdfsigner-print-${process.pid}-${Date.now()}.html`);
+    fs.writeFileSync(tmpFile, html, 'utf8');
+    printWin = new BrowserWindow({
+      show: false,
+      paintWhenInitiallyHidden: true,
+      webPreferences: { backgroundThrottling: false }
+    });
+    await new Promise((resolve, reject) => {
+      printWin.webContents.once('did-finish-load', resolve);
+      printWin.webContents.once('did-fail-load', (_ev, code, desc) => reject(new Error(desc || ('load error ' + code))));
+      printWin.loadURL('file://' + tmpFile);
+    });
+    // Make sure every page image has actually decoded before printing.
+    try {
+      await printWin.webContents.executeJavaScript(
+        'Promise.all([...document.images].map(i => (i.decode ? i.decode().catch(() => {}) : (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })))))');
+    } catch (_) { /* best effort */ }
+    await new Promise((r) => setTimeout(r, 250));
     const result = await new Promise((resolve) => {
       printWin.webContents.print({ printBackground: true }, (success, reason) => {
         resolve({ ok: success, error: success ? undefined : reason });

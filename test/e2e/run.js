@@ -261,6 +261,16 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'print — every page rasterizes to a non-blank image (no blank print)',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_PRINT: '1' }, [SAMPLE]), 'print');
+      check(j.imgCount === j.numPages && j.imgCount >= 1, `image count ${j.imgCount} != pages ${j.numPages}`);
+      check(j.hasData === true, 'no page images embedded');
+      check(j.w > 0 && j.h > 0, 'first page image has no size');
+      check(j.darkPx > 500, `first page image looks blank (${j.darkPx} dark px)`);
+    }
+  },
+  {
     name: 'wysiwyg — a clicked text mark flattens where it shows on screen',
     run: () => {
       const j = tagJson(runApp({ SMOKE_WYSIWYG: '1' }, [SAMPLE]), 'wysiwyg');

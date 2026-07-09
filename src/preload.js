@@ -49,6 +49,10 @@ contextBridge.exposeInMainWorld('api', {
   // Print the finished document. `bytes` is the exported PDF (Uint8Array); the
   // main process renders it offscreen and opens the OS print dialog.
   print: (bytes) => ipcRenderer.invoke('app:print', bytes),
+  // Print pre-rendered page images wrapped in HTML — more reliable than handing
+  // a PDF to Chromium's offscreen built-in viewer (which could print blank),
+  // since images always paint. The renderer rasterizes each page with PDF.js.
+  printHtml: (html) => ipcRenderer.invoke('app:printHtml', html),
 
   // ---- Updates ----
   getVersion: () => ipcRenderer.invoke('app:version'),
