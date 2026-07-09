@@ -135,22 +135,55 @@
     });
   }
 
+  // Copy the user's interactive-form edits (kept by PDF.js in annotationStorage,
+  // keyed by widget-annotation id) into `pdfDoc`'s AcroForm fields via pdf-lib,
+  // resolving id -> field name through PDF.js's getFieldObjects(). Text, checkbox,
+  // radio and dropdown/list fields are handled; anything unmapped is skipped.
+  async function applyFormEdits(pdfDoc) {
+    try {
+      const src = App.state.pdfDoc;
+      const store = src && src.annotationStorage;
+      const all = store && store.getAll ? store.getAll() : null;
+      if (!all || !Object.keys(all).length) return;
+      const fieldObjs = await src.getFieldObjects();
+      if (!fieldObjs) return;
+      const idToName = {};
+      for (const [name, arr] of Object.entries(fieldObjs)) {
+        (arr || []).forEach((o) => { if (o && o.id != null) idToName[o.id] = name; });
+      }
+      const form = pdfDoc.getForm();
+      const done = new Set();
+      for (const [id, entry] of Object.entries(all)) {
+        const name = idToName[id];
+        if (!name || done.has(name) || !entry || !('value' in entry)) continue;
+        done.add(name);
+        let field;
+        try { field = form.getField(name); } catch (_) { continue; }
+        const v = entry.value;
+        try {
+          if (typeof field.setText === 'function') {
+            field.setText(v == null ? '' : String(v));
+          } else if (typeof field.check === 'function' && typeof field.uncheck === 'function') {
+            (v && v !== 'Off' && v !== 'off' && v !== false) ? field.check() : field.uncheck();
+          } else if (typeof field.select === 'function' && v != null && v !== 'Off') {
+            field.select(String(v));
+          }
+        } catch (_) { /* field type/value mismatch — leave as-is */ }
+      }
+    } catch (_) { /* forms are optional */ }
+  }
+
   // Build the final PDF bytes with all placements flattened onto their pages.
   S.buildBytes = async function () {
     const { PDFDocument, StandardFonts, degrees, rgb } = window.PDFLib;
 
-    // If the user typed into interactive form fields (PDF.js ENABLE_FORMS keeps
-    // their values in annotationStorage), bake those into the base document
-    // first, then let pdf-lib stamp signatures/markup on top of the filled PDF.
-    let baseBytes = App.state.pdfBytes;
-    try {
-      const store = App.state.pdfDoc && App.state.pdfDoc.annotationStorage;
-      if (store && store.size > 0 && typeof App.state.pdfDoc.saveDocument === 'function') {
-        baseBytes = await App.state.pdfDoc.saveDocument();
-      }
-    } catch (_) { /* no form edits / unsupported → use the original bytes */ }
-
-    const pdfDoc = await PDFDocument.load(baseBytes);
+    const pdfDoc = await PDFDocument.load(App.state.pdfBytes);
+      // If the user typed into interactive form fields (PDF.js ENABLE_FORMS keeps
+      // their edits in annotationStorage), write those values into the fields with
+      // pdf-lib so they persist in the saved file. (PDF.js's own saveDocument()
+      // emits an incremental update that doesn't survive pdf-lib's full rewrite,
+      // so we fill the fields directly instead.)
+      await applyFormEdits(pdfDoc);
       const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
       // Under virtualized rendering a page with items may never have been
@@ -342,7 +375,11 @@
           await pdfDoc.attach(json, App.SIDECAR.MODEL, {
             mimeType: 'application/json', description: 'PDF Signer editable markups'
           });
-          await pdfDoc.attach(new Uint8Array(baseBytes), App.SIDECAR.BASE, {
+          // Sidecar base = the document with form edits applied but our marks NOT
+          // flattened, so reopening restores editable marks over the filled form.
+          const baseDoc = await PDFDocument.load(App.state.pdfBytes);
+          await applyFormEdits(baseDoc);
+          await pdfDoc.attach(new Uint8Array(await baseDoc.save()), App.SIDECAR.BASE, {
             mimeType: 'application/pdf', description: 'PDF Signer base document'
           });
         }

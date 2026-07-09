@@ -497,6 +497,33 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_FORM: typing into a prefilled AcroForm field persists on save.
+      if (process.env.SMOKE_FORM) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<120&&!document.querySelector('.annotationLayer input');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const input=document.querySelector('.annotationLayer input');
+              const before=input?input.value:null;
+              input.focus(); input.value='FORM EDIT';
+              input.dispatchEvent(new Event('input',{bubbles:true}));
+              input.dispatchEvent(new Event('change',{bubbles:true}));
+              await new Promise(r=>setTimeout(r,200));
+              const storeSize=App.state.pdfDoc.annotationStorage.size;
+              const bytes=await App.Save.buildBytes();
+              const {PDFDocument}=window.PDFLib;
+              const d=await PDFDocument.load(bytes);
+              const f=d.getForm();
+              const vals=f.getFields().map(x=>{try{return x.getName()+'='+(x.getText?x.getText():'')}catch(_){return x.getName()+'=?'}});
+              return JSON.stringify({before,storeSize,vals,edited:vals.some(v=>/FORM EDIT/.test(v))});
+            })()`, true);
+            console.log('[form] ' + r);
+          } catch (e) { console.log('[form] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {

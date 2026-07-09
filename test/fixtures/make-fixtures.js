@@ -26,11 +26,29 @@ async function build(pages, title) {
   return doc.save();
 }
 
+// A one-page PDF with two prefilled AcroForm text fields (name, amount) for the
+// SMOKE_FORM scenario: type into a field, save, and confirm the value persists.
+async function buildForm() {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  page.drawText('Invoice form', { x: 50, y: 740, size: 18, font });
+  page.drawText('Name:', { x: 50, y: 700, size: 12, font });
+  page.drawText('Amount:', { x: 50, y: 660, size: 12, font });
+  const form = doc.getForm();
+  const name = form.createTextField('name'); name.setText('Prefilled Name');
+  name.addToPage(page, { x: 120, y: 692, width: 200, height: 20 });
+  const amt = form.createTextField('amount'); amt.setText('100.00');
+  amt.addToPage(page, { x: 120, y: 652, width: 200, height: 20 });
+  return doc.save();
+}
+
 async function main() {
   const dir = __dirname;
   fs.writeFileSync(path.join(dir, 'sample.pdf'), await build(3, 'Sample drawing'));
   fs.writeFileSync(path.join(dir, 'big.pdf'), await build(12, 'Big plan set'));
-  console.log('Wrote test/fixtures/sample.pdf (3 pages) and big.pdf (12 pages).');
+  fs.writeFileSync(path.join(dir, 'form.pdf'), await buildForm());
+  console.log('Wrote test/fixtures/sample.pdf (3 pages), big.pdf (12 pages), form.pdf (AcroForm).');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

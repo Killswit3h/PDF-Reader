@@ -28,6 +28,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const FIX = path.join(ROOT, 'test', 'fixtures');
 const SAMPLE = path.join(FIX, 'sample.pdf');
 const BIG = path.join(FIX, 'big.pdf');
+const FORM = path.join(FIX, 'form.pdf');
 const PER_TEST_TIMEOUT = 45000;
 
 let passed = 0, failed = 0;
@@ -249,6 +250,14 @@ const SCENARIOS = [
       check(j.draggable === true, 'placed text box is not grabbable');
       check(j.after1 === 1, `expected 1 box after placing, got ${j.after1}`);
       check(j.after2 === 1, `a second click added another box (${j.after2})`);
+    }
+  },
+  {
+    name: 'forms — typing into a prefilled field persists on save',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_FORM: '1' }, [FORM]), 'form');
+      check(j.storeSize > 0, 'form edit not captured in annotationStorage');
+      check(j.edited === true, `saved PDF lost the form edit: ${JSON.stringify(j.vals)}`);
     }
   },
   {
