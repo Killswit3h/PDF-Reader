@@ -28,6 +28,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const FIX = path.join(ROOT, 'test', 'fixtures');
 const SAMPLE = path.join(FIX, 'sample.pdf');
 const BIG = path.join(FIX, 'big.pdf');
+const FORM = path.join(FIX, 'form.pdf');
 const PER_TEST_TIMEOUT = 45000;
 
 let passed = 0, failed = 0;
@@ -238,6 +239,34 @@ const SCENARIOS = [
       check(j.spans >= 3, `text layer not rendered (${j.spans} spans)`);
       check(j.textLen > 0, 'no text captured from the selection');
       check(j.fabShown === true, 'copy button did not appear on selection');
+    }
+  },
+  {
+    name: 'text one-shot — placing a text box disarms the tool; no runaway boxes',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TEXT1: '1' }, [SAMPLE]), 'text1');
+      check(j.armed === true, 'text tool did not arm');
+      check(j.disarmed === true, 'text tool stayed armed after placing a box');
+      check(j.draggable === true, 'placed text box is not grabbable');
+      check(j.after1 === 1, `expected 1 box after placing, got ${j.after1}`);
+      check(j.after2 === 1, `a second click added another box (${j.after2})`);
+    }
+  },
+  {
+    name: 'forms — typing into a prefilled field persists on save',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_FORM: '1' }, [FORM]), 'form');
+      check(j.storeSize > 0, 'form edit not captured in annotationStorage');
+      check(j.edited === true, `saved PDF lost the form edit: ${JSON.stringify(j.vals)}`);
+    }
+  },
+  {
+    name: 'wysiwyg — a clicked text mark flattens where it shows on screen',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_WYSIWYG: '1' }, [SAMPLE]), 'wysiwyg');
+      check(j.flFx >= 0, 'no flattened text found');
+      check(Math.abs(j.dfx) < 0.02, `horizontal drift ${(j.dfx * 100).toFixed(1)}% (scale bug?)`);
+      check(Math.abs(j.dfy) < 0.03, `vertical drift ${(j.dfy * 100).toFixed(1)}%`);
     }
   },
   {

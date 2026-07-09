@@ -5,7 +5,7 @@
   <!-- Offline app: restrict to local resources only. -->
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; worker-src 'self' blob:; connect-src 'self' blob: data:;" />
-  <title>PDF Signer</title>
+  <title>FieldMark</title>
   <!-- Apply the saved (or OS-preferred) theme before first paint to avoid a flash.
        External (not inline) to satisfy the CSP; runs synchronously in <head>. -->
   <script src="js/theme-boot.js"></script>
@@ -17,8 +17,15 @@
   <!-- ================= Top bar ================= -->
   <header id="toolbar">
     <div class="tb-group brand">
-      <span class="brand-mark" aria-hidden="true">◲</span>
-      <span class="brand-name">PDF Signer</span>
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 1024 1024" width="22" height="22" fill="none">
+          <rect x="64" y="64" width="896" height="896" rx="208" fill="#2f6fed"/>
+          <g stroke="#fff" stroke-width="34" stroke-linecap="round" opacity="0.5"><path d="M250 360V250h110"/><path d="M774 360V250H664"/></g>
+          <path d="M286 548l150 150 302-330" fill="none" stroke="#fff" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="738" cy="368" r="52" fill="#e8a33d"/>
+        </svg>
+      </span>
+      <span class="brand-name">FieldMark</span>
     </div>
 
     <div class="tb-group g-open">
@@ -165,7 +172,7 @@
     <div id="empty-state">
       <div class="empty-inner title-block">
         <div class="tb-head">
-          <span class="brand-name">PDF Signer</span>
+          <span class="brand-name">FieldMark</span>
           <span class="tb-rev">Rev —</span>
         </div>
         <div class="tb-body">
@@ -534,6 +541,7 @@
           <label class="dsig-field">Page <input id="dsig-page" type="number" min="1" value="1" /></label>
           <label class="dsig-field">Position
             <select id="dsig-corner">
+              <option value="click">Click on the page…</option>
               <option value="bl">Bottom-left</option>
               <option value="br">Bottom-right</option>
               <option value="tl">Top-left</option>

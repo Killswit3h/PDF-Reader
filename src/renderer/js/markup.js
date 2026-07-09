@@ -50,8 +50,12 @@
     K.tool = type;
     K.active = null;
     App.setMode('markup');
-    App.toast(`Markup: ${type}. ` + (N_POINT[type] ? 'Click points, Enter/double-click to finish.' :
-      type === 'ink' ? 'Press and drag to draw.' : 'Click start then end.'), 'info', 3500);
+    const hint = type === 'text' ? 'Click to place a text box, then type. Click away to finish.'
+      : type === 'callout' ? 'Click the target, then where the note goes.'
+      : N_POINT[type] ? 'Click points, Enter/double-click to finish.'
+      : type === 'ink' ? 'Press and drag to draw.'
+      : 'Click start then end.';
+    App.toast(`Markup: ${type}. ${hint}`, 'info', 3500);
   };
   K.stop = function () {
     K.commitActive();
@@ -82,8 +86,17 @@
     App.state.annotations.push(an);
     App.state.annoSelectedId = an.id;
     App.$('#btn-save').disabled = false;
-    K.repositionAll();
-    if (an.type === 'text' || an.type === 'callout') startTextEdit(an);
+    if (an.type === 'text' || an.type === 'callout') {
+      // One-shot: dropping a text box disarms the tool and switches to
+      // select/move, so the next click grabs THIS box (to reposition it)
+      // instead of dropping another one. Disarm before opening the editor —
+      // leaving markup mode flips the box's hit area back on so it's draggable.
+      K.tool = null;
+      App.setMode(null);
+      startTextEdit(an);
+    } else {
+      K.repositionAll();
+    }
   }
 
   /* ---------------- interaction (from app.js delegation) ---------------- */

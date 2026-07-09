@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="FieldMark">
+  <defs>
+    <linearGradient id="fm-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b78f0"/>
+      <stop offset="1" stop-color="#2560d8"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="208" fill="url(#fm-bg)"/>
+  <!-- crosshair corner ticks: this is a field mark placed with precision -->
+  <g stroke="#ffffff" stroke-width="34" stroke-linecap="round" opacity="0.5" fill="none">
+    <path d="M250 360V250h110"/>
+    <path d="M774 360V250H664"/>
+  </g>
+  <!-- the mark: a bold check -->
+  <path d="M286 548l150 150 302-330" fill="none" stroke="#ffffff" stroke-width="92"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- survey/marker dot -->
+  <circle cx="738" cy="368" r="52" fill="#e8a33d"/>
+</svg>

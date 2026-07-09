@@ -1,4 +1,6 @@
-# PDF Signer
+# FieldMark
+
+<sub>(formerly *PDF Signer*)</sub>
 
 A simple, **offline** app (**Windows + macOS desktop**, and now **Android**) to
 open PDFs, **view** large plan sets fast, **mark them up** (arrows, shapes,

@@ -17,6 +17,13 @@ const { addRecent, pruneRecent } = require('./shared/recent-files');
 const { sanitizeBounds } = require('./shared/window-state');
 const { createStore } = require('./desktop-store');
 
+// The app's display name changed to "FieldMark" (was "PDF Signer"), which would
+// otherwise move Electron's userData to a new folder and orphan existing users'
+// saved signature, preferences, recent files and window bounds. Pin userData to
+// the original location so an in-place update keeps all of it. Must run before
+// the app is ready (and before anything below reads userData).
+try { app.setPath('userData', path.join(app.getPath('appData'), 'PDF Signer')); } catch (_) { /* fall back to default */ }
+
 // Persisted desktop-only state (window bounds + recent files). Skipped under the
 // e2e smoke harness so scenarios run against deterministic default bounds.
 const store = process.env.SMOKE_TEST ? null : createStore(app.getPath('userData'));
@@ -153,7 +160,7 @@ function createWindow() {
     minHeight: 600,
     backgroundColor: '#16171a',
     show: false,
-    title: 'PDF Signer',
+    title: 'FieldMark',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -431,6 +438,95 @@ function createWindow() {
             })()`, true);
             console.log('[copy] ' + r);
           } catch (e) { console.log('[copy] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_TEXT1: the Text tool is one-shot — placing a box disarms the tool
+      // (so the box is immediately movable) and a second click adds no new box.
+      if (process.env.SMOKE_TEXT1) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              App.Markup.startTool('text');
+              const armed=App.state.mode==='markup';
+              const layer=document.querySelector('.page .markup-layer');
+              const rc=layer.getBoundingClientRect();
+              App.Markup.handleClick(1,layer,{clientX:rc.left+120,clientY:rc.top+120,shiftKey:false});
+              const disarmed=App.Markup.tool===null&&App.state.mode===null&&!document.body.classList.contains('tool-active');
+              const fo=document.querySelector('.markup-svg foreignObject.hit');
+              const draggable=fo?getComputedStyle(fo).pointerEvents!=='none':false;
+              const after1=App.state.annotations.length;
+              if(App.state.mode==='markup') App.Markup.handleClick(1,layer,{clientX:rc.left+300,clientY:rc.top+300,shiftKey:false});
+              const after2=App.state.annotations.length;
+              return JSON.stringify({armed,disarmed,draggable,after1,after2});
+            })()`, true);
+            console.log('[text1] ' + r);
+          } catch (e) { console.log('[text1] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_WYSIWYG: a text mark placed by clicking flattens to the SAME spot
+      // it shows on screen (guards the CSS-units scale fix — see viewer.js).
+      if (process.env.SMOKE_WYSIWYG) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<120&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const layer=document.querySelector('.page .markup-layer');
+              const lr=layer.getBoundingClientRect();
+              App.Markup.startTool('text');
+              App.Markup.handleClick(1,layer,{clientX:lr.left+lr.width*0.45,clientY:lr.top+lr.height*0.30,shiftKey:false});
+              const div=document.querySelector('.markup-svg foreignObject .anno-text');
+              if(div){div.textContent='H';div.dispatchEvent(new Event('blur'));}
+              App.Markup.deselect&&App.Markup.deselect();
+              const fo=document.querySelector('.markup-svg foreignObject');
+              const fr=fo.getBoundingClientRect();
+              const onFx=(fr.left-lr.left)/lr.width, onFy=(fr.top-lr.top)/lr.height;
+              const bytes=await App.Save.buildBytes();
+              const doc=await window.pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
+              const p1=await doc.getPage(1); const vpR=p1.getViewport({scale:2});
+              const cv=document.createElement('canvas');cv.width=Math.ceil(vpR.width);cv.height=Math.ceil(vpR.height);
+              const ctx=cv.getContext('2d'); await p1.render({canvasContext:ctx,viewport:vpR}).promise;
+              const d=ctx.getImageData(0,0,cv.width,cv.height).data;
+              let minX=1e9,minY=1e9,count=0;
+              for(let y=0;y<cv.height;y++)for(let x=0;x<cv.width;x++){const i=(y*cv.width+x)*4;if(d[i]>170&&d[i+1]<120&&d[i+2]<120){count++;if(x<minX)minX=x;if(y<minY)minY=y;}}
+              const flFx=count?minX/cv.width:-1, flFy=count?minY/cv.height:-1;
+              return JSON.stringify({onFx:+onFx.toFixed(4),onFy:+onFy.toFixed(4),flFx:+flFx.toFixed(4),flFy:+flFy.toFixed(4),dfx:+(flFx-onFx).toFixed(4),dfy:+(flFy-onFy).toFixed(4)});
+            })()`, true);
+            console.log('[wysiwyg] ' + r);
+          } catch (e) { console.log('[wysiwyg] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_FORM: typing into a prefilled AcroForm field persists on save.
+      if (process.env.SMOKE_FORM) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<120&&!document.querySelector('.annotationLayer input');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const input=document.querySelector('.annotationLayer input');
+              const before=input?input.value:null;
+              input.focus(); input.value='FORM EDIT';
+              input.dispatchEvent(new Event('input',{bubbles:true}));
+              input.dispatchEvent(new Event('change',{bubbles:true}));
+              await new Promise(r=>setTimeout(r,200));
+              const storeSize=App.state.pdfDoc.annotationStorage.size;
+              const bytes=await App.Save.buildBytes();
+              const {PDFDocument}=window.PDFLib;
+              const d=await PDFDocument.load(bytes);
+              const f=d.getForm();
+              const vals=f.getFields().map(x=>{try{return x.getName()+'='+(x.getText?x.getText():'')}catch(_){return x.getName()+'=?'}});
+              return JSON.stringify({before,storeSize,vals,edited:vals.some(v=>/FORM EDIT/.test(v))});
+            })()`, true);
+            console.log('[form] ' + r);
+          } catch (e) { console.log('[form] error', e && e.message); }
           app.quit();
         }, 1200);
         return;
