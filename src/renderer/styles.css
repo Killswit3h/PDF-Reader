@@ -140,11 +140,21 @@ body.has-tabs #viewerContainer { top: var(--tab-h, 34px); }
   position: absolute; inset: 0;
   overflow: auto;
   background: var(--bg-canvas);
+  /* Keep panning buttery: don't chain scroll to the window, and hint the
+     compositor to keep this layer on the GPU so wheel/drag scrolling of the
+     (often tall) page stack never repaints the whole document. */
+  overscroll-behavior: contain;
+  will-change: scroll-position;
 }
 .pdfViewer .page {
   margin: 12px auto !important;
   box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
   background: #fff;
+  /* Isolate each page's layout so scrolling/re-rendering one page never forces
+     the browser to reflow its neighbours — a major source of pan jank on
+     multi-hundred-page documents. (No `paint` containment: that would clip
+     markup drag/resize handles that overhang the page edge.) */
+  contain: layout style;
 }
 
 /* PDF text is selectable/copyable even though the app chrome sets

@@ -604,14 +604,29 @@ function createWindow() {
               const target = document.querySelector('#viewer .page canvas') || document.querySelector('#viewer .page');
               const wheelBefore=V.currentScale;
               target.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,ctrlKey:true,clientX:400,clientY:400,bubbles:true,cancelable:true}));
-              await new Promise(r=>setTimeout(r,50));
+              await new Promise(r=>setTimeout(r,260)); // ride preview + debounced commit
               const wheelAfter=V.currentScale;
               // a plain wheel (no ctrl) must NOT zoom
               const plainBefore=V.currentScale;
               target.dispatchEvent(new WheelEvent('wheel',{deltaY:-120,ctrlKey:false,clientX:400,clientY:400,bubbles:true,cancelable:true}));
               await new Promise(r=>setTimeout(r,50));
               const plainAfter=V.currentScale;
-              return JSON.stringify({before:+before.toFixed(3), afterIn:+afterIn.toFixed(3), afterOut:+afterOut.toFixed(3), zoomedIn: afterIn>before, zoomedOut: afterOut<afterIn, wheelZoomed: wheelAfter>wheelBefore, plainIgnored: plainAfter===plainBefore});
+              // Smooth-zoom preview: a burst of ctrl-wheel events must ride a GPU
+              // CSS transform (no per-event re-render), then commit exactly one
+              // real re-render when the gesture settles.
+              let rerenders=0; const onScale=()=>rerenders++;
+              App.Viewer._eventBus.on('scalechanging', onScale);
+              const previewBefore=V.currentScale;
+              for(let i=0;i<15;i++) target.dispatchEvent(new WheelEvent('wheel',{deltaY:-40,ctrlKey:true,clientX:400,clientY:400,bubbles:true,cancelable:true}));
+              const midTransform=document.querySelector('#viewer').style.transform;
+              const midScale=V.currentScale, midRerenders=rerenders;
+              await new Promise(r=>setTimeout(r,260)); // let the debounced commit fire
+              const endTransform=document.querySelector('#viewer').style.transform;
+              const endScale=V.currentScale, endRerenders=rerenders;
+              App.Viewer._eventBus.off('scalechanging', onScale);
+              return JSON.stringify({before:+before.toFixed(3), afterIn:+afterIn.toFixed(3), afterOut:+afterOut.toFixed(3), zoomedIn: afterIn>before, zoomedOut: afterOut<afterIn, wheelZoomed: wheelAfter>wheelBefore, plainIgnored: plainAfter===plainBefore,
+                previewTransformed: /scale\\(/.test(midTransform), previewNoRerender: midRerenders===0 && Math.abs(midScale-previewBefore)<1e-6,
+                commitOneRerender: endRerenders===1, commitCleared: endTransform==='' && endScale>previewBefore});
             })()`, true);
             console.log('[zoom] ' + r);
           } catch (e) { console.log('[zoom] error', e && e.message); }

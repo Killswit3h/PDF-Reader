@@ -97,6 +97,11 @@ const SCENARIOS = [
       check(j.zoomedOut, 'zoomByAt did not zoom out');
       check(j.wheelZoomed, 'ctrl+wheel did not zoom');
       check(j.plainIgnored, 'plain wheel wrongly zoomed');
+      // Smooth-zoom preview: GPU transform during the gesture, single commit after.
+      check(j.previewTransformed, 'zoom gesture did not ride a CSS transform');
+      check(j.previewNoRerender, 'zoom gesture re-rendered mid-gesture (should be 0)');
+      check(j.commitOneRerender, 'zoom did not commit exactly one re-render');
+      check(j.commitCleared, 'zoom transform not cleared / scale not committed');
     }
   },
   {
