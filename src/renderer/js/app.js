@@ -418,6 +418,27 @@
     document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
   }
 
+  // Collapse the left tool rail to an icon-only strip (desktop). The armed
+  // tool's tooltip keeps every action quick to reach; state is remembered.
+  function setupRailToggle() {
+    const btn = App.$('#rail-toggle');
+    if (!btn) return;
+    const apply = (collapsed) => {
+      document.body.classList.toggle('rail-collapsed', collapsed);
+      btn.setAttribute('aria-expanded', String(!collapsed));
+      btn.title = collapsed ? 'Expand toolbar' : 'Collapse toolbar';
+      btn.setAttribute('aria-label', btn.title);
+      const ico = btn.querySelector('.rail-toggle-ico');
+      if (ico) ico.textContent = collapsed ? '»' : '«';
+    };
+    apply(App.Prefs && App.Prefs.get('railCollapsed', false) === true);
+    btn.addEventListener('click', () => {
+      const collapsed = !document.body.classList.contains('rail-collapsed');
+      apply(collapsed);
+      if (App.Prefs) App.Prefs.set('railCollapsed', collapsed);
+    });
+  }
+
   // ---------- Mobile top-bar overflow ----------
   // On narrow screens the top bar can't hold every control, so the secondary
   // ones (marked data-overflow in the HTML) are physically moved into a "⋯"
@@ -706,6 +727,7 @@
     setupMeasureMenu();
     setupMarkupMenu();
     setupDocumentMenu();
+    setupRailToggle();
     setupMobileOverflow();
     setupFind();
     App.Viewer.init();

@@ -209,6 +209,18 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'rail collapse — tool rail shrinks to icons, persists, expands back',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_RAIL: '1' }, [SAMPLE]), 'rail');
+      check(j.collapsed === true, 'rail did not collapse');
+      check(j.narrow < j.wide, `rail did not narrow (${j.narrow} !< ${j.wide})`);
+      check(j.txtHidden === true, 'button labels still visible when collapsed');
+      check(j.pref === true, 'collapsed state not persisted to prefs');
+      check(j.expanded === true, 'rail did not expand back');
+      check(j.wideAgain === j.wide, `rail width not restored (${j.wideAgain} != ${j.wide})`);
+    }
+  },
+  {
     name: 'measure drag — a placed measurement can be grabbed and moved',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MDRAG: '1' }, [SAMPLE]), 'mdrag');

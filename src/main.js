@@ -351,6 +351,31 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_RAIL: the tool rail collapses to an icon strip, narrows the layout,
+      // persists the choice, and expands back.
+      if (process.env.SMOKE_RAIL) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              const railW=()=>Math.round(document.querySelector('#tool-rail').getBoundingClientRect().width);
+              const toggle=document.querySelector('#rail-toggle');
+              const wide=railW();
+              toggle.click(); await new Promise(r=>setTimeout(r,120));
+              const collapsed=document.body.classList.contains('rail-collapsed');
+              const narrow=railW();
+              const txtHidden=getComputedStyle(document.querySelector('.rail-txt')).display==='none';
+              const pref=App.Prefs.get('railCollapsed',false);
+              toggle.click(); await new Promise(r=>setTimeout(r,120));
+              const expanded=!document.body.classList.contains('rail-collapsed');
+              const wideAgain=railW();
+              return JSON.stringify({collapsed,narrow,wide,txtHidden,pref,expanded,wideAgain});
+            })()`, true);
+            console.log('[rail] ' + r);
+          } catch (e) { console.log('[rail] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {

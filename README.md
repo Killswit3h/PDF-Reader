@@ -136,6 +136,9 @@ at runtime. Handwriting fonts are bundled with the app.
 - **Light & dark themes** — a cohesive design-token system with a **persisted
   theme toggle** (☾ / ☀) in the top bar; defaults to your OS preference and
   applies before first paint (no flash).
+- **Collapsible tool rail** — a chevron at the top of the left rail collapses it
+  to an **icon-only strip** so the page gets more width, while every tool stays
+  one click away (hover for its label). The choice is remembered between launches.
 - **Editing safety & precision** — **unified undo/redo** across signatures,
   measurements *and* markups (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`);
   **arrow-key nudging** of the selected item (hold **Shift** for ×10);
