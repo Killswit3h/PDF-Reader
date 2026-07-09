@@ -189,6 +189,38 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'text markup — highlight/underline/strikeout render + export',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TMARK: '1' }, [SAMPLE]), 'tmark');
+      check(j.ann === 3, `annotations ${j.ann} != 3`);
+      check(j.rects >= 1, 'no highlight rect rendered');
+      check(j.lines >= 1, 'no underline/strikeout line rendered');
+      check(j.err === '', `buildBytes error: ${j.err}`);
+      check(j.bytesLen > 0, 'no PDF bytes produced');
+    }
+  },
+  {
+    name: 'compare — overlay renders a diff canvas; identical docs show no diff',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_COMPARE: '1' }, [SAMPLE]), 'compare');
+      check(j.modalOpen === true, 'compare modal did not open');
+      check(j.canvasW > 0 && j.canvasH > 0, `diff canvas not rendered ${j.canvasW}x${j.canvasH}`);
+      check(j.changed === 0 && j.noDiff === true, `identical docs reported a diff (${j.changed})`);
+    }
+  },
+  {
+    name: 'rail collapse — tool rail shrinks to icons, persists, expands back',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_RAIL: '1' }, [SAMPLE]), 'rail');
+      check(j.collapsed === true, 'rail did not collapse');
+      check(j.narrow < j.wide, `rail did not narrow (${j.narrow} !< ${j.wide})`);
+      check(j.txtHidden === true, 'button labels still visible when collapsed');
+      check(j.pref === true, 'collapsed state not persisted to prefs');
+      check(j.expanded === true, 'rail did not expand back');
+      check(j.wideAgain === j.wide, `rail width not restored (${j.wideAgain} != ${j.wide})`);
+    }
+  },
+  {
     name: 'measure drag — a placed measurement can be grabbed and moved',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MDRAG: '1' }, [SAMPLE]), 'mdrag');

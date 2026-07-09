@@ -70,6 +70,7 @@
 
   <!-- ================= Left tool rail ================= -->
   <aside id="tool-rail" aria-label="Tools">
+    <button id="rail-toggle" class="rail-toggle" title="Collapse toolbar" aria-label="Collapse toolbar" aria-expanded="true"><span class="rail-toggle-ico" aria-hidden="true">«</span></button>
     <div class="rail-label">Stamp</div>
     <div class="rail-group">
       <button id="btn-sign" class="tb-btn rail-btn" disabled title="Place a signature"><span class="rail-ico" aria-hidden="true">✒️</span><span class="rail-txt">Sign</span></button>
@@ -111,6 +112,10 @@
           <button data-mk="callout">💬 Callout</button>
           <button data-mk="highlight">🖍️ Highlight</button>
           <div class="tb-menu-sep"></div>
+          <button data-mk="texthighlight">🖍️ Highlight Text</button>
+          <button data-mk="underline">U̲ Underline Text</button>
+          <button data-mk="strikeout">S̶ Strikeout Text</button>
+          <div class="tb-menu-sep"></div>
           <button data-mk="__list">📋 Markups List</button>
         </div>
       </div>
@@ -127,6 +132,7 @@
           <button data-doc="stamp">#️⃣ Numbering &amp; Stamps…</button>
           <button data-doc="chest">🧰 Tool Chest</button>
           <button data-doc="digisign">🔏 Digital Signature…</button>
+          <button data-doc="compare">🔍 Compare Documents…</button>
         </div>
       </div>
     </div>
@@ -541,6 +547,34 @@
     </div>
   </div>
 
+  <!-- ============ Document compare modal ============ -->
+  <div id="compare-modal" class="modal-backdrop hidden">
+    <div class="modal cmp-modal">
+      <div class="modal-head">
+        <h2>Compare Documents</h2>
+        <button id="cmp-close" class="modal-x" title="Close">✕</button>
+      </div>
+      <div class="cmp-bar">
+        <div id="cmp-names" class="cmp-names"></div>
+        <div class="cmp-legend">
+          <span><i class="cmp-sw cmp-sw-shared"></i>Unchanged</span>
+          <span><i class="cmp-sw cmp-sw-a"></i>Only in A (current)</span>
+          <span><i class="cmp-sw cmp-sw-b"></i>Only in B (chosen)</span>
+        </div>
+      </div>
+      <div id="cmp-view" class="cmp-view"></div>
+      <div class="modal-foot cmp-foot">
+        <div class="cmp-nav">
+          <button id="cmp-prev" class="tb-btn">◀ Prev</button>
+          <span id="cmp-page" class="cmp-page"></span>
+          <button id="cmp-next" class="tb-btn">Next ▶</button>
+        </div>
+        <span id="cmp-changed" class="cmp-changed"></span>
+        <button id="cmp-done" class="tb-btn primary">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
   <script src="../../node_modules/pdfjs-dist/build/pdf.js"></script>
   <script src="../../node_modules/pdfjs-dist/web/pdf_viewer.js"></script>
@@ -569,6 +603,7 @@
   <script src="js/save.js"></script>
   <script src="js/digisign.js"></script>
   <script src="js/tabs.js"></script>
+  <script src="js/compare.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

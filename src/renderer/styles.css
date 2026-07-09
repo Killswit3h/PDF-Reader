@@ -560,6 +560,32 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
 .rail-ico { line-height: 1; }
 .rail-caret { margin-left: auto; color: var(--text-faint); font-size: 11px; }
 
+/* ---- Collapsible rail (desktop) ----
+   A chevron toggle narrows the rail to an icon-only strip; the viewer reclaims
+   the freed width automatically because both key off var(--rail-w). Persisted
+   in prefs. Scoped to desktop (min-width: 821px) so it never fights the mobile
+   bottom-bar layout below. */
+.rail-toggle {
+  align-self: flex-end;
+  width: 26px; height: 26px; margin: -2px -2px 2px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius-1, 6px);
+  color: var(--text-faint); cursor: pointer; font-size: 14px; line-height: 1;
+}
+.rail-toggle:hover { background: var(--bg-input); color: var(--text); }
+@media (min-width: 821px) {
+  body.rail-collapsed { --rail-w: 56px; }
+  body.rail-collapsed #tool-rail { padding-left: var(--sp-1); padding-right: var(--sp-1); }
+  body.rail-collapsed #tool-rail .rail-toggle { align-self: center; margin-right: 0; }
+  body.rail-collapsed #tool-rail .rail-label { display: none; }
+  body.rail-collapsed #tool-rail .rail-txt,
+  body.rail-collapsed #tool-rail .rail-caret { display: none; }
+  body.rail-collapsed #tool-rail .rail-btn {
+    justify-content: center; gap: 0; padding-left: 0; padding-right: 0;
+  }
+  body.rail-collapsed #tool-rail .rail-ico { font-size: 18px; }
+}
+
 /* Mobile-only top-bar overflow ("⋯"): hidden on desktop, where every control
    fits inline. Shown + populated by app.js under a narrow viewport. */
 .g-more { display: none; }
@@ -849,7 +875,7 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
     box-shadow: 0 -2px 10px rgba(0,0,0,0.28);
     z-index: 22;
   }
-  #tool-rail .rail-label, #tool-rail .rail-sep { display: none; }
+  #tool-rail .rail-label, #tool-rail .rail-sep, #tool-rail .rail-toggle { display: none; }
   /* Promote the two rail groups' children to equal-width bottom-bar items. */
   #tool-rail .rail-group { display: contents; }
   #tool-rail .rail-btn, #tool-rail .tb-dropdown { flex: 1 1 0; min-width: 0; }
@@ -1002,3 +1028,27 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
   border: 1px solid var(--border); border-radius: 5px; padding: 4px 6px; font-size: 12px;
 }
 .ds-flatten { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 8px; }
+
+/* ============ Document compare ============ */
+.cmp-modal { width: 980px; max-width: 96vw; height: 90vh; }
+.cmp-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--border);
+}
+.cmp-names { font-size: 12px; color: var(--text-dim); }
+.cmp-legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-dim); }
+.cmp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cmp-sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.cmp-sw-shared { background: rgb(168,168,168); }
+.cmp-sw-a { background: rgb(228,52,52); }
+.cmp-sw-b { background: rgb(44,110,228); }
+.cmp-view {
+  flex: 1; overflow: auto; padding: 16px; text-align: center;
+  background: #333; color: var(--text-dim);
+}
+.cmp-view canvas { max-width: 100%; height: auto; box-shadow: 0 4px 18px rgba(0,0,0,0.5); background: #fff; }
+.cmp-note { color: #ffd479; font-size: 13px; margin: 6px 0; }
+.cmp-foot { justify-content: space-between; align-items: center; }
+.cmp-nav { display: flex; align-items: center; gap: 10px; }
+.cmp-page { font-size: 12px; color: var(--text-dim); min-width: 110px; text-align: center; }
+.cmp-changed { font-size: 12px; color: var(--text-dim); flex: 1; text-align: center; }
