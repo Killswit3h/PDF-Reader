@@ -522,9 +522,14 @@
         <label class="dsig-field">Digital ID (.p12 / .pfx)
           <input id="dsig-p12" type="file" accept=".p12,.pfx,application/x-pkcs12" />
         </label>
+        <div id="dsig-saved" class="dsig-saved hidden">
+          <span>Using saved digital ID: <b id="dsig-saved-name">—</b></span>
+          <button id="dsig-forget" type="button" class="link-btn">Forget</button>
+        </div>
         <label class="dsig-field">Password
           <input id="dsig-pass" type="password" autocomplete="off" placeholder="Password for your digital ID" />
         </label>
+        <label class="dsig-check" title="Stores the digital ID and password on this computer only, so you don't re-enter them each time."><input id="dsig-remember" type="checkbox" checked /> Remember this digital ID on this device</label>
         <label class="dsig-field">Name (shown on the signature)
           <input id="dsig-name" type="text" placeholder="e.g. Jane Doe" />
         </label>

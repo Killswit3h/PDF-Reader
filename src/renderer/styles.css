@@ -1054,6 +1054,14 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 }
 .ds-flatten { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 8px; }
 
+/* Digital-signature saved-ID indicator */
+.dsig-saved { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 12px; color: var(--text-dim); background: var(--panel-2, var(--bg-hover));
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; margin: -4px 0 4px; }
+.dsig-saved.hidden { display: none; }
+.dsig-saved b { color: var(--text); }
+.dsig-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
 /* ============ Document compare ============ */
 .cmp-modal { width: 980px; max-width: 96vw; height: 90vh; }
 .cmp-bar {
