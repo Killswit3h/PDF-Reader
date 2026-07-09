@@ -28,7 +28,7 @@ jobs:
           test -f www/index.html
           test -f www/js/platform-web.js
           test -f www/js/app-config.js
-          test -f www/vendor/pdfjs/build/pdf.worker.js
+          test -f www/vendor/pdfjs/build/pdf.worker.min.js
           test -f www/vendor/pdf-lib/pdf-lib.min.js
           # No stray source-tree paths should survive the rewrite.
           ! grep -rq "\.\./\.\./node_modules" www/index.html
