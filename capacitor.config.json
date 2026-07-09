@@ -1,6 +1,6 @@
 {
   "appId": "com.pdfsigner.app",
-  "appName": "PDF Signer",
+  "appName": "FieldMark",
   "webDir": "www",
   "android": {
     "allowMixedContent": false
