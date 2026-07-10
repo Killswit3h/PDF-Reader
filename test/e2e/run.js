@@ -272,6 +272,28 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'text independence — a second box does not copy the first; each edits its own text',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TEXT2: '1' }, [SAMPLE]), 'text2');
+      check(j.count === 2, `expected 2 text boxes, got ${j.count}`);
+      check(j.edit1 === true && j.edit2 === true, 'a placed text box did not open its own editor');
+      check(j.t1 === 'AAA', `first box text wrong: ${JSON.stringify(j.t1)}`);
+      check(j.t2 === 'BBB', `second box copied/overwrote text: ${JSON.stringify(j.t2)}`);
+      check(j.edit3 === true, 'could not re-open the second box for editing');
+      check(j.r2 === 'CCC', `re-editing the second box failed: ${JSON.stringify(j.r2)}`);
+      check(j.r1 === 'AAA', `editing the second box changed the first: ${JSON.stringify(j.r1)}`);
+    }
+  },
+  {
+    name: 'rotate — the Rotate button turns the view and overlays follow the canvas',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_ROTATE: '1' }, [SAMPLE]), 'rotate');
+      check(j.rerendered === true, `view did not re-render on rotate (${JSON.stringify(j.d0)} -> ${JSON.stringify(j.d1)})`);
+      check(j.rotated === true, 'markup overlay layer did not pick up a rotation transform');
+      check(j.boxErr <= 2, `markup layer drifted off the rotated canvas (${j.boxErr}px)`);
+    }
+  },
+  {
     name: 'forms — typing into a prefilled field persists on save',
     run: () => {
       const j = tagJson(runApp({ SMOKE_FORM: '1' }, [FORM]), 'form');

@@ -404,6 +404,7 @@
     fo.setAttribute('x', b.x * z); fo.setAttribute('y', b.y * z);
     fo.setAttribute('width', Math.max(40, b.w * z)); fo.setAttribute('height', Math.max(20, b.h * z));
     fo.setAttribute('class', 'hit');
+    fo.setAttribute('data-anno-id', an.id);
     const div = document.createElement('div');
     div.className = 'anno-text';
     div.style.color = s.stroke;
@@ -419,7 +420,8 @@
   function startTextEdit(an) {
     K.repositionAll();
     const svg = findSvgForPage(an.page); if (!svg) return;
-    const div = svg.querySelector('foreignObject .anno-text');
+    const fo = svg.querySelector(`foreignObject[data-anno-id="${an.id}"]`);
+    const div = fo && fo.querySelector('.anno-text');
     if (!div) return;
     div.setAttribute('contenteditable', 'true');
     div.focus();

@@ -91,6 +91,7 @@ function buildMenuTemplate(opts) {
     { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', command: 'zoom-out', click: send('zoom-out') },
     { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', command: 'zoom-reset', click: send('zoom-reset') },
     { label: 'Fit Width', accelerator: 'CmdOrCtrl+9', command: 'fit-width', click: send('fit-width') },
+    { label: 'Rotate View', accelerator: 'CmdOrCtrl+R', command: 'rotate', click: send('rotate') },
     { type: 'separator' },
     { label: 'Find…', accelerator: 'CmdOrCtrl+F', command: 'find', click: send('find') },
     { type: 'separator' },

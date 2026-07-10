@@ -442,6 +442,44 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_ROTATE: the Rotate button turns the view 90° (the page re-renders
+      // and the markup overlay layer rotates to stay glued to the canvas). We
+      // don't assert a literal w/h swap — a fit-to-width view refits the rotated
+      // page to the container instead of swapping dims — only that the view
+      // rotated and the overlay still covers the canvas. (Point-level alignment
+      // is proven against PDF.js ground truth in scripts/verify-rotate.js.)
+      if (process.env.SMOKE_ROTATE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page canvas');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const cv=()=>document.querySelector('.page[data-page-number="1"] canvas');
+              const layer=()=>document.querySelector('.page[data-page-number="1"] .markup-layer');
+              const dims=()=>({w:parseFloat(cv().style.width),h:parseFloat(cv().style.height)});
+              const d0=dims();
+              App.Viewer.rotate(90);
+              // Wait until the layer picks up a rotation transform (overlay reflow).
+              let tf='none';
+              for(let i=0;i<80;i++){await new Promise(r=>setTimeout(r,100));
+                tf=getComputedStyle(layer()).transform; if(tf&&tf!=='none')break;}
+              const d1=dims();
+              // A rotation matrix has non-zero off-diagonal terms (b/c); identity
+              // matrix(1,0,0,1,...) and 'none' do not — this proves the counter-rotation ran.
+              const m=/matrix\\(([^)]+)\\)/.exec(tf);
+              const parts=m?m[1].split(',').map(Number):[1,0,0,1,0,0];
+              const rotated=Math.abs(parts[1])>0.5||Math.abs(parts[2])>0.5;
+              const rerendered=Math.abs(d1.h-d0.h)>1||Math.abs(d1.w-d0.w)>1;
+              const lr=layer().getBoundingClientRect(), cr=cv().getBoundingClientRect();
+              const boxErr=Math.max(Math.abs(lr.left-cr.left),Math.abs(lr.top-cr.top),Math.abs(lr.width-cr.width),Math.abs(lr.height-cr.height));
+              return JSON.stringify({d0,d1,rotated,rerendered,boxErr:+boxErr.toFixed(2)});
+            })()`, true);
+            console.log('[rotate] ' + r);
+          } catch (e) { console.log('[rotate] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_TEXT1: the Text tool is one-shot — placing a box disarms the tool
       // (so the box is immediately movable) and a second click adds no new box.
       if (process.env.SMOKE_TEXT1) {
@@ -465,6 +503,46 @@ function createWindow() {
             })()`, true);
             console.log('[text1] ' + r);
           } catch (e) { console.log('[text1] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_TEXT2: multiple text boxes stay independent — placing a second box
+      // must not copy the first box's text, and each box must edit its own div
+      // (guards the per-annotation lookup in startTextEdit).
+      if (process.env.SMOKE_TEXT2) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const layer=document.querySelector('.page .markup-layer');
+              const rc=layer.getBoundingClientRect();
+              const typeInto=(txt)=>{
+                const div=document.querySelector('.markup-svg .anno-text[contenteditable="true"]');
+                if(!div) return false;
+                div.textContent=txt; div.dispatchEvent(new Event('blur'));
+                return true;
+              };
+              // Box 1 — placing opens its editor; type AAA.
+              App.Markup.startTool('text');
+              App.Markup.handleClick(1,layer,{clientX:rc.left+120,clientY:rc.top+120,shiftKey:false});
+              const edit1=typeInto('AAA');
+              // Box 2 — placing opens ITS editor; type BBB.
+              App.Markup.startTool('text');
+              App.Markup.handleClick(1,layer,{clientX:rc.left+320,clientY:rc.top+320,shiftKey:false});
+              const edit2=typeInto('BBB');
+              const anns=App.state.annotations.filter(a=>a.type==='text');
+              const t1=anns[0]&&anns[0].text, t2=anns[1]&&anns[1].text;
+              // Re-edit box 2 through its own dblclick handler; type CCC.
+              const fo2=document.querySelector('.markup-svg foreignObject[data-anno-id="'+anns[1].id+'"]');
+              if(fo2) fo2.dispatchEvent(new Event('dblclick',{bubbles:true}));
+              const edit3=typeInto('CCC');
+              const r1=anns[0]&&anns[0].text, r2=anns[1]&&anns[1].text;
+              return JSON.stringify({count:anns.length,edit1,edit2,edit3,t1,t2,r1,r2});
+            })()`, true);
+            console.log('[text2] ' + r);
+          } catch (e) { console.log('[text2] error', e && e.message); }
           app.quit();
         }, 1200);
         return;

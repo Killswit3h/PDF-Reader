@@ -195,6 +195,8 @@
   // ---- Rebuild pageEls from the currently-rendered pages, then draw overlays ----
   function syncPageEls() {
     const viewerEl = App.$('#viewer');
+    // View rotation applies to every page uniformly (PDF.js pagesRotation).
+    const rot = pdfViewer ? (((pdfViewer.pagesRotation || 0) % 360) + 360) % 360 : 0;
     App.state.pageEls = [];
     viewerEl.querySelectorAll('.page').forEach((div) => {
       const n = parseInt(div.dataset.pageNumber, 10);
@@ -207,8 +209,22 @@
         layer.className = 'markup-layer';
         div.appendChild(layer);
       }
-      layer.style.width = canvas.style.width || div.clientWidth + 'px';
-      layer.style.height = canvas.style.height || div.clientHeight + 'px';
+      // Overlays are drawn in the page's UNROTATED scale-1 viewport space
+      // (see the coordinate note at the top of this file). PDF.js re-renders
+      // the canvas at `rot`, swapping its on-screen width/height for 90°/270°.
+      // Rather than reproject every overlay point, we keep them in unrotated
+      // space and rigid-rotate the whole layer to sit on the rotated canvas —
+      // exact, because a page rotation is a rigid rotation of the page box.
+      const cw = parseFloat(canvas.style.width) || div.clientWidth;
+      const ch = parseFloat(canvas.style.height) || div.clientHeight;
+      let w = cw, h = ch, tf = '';
+      if (rot === 90) { w = ch; h = cw; tf = `translate(${h}px,0) rotate(90deg)`; }
+      else if (rot === 180) { w = cw; h = ch; tf = `translate(${w}px,${h}px) rotate(180deg)`; }
+      else if (rot === 270) { w = ch; h = cw; tf = `translate(0,${w}px) rotate(270deg)`; }
+      layer.style.width = w + 'px';
+      layer.style.height = h + 'px';
+      layer.style.transformOrigin = '0 0';
+      layer.style.transform = tf;
       App.state.pageEls[n - 1] = { holder: layer, overlay: layer, pageDiv: div };
     });
   }
@@ -392,6 +408,13 @@
   Viewer.zoomIn = () => pdfViewer && (pdfViewer.currentScale = App.clamp(pdfViewer.currentScale + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
   Viewer.zoomOut = () => pdfViewer && (pdfViewer.currentScale = App.clamp(pdfViewer.currentScale - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
   Viewer.fitWidth = () => { if (pdfViewer) pdfViewer.currentScaleValue = 'page-width'; };
+  // Rotate the whole view by `delta` degrees (default 90°, clockwise). PDF.js
+  // reflows the pages; the markup overlay reprojects through the viewport, so
+  // placements/measurements stay pinned to the page.
+  Viewer.rotate = (delta = 90) => {
+    if (!pdfViewer) return;
+    pdfViewer.pagesRotation = (((pdfViewer.pagesRotation || 0) + delta) % 360 + 360) % 360;
+  };
   // Reset to 100% (actual size) — bound to the "0" shortcut.
   Viewer.resetZoom = () => { if (pdfViewer) pdfViewer.currentScale = 1.0; };
 
@@ -520,7 +543,7 @@
   Viewer._updateControls = function (enabled) {
     ['#btn-select', '#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
      '#btn-document',
-     '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next',
+     '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-rotate', '#btn-prev', '#btn-next',
      '#btn-save', '#btn-save-as', '#page-input']
       .forEach((s) => { const el = App.$(s); if (el) el.disabled = !enabled; });
     // Select is the resting/default tool: highlight it whenever a document is

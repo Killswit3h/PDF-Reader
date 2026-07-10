@@ -38,6 +38,8 @@ jobs:
           npm i --no-save playwright
           npx playwright install --with-deps chromium
           node scripts/verify-web.js
+      - name: Verify overlays stay pinned through view rotation
+        run: node scripts/verify-rotate.js
 
   apk:
     name: Build debug APK
