@@ -53,6 +53,20 @@
     linkService = new pdfjsViewer.PDFLinkService({ eventBus });
     findController = new pdfjsViewer.PDFFindController({ eventBus, linkService });
 
+    // Per-page canvas budget. PDF.js rasterizes each page to a single canvas and,
+    // once a page's pixel area (viewportW*viewportH * devicePixelRatio^2) exceeds
+    // this cap, clamps the render scale and upscales the smaller bitmap to fit —
+    // which is the blur seen when zooming into dense vector sheets (large
+    // FDOT/engineering plans). The old value was PDF.js's 2^24 (~16.7M px)
+    // default, which hits that clamp at only modest zoom on D-size sheets. Give a
+    // much larger budget so zoomed-in linework stays crisp, scaled by dpr^2 so
+    // high-DPI/retina screens (which need dpr^2 more pixels for equal sharpness)
+    // get their share, and ceiling it at 2^28 — Chromium's practical single-
+    // canvas limit — to keep memory bounded. This is a ceiling on the zoomed-in
+    // case, not a constant allocation: normal views render far below it.
+    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
+    const maxCanvasPixels = Math.min(268435456, Math.round(67108864 * dpr * dpr));
+
     pdfViewer = new pdfjsViewer.PDFViewer({
       container,
       viewer: viewerEl,
@@ -71,7 +85,7 @@
       annotationEditorMode: (pdfjsLib.AnnotationEditorType && pdfjsLib.AnnotationEditorType.DISABLE) != null
         ? pdfjsLib.AnnotationEditorType.DISABLE : -1,
       removePageBorders: true,
-      maxCanvasPixels: 16777216 // cap per-page canvas to bound memory on big pages
+      maxCanvasPixels // dpr-aware cap (see above) — crisp zoom on large plans
     });
     linkService.setViewer(pdfViewer);
     Viewer._pdfViewer = pdfViewer;

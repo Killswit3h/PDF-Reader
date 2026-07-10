@@ -241,6 +241,17 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'sharp zoom — page past the old 16.7M cap renders crisp, not downscaled',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_SHARP: '1' }, [SAMPLE]), 'sharp');
+      check(j.cssArea > j.oldCap, `zoom did not exceed old cap (${j.cssArea} <= ${j.oldCap})`);
+      check(j.canvasPx > j.oldCap, `canvas still clamped at old cap (${j.canvasPx})`);
+      // Crisp => rendered pixels per CSS px ≈ dpr. The old cap would clamp this
+      // below dpr (here ~0.77) and the browser would upscale it → blur.
+      check(j.sharpness >= j.dpr - 0.05, `page downscaled/blurry: sharpness ${j.sharpness} < dpr ${j.dpr}`);
+    }
+  },
+  {
     name: 'round-trip — saved marks reopen as editable objects (not baked in)',
     run: () => {
       const j = tagJson(runApp({ SMOKE_RT: '1' }, [SAMPLE]), 'rt');
