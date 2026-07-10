@@ -342,6 +342,15 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'tab reorder — dragging a tab reorders the sessions and the tab DOM',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TABREORDER: BIG }, [SAMPLE]), 'tabreorder');
+      check(j.before.join(',') === 'sample.pdf,big.pdf', `initial order ${JSON.stringify(j.before)}`);
+      check(j.after.join(',') === 'big.pdf,sample.pdf', `reordered wrong ${JSON.stringify(j.after)}`);
+      check(j.activeStayed === 'big.pdf', `reorder changed the active doc (${j.activeStayed})`);
+    }
+  },
+  {
     name: 'reopen — file opens after the window was closed (macOS lifecycle)',
     run: () => {
       const j = tagJson(runApp({ SMOKE_REOPEN: BIG }, [SAMPLE]), 'reopen');

@@ -313,6 +313,32 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TABREORDER: open a second file (tab), then reorder the tabs and
+      // verify both the sessions order and the rendered tab DOM order follow.
+      if (process.env.SMOKE_TABREORDER) {
+        setTimeout(async () => {
+          try {
+            await mainWindow.webContents.executeJavaScript(
+              `(async()=>{for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));})()`, true);
+            mainWindow.webContents.send('open-file-path', process.env.SMOKE_TABREORDER);
+            await mainWindow.webContents.executeJavaScript(
+              `(async()=>{for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,100));if(App.state.fileName==='big.pdf'&&App.state.numPages)break;}})()`, true);
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              const names=()=>Array.from(document.querySelectorAll('#tab-bar .tab .tab-label')).map(n=>n.textContent.replace(/^• /,''));
+              const before=names();               // [sample.pdf, big.pdf]
+              // Drag tab id 2 (big.pdf) to sit before tab id 1 (sample.pdf).
+              App.Tabs.reorder(2, 1, true);
+              await new Promise(r=>setTimeout(r,100));
+              const after=names();                 // expect [big.pdf, sample.pdf]
+              const activeStayed=App.state.fileName; // reordering must not switch docs
+              return JSON.stringify({ before, after, activeStayed });
+            })()`, true);
+            console.log('[tabreorder] ' + r);
+          } catch (e) { console.log('[tabreorder] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_TMARK: text markups (highlight/underline/strikeout) render + export.
       if (process.env.SMOKE_TMARK) {
         setTimeout(async () => {
@@ -1221,6 +1247,20 @@ ipcMain.handle('dialog:openPdf', async () => {
   });
   if (canceled || !filePaths.length) return null;
   return readPdf(filePaths[0]);
+});
+
+// Native open dialog with multi-select. Returns an array of readPdf results
+// (in the order the dialog reports them) or null on cancel. Reads run in
+// parallel; each entry carries its own { ok, error } so one bad file doesn't
+// sink the rest.
+ipcMain.handle('dialog:openPdfMulti', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    title: 'Open PDF',
+    filters: [{ name: 'PDF Documents', extensions: ['pdf'] }],
+    properties: ['openFile', 'multiSelections']
+  });
+  if (canceled || !filePaths.length) return null;
+  return Promise.all(filePaths.map((p) => readPdf(p)));
 });
 
 // The renderer has finished booting and is now listening for 'open-file-path'.

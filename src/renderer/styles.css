@@ -122,6 +122,11 @@ body.has-tabs #viewerContainer { top: var(--tab-h, 34px); }
   border-radius: 7px 7px 0 0; cursor: pointer; font-size: var(--fs-sm); user-select: none;
 }
 .tab.active { background: var(--bg-canvas); color: var(--text); }
+/* Drag-to-reorder: dim the tab being dragged; show an insertion bar on the
+   edge of the tab the cursor is over (left half → before, right half → after). */
+.tab.dragging { opacity: 0.4; }
+.tab.drop-before { box-shadow: inset 2px 0 0 0 var(--accent, #2f6fed); }
+.tab.drop-after { box-shadow: inset -2px 0 0 0 var(--accent, #2f6fed); }
 .tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-close {
   flex: none; border: none; background: transparent; color: var(--text-faint);

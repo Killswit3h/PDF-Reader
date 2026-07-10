@@ -131,6 +131,42 @@
     });
   }
 
+  // Multi-select variant: open the picker with `multiple` and read every chosen
+  // PDF. Resolves to an array of { ok, path, name, data } (dialog order) or null
+  // if the user cancels — mirroring the Electron dialog:openPdfMulti contract.
+  function pickPdfMulti() {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/pdf,.pdf';
+      input.multiple = true;
+      input.style.display = 'none';
+      let settled = false;
+      const finish = (v) => { if (!settled) { settled = true; input.remove(); resolve(v); } };
+      const readOne = (file) => new Promise((res) => {
+        const reader = new FileReader();
+        reader.onload = () => res({ ok: true, path: null, name: file.name, data: reader.result });
+        reader.onerror = () => res({ ok: false, error: (reader.error && reader.error.message) || 'read failed', name: file.name });
+        reader.readAsArrayBuffer(file);
+      });
+
+      input.addEventListener('change', async () => {
+        const files = input.files ? Array.from(input.files) : [];
+        if (!files.length) return finish(null);
+        finish(await Promise.all(files.map(readOne)));
+      });
+
+      // Detect cancel: the picker returns focus to the window with no file.
+      window.addEventListener('focus', function onFocus() {
+        window.removeEventListener('focus', onFocus);
+        setTimeout(() => { if (!input.files || !input.files.length) finish(null); }, 400);
+      }, { once: true });
+
+      document.body.appendChild(input);
+      input.click();
+    });
+  }
+
   // ---- the api surface (mirrors src/preload.js) --------------------------
 
   const version = window.APP_VERSION || '0.0.0';
@@ -157,6 +193,8 @@
     },
 
     openPdfDialog: () => pickPdf(),
+
+    openPdfDialogMulti: () => pickPdfMulti(),
 
     // A native "open with" intent may hand us a file:// or content:// URI.
     readPdf: async (filePath) => {

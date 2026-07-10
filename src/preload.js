@@ -19,6 +19,12 @@ contextBridge.exposeInMainWorld('api', {
   // Native "Open PDF" dialog. Resolves to { ok, path, name, data } or null.
   openPdfDialog: () => ipcRenderer.invoke('dialog:openPdf'),
 
+  // Native "Open PDF" dialog with multi-select. Resolves to an array of
+  // { ok, path, name, data } (one per chosen file, in the dialog's order) or
+  // null if cancelled. Single-file openPdfDialog is kept for callers (e.g. the
+  // organizer's "Merge…") that only ever want one file.
+  openPdfDialogMulti: () => ipcRenderer.invoke('dialog:openPdfMulti'),
+
   // Read a PDF by absolute path (drag-drop or "Open with").
   readPdf: (filePath) => ipcRenderer.invoke('file:readPdf', filePath),
 

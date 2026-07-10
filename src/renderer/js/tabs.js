@@ -147,6 +147,22 @@
   }
   T.requestCloseActive = () => { if (activeId != null) requestClose(activeId); };
 
+  // Move the dragged tab so it sits before/after the target tab, then re-render.
+  // Order in `sessions` IS the tab order, so reordering is just an array splice.
+  T.reorder = function (fromId, targetId, placeBefore) {
+    if (fromId === targetId) return;
+    const from = sessions.findIndex((s) => s.id === fromId);
+    if (from === -1) return;
+    const [moved] = sessions.splice(from, 1);
+    let to = sessions.findIndex((s) => s.id === targetId);
+    if (to === -1) { sessions.splice(from, 0, moved); return; } // target gone; undo
+    if (!placeBefore) to += 1;
+    sessions.splice(to, 0, moved);
+    renderBar();
+  };
+
+  let dragId = null;
+
   // ---- Tab bar UI ----
   T.renderBar = renderBar;
   function renderBar() {
@@ -167,6 +183,40 @@
         tab.className = 'tab' + (isActive ? ' active' : '');
         tab.title = name;
         tab.addEventListener('click', () => T.switchTo(s.id));
+
+        // Drag to reorder. Order in `sessions` drives the tab order, so a drop
+        // just splices the dragged tab before/after the tab under the cursor
+        // (left half → before, right half → after).
+        tab.draggable = true;
+        tab.addEventListener('dragstart', (e) => {
+          dragId = s.id;
+          tab.classList.add('dragging');
+          if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            try { e.dataTransfer.setData('text/plain', String(s.id)); } catch (_) { /* IE/Safari quirk */ }
+          }
+        });
+        tab.addEventListener('dragend', () => {
+          dragId = null;
+          bar.querySelectorAll('.tab').forEach((t) => t.classList.remove('dragging', 'drop-before', 'drop-after'));
+        });
+        tab.addEventListener('dragover', (e) => {
+          if (dragId == null || dragId === s.id) return;
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          const r = tab.getBoundingClientRect();
+          const before = e.clientX < r.left + r.width / 2;
+          tab.classList.toggle('drop-before', before);
+          tab.classList.toggle('drop-after', !before);
+        });
+        tab.addEventListener('dragleave', () => tab.classList.remove('drop-before', 'drop-after'));
+        tab.addEventListener('drop', (e) => {
+          if (dragId == null || dragId === s.id) return;
+          e.preventDefault(); e.stopPropagation();
+          const r = tab.getBoundingClientRect();
+          const before = e.clientX < r.left + r.width / 2;
+          T.reorder(dragId, s.id, before);
+        });
         const label = document.createElement('span');
         label.className = 'tab-label';
         label.textContent = (dirty ? '• ' : '') + name;
