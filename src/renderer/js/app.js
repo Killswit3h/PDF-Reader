@@ -187,11 +187,23 @@
   App.buildPrintHtml = buildPrintHtml; // exposed for the print e2e/harness
 
   // ---------- Open a PDF ----------
+  // Multi-select: each chosen PDF opens as its own tab, in the order the dialog
+  // reports them (drag the tabs to rearrange afterwards). Falls back to the
+  // single-file dialog when the platform doesn't expose the multi variant.
   async function openViaDialog() {
-    const res = await window.api.openPdfDialog();
+    const res = window.api.openPdfDialogMulti
+      ? await window.api.openPdfDialogMulti()
+      : await window.api.openPdfDialog();
     if (!res) return;
-    if (!res.ok) { App.toast('Could not read file: ' + res.error, 'error'); return; }
-    App.Viewer.load(res.data, res.name, res.path);
+    const list = Array.isArray(res) ? res : [res];
+    let failed = 0;
+    // Sequential: App.Viewer.load snapshots/activates App.state per document, so
+    // awaiting each keeps the tab order and per-tab state consistent.
+    for (const r of list) {
+      if (r && r.ok) await App.Viewer.load(r.data, r.name, r.path);
+      else failed++;
+    }
+    if (failed) App.toast(`Could not read ${failed} file${failed > 1 ? 's' : ''}.`, 'error');
   }
 
   async function openFromPath(filePath) {
