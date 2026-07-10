@@ -534,9 +534,17 @@ function createWindow() {
               const edit2=typeInto('BBB');
               const anns=App.state.annotations.filter(a=>a.type==='text');
               const t1=anns[0]&&anns[0].text, t2=anns[1]&&anns[1].text;
-              // Re-edit box 2 through its own dblclick handler; type CCC.
-              const fo2=document.querySelector('.markup-svg foreignObject[data-anno-id="'+anns[1].id+'"]');
-              if(fo2) fo2.dispatchEvent(new Event('dblclick',{bubbles:true}));
+              // Re-edit box 2 through a REAL pointer-driven double-click (two
+              // quick pointerdowns). This is what a user does and what the
+              // native dblclick event failed to deliver, because selecting on
+              // the first click rebuilds the SVG and swaps out the element.
+              const sel='.markup-svg foreignObject[data-anno-id="'+anns[1].id+'"]';
+              const down=(el)=>el.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:0,clientY:0}));
+              let fo2=document.querySelector(sel);
+              if(fo2) down(fo2);
+              window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+              fo2=document.querySelector(sel); // re-query: the first click rebuilt the SVG
+              if(fo2) down(fo2);
               const edit3=typeInto('CCC');
               const r1=anns[0]&&anns[0].text, r2=anns[1]&&anns[1].text;
               return JSON.stringify({count:anns.length,edit1,edit2,edit3,t1,t2,r1,r2});
