@@ -518,11 +518,15 @@
 
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {
-    ['#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
+    ['#btn-select', '#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
      '#btn-document',
      '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next',
      '#btn-save', '#btn-save-as', '#page-input']
       .forEach((s) => { const el = App.$(s); if (el) el.disabled = !enabled; });
+    // Select is the resting/default tool: highlight it whenever a document is
+    // open and no drawing tool is armed. setMode() keeps it in sync afterwards.
+    const sel = App.$('#btn-select');
+    if (sel) sel.classList.toggle('armed', !!enabled && !App.state.mode);
   };
 
   App.Viewer = Viewer;
