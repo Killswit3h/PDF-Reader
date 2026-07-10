@@ -412,9 +412,32 @@
     div.style.border = `1px solid ${s.stroke}`;
     div.textContent = an.text || '';
     fo.appendChild(div);
-    fo.addEventListener('pointerdown', (e) => startDrag(an, e));
-    fo.addEventListener('dblclick', (e) => { e.stopPropagation(); startTextEdit(an); });
+    fo.addEventListener('pointerdown', (e) => onTextPointerDown(an, div, e));
     svg.appendChild(fo);
+  }
+
+  // Double-click-to-edit is detected manually rather than via the native
+  // `dblclick` event: selecting a shape rebuilds the whole SVG (K.select ->
+  // K.repositionAll), so the first click of a double-click destroys and
+  // replaces this foreignObject. The browser then sees the second click on a
+  // different DOM node and never fires `dblclick`. Tracking two quick
+  // pointerdowns on the same annotation id (which survives the rebuild) is
+  // reliable across that DOM swap.
+  let _lastTextClick = { id: null, t: 0 };
+  const DBLCLICK_MS = 350;
+  function onTextPointerDown(an, div, e) {
+    // While the box is being edited, let the browser handle clicks so the
+    // caret can be placed and text selected inside the contenteditable div.
+    if (div.getAttribute('contenteditable') === 'true') { e.stopPropagation(); return; }
+    const now = Date.now();
+    if (_lastTextClick.id === an.id && (now - _lastTextClick.t) < DBLCLICK_MS) {
+      _lastTextClick = { id: null, t: 0 };
+      e.preventDefault(); e.stopPropagation();
+      startTextEdit(an);
+      return;
+    }
+    _lastTextClick = { id: an.id, t: now };
+    startDrag(an, e);
   }
 
   function startTextEdit(an) {
