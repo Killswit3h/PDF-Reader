@@ -1,0 +1,105 @@
+name: Bug report
+description: Report something that's broken, crashes, or looks wrong
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping test PDF Signer! Please fill in as much as you can —
+        clear steps to reproduce and your OS are the most helpful.
+
+        ⚠️ This app is fully offline and your files never leave your machine, so
+        I can't see your document. If a specific PDF triggers the bug and you can
+        share it (or a redacted page), attach it below — it makes fixing far easier.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, and what went wrong?
+      placeholder: e.g. "I zoomed into a large plan sheet and the linework got blurry."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can I make it happen? Number the steps if you can.
+      placeholder: |
+        1. Open a PDF
+        2. Click ...
+        3. Zoom in to ...
+        4. See the problem
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+      placeholder: e.g. "The text should stay sharp when zoomed in."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      description: Where did this happen?
+      options:
+        - Windows
+        - macOS
+        - Android
+        - More than one (say which in the details)
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: e.g. Windows 11, macOS 14 Sonoma, Android 14
+      placeholder: Windows 11
+    validations:
+      required: false
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Shown in the app's About / update dialog (e.g. 1.15.3).
+      placeholder: 1.15.3
+    validations:
+      required: false
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the app?
+      description: Roughly where the problem is.
+      options:
+        - Opening / viewing PDFs
+        - Zoom / rendering quality
+        - Signing / initials / dates / stamps
+        - Form fill
+        - Markup (text boxes, callouts, highlights, shapes, ink)
+        - Measure (distances / areas / scale)
+        - Organize pages (reorder / rotate / delete / merge)
+        - Tabs (multiple open PDFs)
+        - Saving / exporting
+        - Printing
+        - Something else
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, sample file, or anything else
+      description: |
+        Drag in a screenshot or short screen recording, and attach the PDF that
+        triggers it if you can share it. Any error messages help too.
+    validations:
+      required: false
