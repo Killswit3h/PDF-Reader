@@ -442,8 +442,12 @@ function createWindow() {
         }, 1200);
         return;
       }
-      // SMOKE_ROTATE: the Rotate button turns the view 90° (page canvas w/h swap)
-      // and the markup overlay layer still covers the rotated canvas exactly.
+      // SMOKE_ROTATE: the Rotate button turns the view 90° (the page re-renders
+      // and the markup overlay layer rotates to stay glued to the canvas). We
+      // don't assert a literal w/h swap — a fit-to-width view refits the rotated
+      // page to the container instead of swapping dims — only that the view
+      // rotated and the overlay still covers the canvas. (Point-level alignment
+      // is proven against PDF.js ground truth in scripts/verify-rotate.js.)
       if (process.env.SMOKE_ROTATE) {
         setTimeout(async () => {
           try {
@@ -451,17 +455,24 @@ function createWindow() {
               for(let i=0;i<80&&!document.querySelector('.page canvas');i++)await new Promise(r=>setTimeout(r,100));
               await new Promise(r=>setTimeout(r,500));
               const cv=()=>document.querySelector('.page[data-page-number="1"] canvas');
-              const w0=parseFloat(cv().style.width), h0=parseFloat(cv().style.height);
+              const layer=()=>document.querySelector('.page[data-page-number="1"] .markup-layer');
+              const dims=()=>({w:parseFloat(cv().style.width),h:parseFloat(cv().style.height)});
+              const d0=dims();
               App.Viewer.rotate(90);
+              // Wait until the layer picks up a rotation transform (overlay reflow).
+              let tf='none';
               for(let i=0;i<80;i++){await new Promise(r=>setTimeout(r,100));
-                const c=cv(); if(c&&Math.abs(parseFloat(c.style.width)-w0)>1)break;}
-              const w1=parseFloat(cv().style.width), h1=parseFloat(cv().style.height);
-              const swapped=Math.abs(w1-h0)<2 && Math.abs(h1-w0)<2;
-              const div=document.querySelector('.page[data-page-number="1"]');
-              const lr=div.querySelector('.markup-layer').getBoundingClientRect();
-              const cr=cv().getBoundingClientRect();
+                tf=getComputedStyle(layer()).transform; if(tf&&tf!=='none')break;}
+              const d1=dims();
+              // A rotation matrix has non-zero off-diagonal terms (b/c); identity
+              // matrix(1,0,0,1,...) and 'none' do not — this proves the counter-rotation ran.
+              const m=/matrix\\(([^)]+)\\)/.exec(tf);
+              const parts=m?m[1].split(',').map(Number):[1,0,0,1,0,0];
+              const rotated=Math.abs(parts[1])>0.5||Math.abs(parts[2])>0.5;
+              const rerendered=Math.abs(d1.h-d0.h)>1||Math.abs(d1.w-d0.w)>1;
+              const lr=layer().getBoundingClientRect(), cr=cv().getBoundingClientRect();
               const boxErr=Math.max(Math.abs(lr.left-cr.left),Math.abs(lr.top-cr.top),Math.abs(lr.width-cr.width),Math.abs(lr.height-cr.height));
-              return JSON.stringify({w0,h0,w1,h1,swapped,boxErr:+boxErr.toFixed(2)});
+              return JSON.stringify({d0,d1,rotated,rerendered,boxErr:+boxErr.toFixed(2)});
             })()`, true);
             console.log('[rotate] ' + r);
           } catch (e) { console.log('[rotate] error', e && e.message); }
