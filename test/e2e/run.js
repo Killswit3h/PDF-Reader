@@ -162,6 +162,20 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'select — Select tool disarms drawing tools and enables item selection',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_SELECT: '1' }, [SAMPLE]), 'select');
+      check(j.exists === true, 'no #btn-select button in the tool rail');
+      check(j.enabled === true, 'Select button not enabled with a document open');
+      check(j.toolActiveWhileDrawing === true, 'arming a drawing tool did not set tool-active');
+      check(j.selectArmedWhileDrawing === false, 'Select should not be armed while a drawing tool is active');
+      check(j.modeAfterSelect === null, `clicking Select did not disarm the tool (mode ${j.modeAfterSelect})`);
+      check(j.toolActiveAfterSelect === false, 'Select left tool-active on (items would stay un-grabbable)');
+      check(j.selectArmedAfterSelect === true, 'Select not highlighted after activating it');
+      check(j.annoSelectedId === j.addedId, `selecting an item failed (${j.annoSelectedId} != ${j.addedId})`);
+    }
+  },
+  {
     name: 'overlay — placement + measurement render into the layer',
     run: () => {
       const j = tagJson(runApp({ SMOKE_OVERLAY: '1' }, [SAMPLE]), 'overlay');

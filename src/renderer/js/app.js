@@ -22,7 +22,11 @@
     if (prev === 'measure' && mode !== 'measure' && App.Measure) App.Measure.stop();
     if (prev === 'markup' && mode !== 'markup' && App.Markup) App.Markup.stop();
 
-    // toolbar armed highlight
+    // toolbar armed highlight. Select is the resting tool — it lights up
+    // whenever no drawing/placement tool is armed, so clicking anything on the
+    // page selects it (to move, resize, delete, or nudge).
+    const selBtn = App.$('#btn-select');
+    if (selBtn) selBtn.classList.toggle('armed', !mode);
     App.$('#btn-sign').classList.toggle('armed', mode === 'signature');
     App.$('#btn-initials').classList.toggle('armed', mode === 'initials');
     App.$('#btn-date').classList.toggle('armed', mode === 'date');
@@ -792,6 +796,15 @@
     App.openViaDialog = openViaDialog;   // used by the tab bar "+" and native menu
     App.$('#btn-open').addEventListener('click', openViaDialog);
     App.$('#btn-open-empty').addEventListener('click', openViaDialog);
+    // Select tool: disarm any drawing/placement tool so clicking the page
+    // selects existing items instead of drawing new ones. Selection, drag,
+    // resize, Delete and arrow-nudge already work in this state across markups,
+    // measurements and placements — this button just makes it discoverable.
+    App.$('#btn-select').addEventListener('click', () => {
+      if (!App.state.pdfDoc) return;
+      App.setMode(null);
+      App.toast('Select — click any markup, measurement, or placement to move, resize, or delete it.', 'info', 3500);
+    });
     App.$('#btn-sign').addEventListener('click', () => startImagePlacement('signature'));
     App.$('#btn-initials').addEventListener('click', () => startImagePlacement('initials'));
     App.$('#btn-date').addEventListener('click', startDatePlacement);

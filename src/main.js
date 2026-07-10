@@ -672,6 +672,40 @@ function createWindow() {
         }, 1200);
         return;
       }
+      if (process.env.SMOKE_SELECT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 800));
+              const sel = document.querySelector('#btn-select'), A = App.state;
+              const out = { exists: !!sel, enabled: !!(sel && !sel.disabled) };
+              // Add a markup, then arm a drawing tool: existing items become
+              // un-grabbable (tool-active) and Select is not the active tool.
+              A.annoSeq = (A.annoSeq || 0) + 1;
+              out.addedId = A.annoSeq;
+              A.annotations.push({ id: A.annoSeq, page: 1, type: 'line',
+                pts: [{ vx: 60, vy: 60 }, { vx: 200, vy: 60 }],
+                style: { stroke: '#e5484d', fill: 'none', width: 3, opacity: 1 } });
+              App.setMode('markup'); if (App.Markup.arm) App.Markup.arm('rect');
+              out.toolActiveWhileDrawing = document.body.classList.contains('tool-active');
+              out.selectArmedWhileDrawing = sel.classList.contains('armed');
+              // Click Select: it disarms the drawing tool and becomes the active tool.
+              sel.click();
+              out.modeAfterSelect = App.state.mode;
+              out.toolActiveAfterSelect = document.body.classList.contains('tool-active');
+              out.selectArmedAfterSelect = sel.classList.contains('armed');
+              // In this state clicking an item selects it (drag/resize/delete/nudge).
+              App.Markup.select(A.annoSeq);
+              out.annoSelectedId = App.state.annoSelectedId;
+              return JSON.stringify(out);
+            })()`, true);
+            console.log('[select] ' + r);
+          } catch (e) { console.log('[select] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_MARKUP) {
         setTimeout(async () => {
           try {
