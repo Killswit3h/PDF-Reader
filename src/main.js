@@ -358,6 +358,34 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_SHARP: zooming a page past the OLD 2^24 canvas cap must still
+      // render the page canvas at full resolution (pixel buffer ≈ CSS box × dpr)
+      // rather than downscaling it — the fix for blurry zoomed vector plans.
+      if (process.env.SMOKE_SHARP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const OLD_CAP=16777216, pv=App.Viewer._pdfViewer;
+              const vp=pv.getPageView(0).viewport, cur=pv.currentScale;
+              const w1=vp.width/cur, h1=vp.height/cur;         // scale-1 CSS px
+              const scale=Math.sqrt(OLD_CAP*1.7/(w1*h1));      // past the old cap
+              pv.currentScale=scale;
+              for(let i=0;i<120;i++){await new Promise(r=>setTimeout(r,100));
+                const c=document.querySelector('#viewer .page canvas');
+                if(c&&c.width*c.height>OLD_CAP*1.2)break;}
+              const c=document.querySelector('#viewer .page canvas');
+              const cssW=parseFloat(c.style.width), dpr=window.devicePixelRatio||1;
+              return JSON.stringify({ canvasPx:c.width*c.height, cssArea:cssW*parseFloat(c.style.height),
+                sharpness:c.width/cssW, dpr, oldCap:OLD_CAP });
+            })()`, true);
+            console.log('[sharp] ' + r);
+          } catch (e) { console.log('[sharp] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_RAIL: the tool rail collapses to an icon strip, narrows the layout,
       // persists the choice, and expands back.
       if (process.env.SMOKE_RAIL) {
