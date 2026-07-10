@@ -469,6 +469,46 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TEXT2: multiple text boxes stay independent — placing a second box
+      // must not copy the first box's text, and each box must edit its own div
+      // (guards the per-annotation lookup in startTextEdit).
+      if (process.env.SMOKE_TEXT2) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const layer=document.querySelector('.page .markup-layer');
+              const rc=layer.getBoundingClientRect();
+              const typeInto=(txt)=>{
+                const div=document.querySelector('.markup-svg .anno-text[contenteditable="true"]');
+                if(!div) return false;
+                div.textContent=txt; div.dispatchEvent(new Event('blur'));
+                return true;
+              };
+              // Box 1 — placing opens its editor; type AAA.
+              App.Markup.startTool('text');
+              App.Markup.handleClick(1,layer,{clientX:rc.left+120,clientY:rc.top+120,shiftKey:false});
+              const edit1=typeInto('AAA');
+              // Box 2 — placing opens ITS editor; type BBB.
+              App.Markup.startTool('text');
+              App.Markup.handleClick(1,layer,{clientX:rc.left+320,clientY:rc.top+320,shiftKey:false});
+              const edit2=typeInto('BBB');
+              const anns=App.state.annotations.filter(a=>a.type==='text');
+              const t1=anns[0]&&anns[0].text, t2=anns[1]&&anns[1].text;
+              // Re-edit box 2 through its own dblclick handler; type CCC.
+              const fo2=document.querySelector('.markup-svg foreignObject[data-anno-id="'+anns[1].id+'"]');
+              if(fo2) fo2.dispatchEvent(new Event('dblclick',{bubbles:true}));
+              const edit3=typeInto('CCC');
+              const r1=anns[0]&&anns[0].text, r2=anns[1]&&anns[1].text;
+              return JSON.stringify({count:anns.length,edit1,edit2,edit3,t1,t2,r1,r2});
+            })()`, true);
+            console.log('[text2] ' + r);
+          } catch (e) { console.log('[text2] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_WYSIWYG: a text mark placed by clicking flattens to the SAME spot
       // it shows on screen (guards the CSS-units scale fix — see viewer.js).
       if (process.env.SMOKE_WYSIWYG) {
