@@ -285,6 +285,14 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'rotate — the Rotate button turns the view and overlays follow the canvas',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_ROTATE: '1' }, [SAMPLE]), 'rotate');
+      check(j.swapped === true, `rotation did not swap canvas dimensions (${j.w0}x${j.h0} -> ${j.w1}x${j.h1})`);
+      check(j.boxErr <= 2, `markup layer drifted off the rotated canvas (${j.boxErr}px)`);
+    }
+  },
+  {
     name: 'forms — typing into a prefilled field persists on save',
     run: () => {
       const j = tagJson(runApp({ SMOKE_FORM: '1' }, [FORM]), 'form');

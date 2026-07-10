@@ -329,6 +329,7 @@
       if (e.key === '+' || e.key === '=') { App.Viewer.zoomIn(); }
       else if (e.key === '-' || e.key === '_') { App.Viewer.zoomOut(); }
       else if (e.key === '0') { App.Viewer.resetZoom(); }
+      else if (e.key === 'r' || e.key === 'R') { App.Viewer.rotate(90); }
       else if (e.key === 'PageDown' || e.key === 'ArrowRight') { App.Viewer.next(); }
       else if (e.key === 'PageUp' || e.key === 'ArrowLeft') { App.Viewer.prev(); }
     });
@@ -757,6 +758,7 @@
       case 'zoom-out': if (App.state.pdfDoc) App.Viewer.zoomOut(); break;
       case 'zoom-reset': if (App.state.pdfDoc) App.Viewer.resetZoom(); break;
       case 'fit-width': if (App.state.pdfDoc) App.Viewer.fitWidth(); break;
+      case 'rotate': if (App.state.pdfDoc) App.Viewer.rotate(90); break;
       case 'toggle-theme': App.$('#btn-theme').click(); break;
       case 'check-updates': checkForUpdates(true); break;
       case 'shortcuts': App.Shortcuts.open(); break;
@@ -819,6 +821,7 @@
     App.$('#btn-zoom-in').addEventListener('click', () => App.Viewer.zoomIn());
     App.$('#btn-zoom-out').addEventListener('click', () => App.Viewer.zoomOut());
     App.$('#btn-fit-width').addEventListener('click', () => App.Viewer.fitWidth());
+    App.$('#btn-rotate').addEventListener('click', () => App.Viewer.rotate(90));
     App.$('#btn-prev').addEventListener('click', () => App.Viewer.prev());
     App.$('#btn-next').addEventListener('click', () => App.Viewer.next());
     App.$('#page-input').addEventListener('change', (e) =>

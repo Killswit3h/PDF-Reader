@@ -442,6 +442,33 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_ROTATE: the Rotate button turns the view 90° (page canvas w/h swap)
+      // and the markup overlay layer still covers the rotated canvas exactly.
+      if (process.env.SMOKE_ROTATE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page canvas');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const cv=()=>document.querySelector('.page[data-page-number="1"] canvas');
+              const w0=parseFloat(cv().style.width), h0=parseFloat(cv().style.height);
+              App.Viewer.rotate(90);
+              for(let i=0;i<80;i++){await new Promise(r=>setTimeout(r,100));
+                const c=cv(); if(c&&Math.abs(parseFloat(c.style.width)-w0)>1)break;}
+              const w1=parseFloat(cv().style.width), h1=parseFloat(cv().style.height);
+              const swapped=Math.abs(w1-h0)<2 && Math.abs(h1-w0)<2;
+              const div=document.querySelector('.page[data-page-number="1"]');
+              const lr=div.querySelector('.markup-layer').getBoundingClientRect();
+              const cr=cv().getBoundingClientRect();
+              const boxErr=Math.max(Math.abs(lr.left-cr.left),Math.abs(lr.top-cr.top),Math.abs(lr.width-cr.width),Math.abs(lr.height-cr.height));
+              return JSON.stringify({w0,h0,w1,h1,swapped,boxErr:+boxErr.toFixed(2)});
+            })()`, true);
+            console.log('[rotate] ' + r);
+          } catch (e) { console.log('[rotate] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_TEXT1: the Text tool is one-shot — placing a box disarms the tool
       // (so the box is immediately movable) and a second click adds no new box.
       if (process.env.SMOKE_TEXT1) {
