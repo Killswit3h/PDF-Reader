@@ -41,7 +41,7 @@ function buildMenuTemplate(opts) {
 
   if (isMac) {
     template.push({
-      label: o.appName || 'PDF Signer',
+      label: o.appName || 'FieldMark',
       submenu: [
         { role: 'about' },
         { label: 'Check for Updates…', click: send('check-updates') },
@@ -114,7 +114,7 @@ function buildMenuTemplate(opts) {
   const helpSubmenu = [
     { label: 'Keyboard Shortcuts', command: 'shortcuts', click: send('shortcuts') },
     { type: 'separator' },
-    { label: 'PDF Signer on GitHub', command: 'open-github', click: send('open-github') }
+    { label: 'FieldMark on GitHub', command: 'open-github', click: send('open-github') }
   ];
   if (!isMac) {
     helpSubmenu.unshift(

@@ -63,7 +63,7 @@ jobs:
           # best-effort (warn): if a build ever omits the metadata, the release
           # still ships and the app falls back to the manual download flow.
           path: |
-            release/PDF-Signer-Setup.exe
+            release/Field-Mark-Setup.exe
             release/latest.yml
             release/*.blockmap
           if-no-files-found: warn
@@ -150,12 +150,12 @@ jobs:
       - name: Stage APK with a stable name
         run: |
           mkdir -p release-apk
-          cp android/app/build/outputs/apk/debug/app-debug.apk release-apk/PDF-Signer.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release-apk/FieldMark.apk
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: android
-          path: release-apk/PDF-Signer.apk
+          path: release-apk/FieldMark.apk
 
   # ---------------- Publish combined release ----------------
   release:
@@ -179,14 +179,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          name: PDF Signer ${{ steps.tag.outputs.tag }}
+          name: FieldMark ${{ steps.tag.outputs.tag }}
           draft: false
           prerelease: false
           fail_on_unmatched_files: false
           files: |
-            dist-artifacts/windows/PDF-Signer-Setup.exe
+            dist-artifacts/windows/Field-Mark-Setup.exe
             dist-artifacts/windows/latest.yml
             dist-artifacts/windows/*.blockmap
             dist-artifacts/mac/*.dmg
             dist-artifacts/mac/*.zip
-            dist-artifacts/android/PDF-Signer.apk
+            dist-artifacts/android/FieldMark.apk

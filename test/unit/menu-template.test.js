@@ -21,9 +21,14 @@ describe('buildMenuTemplate', () => {
   });
 
   it('adds an app menu + Window menu on macOS', () => {
-    const t = buildMenuTemplate({ isMac: true, appName: 'PDF Signer' });
-    expect(t[0].label).toBe('PDF Signer');
+    const t = buildMenuTemplate({ isMac: true, appName: 'FieldMark' });
+    expect(t[0].label).toBe('FieldMark');
     expect(t.map((m) => m.label)).toContain('Window');
+  });
+
+  it('defaults the macOS app menu label to FieldMark', () => {
+    const t = buildMenuTemplate({ isMac: true });
+    expect(t[0].label).toBe('FieldMark');
   });
 
   it('gives the Edit menu the native clipboard roles (fixes macOS Cmd+C/V)', () => {

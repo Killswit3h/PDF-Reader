@@ -19,15 +19,15 @@ renderer — the official PDF.js viewer (virtualized rendering) and pdf-lib
 
 ## ⬇ Download
 
-### [**Download for Windows (64-bit)**](https://github.com/Killswit3h/PDF-Reader/releases/latest/download/PDF-Signer-Setup.exe)
+### [**Download for Windows (64-bit)**](https://github.com/Killswit3h/PDF-Reader/releases/latest/download/Field-Mark-Setup.exe)
 
-Runs on Windows 10/11. Download, run the installer, and launch **PDF Signer**.
+Runs on Windows 10/11. Download, run the installer, and launch **FieldMark**.
 Windows SmartScreen may warn about an "unknown publisher" (the app is not
 code-signed) — click **More info → Run anyway**.
 
-### [**Download for Android (APK)**](https://github.com/Killswit3h/PDF-Reader/releases/latest/download/PDF-Signer.apk)
+### [**Download for Android (APK)**](https://github.com/Killswit3h/PDF-Reader/releases/latest/download/FieldMark.apk)
 
-Sideload on Android 6+. Download `PDF-Signer.apk`, tap it, and allow
+Sideload on Android 6+. Download `FieldMark.apk`, tap it, and allow
 **"install unknown apps"** for your browser/Files app when prompted (the APK is
 signed with a debug key, not a Play Store release key). Not yet on Google Play.
 The app **checks GitHub for a newer release on launch** (and via the version
@@ -45,11 +45,11 @@ damaged and can't be opened"* (the file is fine; Gatekeeper is blocking the
 *app*). In Terminal:
 
 ```bash
-xattr -cr "/Applications/PDF Signer.app"
-codesign --force --deep --sign - "/Applications/PDF Signer.app"   # only needed on older downloads
+xattr -cr "/Applications/FieldMark.app"
+codesign --force --deep --sign - "/Applications/FieldMark.app"   # only needed on older downloads
 ```
 
-Then right-click a PDF → **Get Info** → **Open with** → **PDF Signer** → **Change
+Then right-click a PDF → **Get Info** → **Open with** → **FieldMark** → **Change
 All…**. (Builds from v1.10.0 on are ad-hoc signed at release time, so the
 `codesign` line is only needed for earlier downloads.)
 
@@ -120,7 +120,7 @@ at runtime. Handwriting fonts are bundled with the app.
   preserved on save; importing them for in-app editing is planned.)
 - **Marks stay editable after saving** — a saved file embeds an editable copy of
   your measurements, markups, and text placements (plus a pristine copy of the base
-  PDF). Reopen it in PDF Signer and every mark comes back as a **live, movable /
+  PDF). Reopen it in FieldMark and every mark comes back as a **live, movable /
   deletable object** — nothing is stuck to the page. Other apps (Adobe/Bluebeam)
   still see the flattened marks as usual; the editable data rides along as an inert
   attachment. (This roughly doubles a marked-up file's size, since it carries both
@@ -298,7 +298,7 @@ npm run verify    # both, in sequence — the pre-push gate
 ## Build the Windows installer (`.exe`)
 
 ```bash
-npm run dist          # x64  -> release/PDF Signer Setup <version>.exe
+npm run dist          # x64  -> release/Field-Mark-Setup.exe
 npm run dist:arm64    # arm64 build (Windows on ARM), optional
 ```
 
@@ -315,17 +315,17 @@ npm run pack          # -> release/win-unpacked/
 Run **on a Mac**:
 
 ```bash
-npm run dist:mac      # universal (Intel + Apple Silicon) -> release/PDF-Signer-<version>-universal.dmg (+ .zip)
+npm run dist:mac      # universal (Intel + Apple Silicon) -> release/FieldMark-<version>-universal.dmg (+ .zip)
 ```
 
 The build is **unsigned** by default, so Gatekeeper will block a double-click the
 first time — **right-click the app → Open → Open**, or run
-`xattr -dr com.apple.quarantine "/Applications/PDF Signer.app"`. To ship a signed +
+`xattr -dr com.apple.quarantine "/Applications/FieldMark.app"`. To ship a signed +
 notarized build, set these before `npm run dist:mac` (Apple Developer account
 required): `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`,
 `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
 
-Both platforms register **PDF Signer** as a handler for `.pdf` (Open With), and
+Both platforms register **FieldMark** as a handler for `.pdf` (Open With), and
 macOS "Open with" is handled via the app's `open-file` event.
 
 ## Build the Android app (`.apk`)
@@ -353,12 +353,12 @@ assemble a debug APK from the command line.
 
 Two ways to get an APK without a local Android toolchain:
 
-- **A published release** — every version tag builds `PDF-Signer.apk` and
+- **A published release** — every version tag builds `FieldMark.apk` and
   attaches it to the GitHub Release (see [Publishing a release](#publishing-a-release-one-time-setup)).
   The **Download for Android** button above points at the latest release's APK.
 - **A CI artifact** — every push and PR also builds a debug APK in CI
   (`.github/workflows/android.yml`) and uploads it as a workflow artifact
-  (`pdf-signer-debug-apk`); download it from the Actions run to sideload.
+  (`fieldmark-debug-apk`); download it from the Actions run to sideload.
 
 The generated `android/` directory and the `www/` bundle are **git-ignored**
 (reproducible from source); commit only `capacitor.config.json` and the build
@@ -405,7 +405,7 @@ How the port works:
 
 You don't need a Windows machine to publish — a GitHub Actions workflow
 (`.github/workflows/release.yml`) builds the Windows installer, the macOS
-`.dmg`/`.zip`, and the **Android `PDF-Signer.apk`** on their respective runners
+`.dmg`/`.zip`, and the **Android `FieldMark.apk`** on their respective runners
 and attaches all of them to a single GitHub Release. The **Download** buttons
 above always point at the latest release's assets.
 
@@ -417,8 +417,8 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The workflow publishes `PDF-Signer-Setup.exe`, the macOS artifacts, and
-`PDF-Signer.apk` as release `v1.0.0`. Within a few minutes the download buttons
+The workflow publishes `Field-Mark-Setup.exe`, the macOS artifacts, and
+`FieldMark.apk` as release `v1.0.0`. Within a few minutes the download buttons
 work for everyone.
 
 > **The Download for Android button 404s until the first release built with the

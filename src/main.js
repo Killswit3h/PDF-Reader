@@ -1472,7 +1472,7 @@ function fetchLatestRelease(owner, repo) {
       hostname: 'api.github.com',
       path: `/repos/${owner}/${repo}/releases/latest`,
       method: 'GET',
-      headers: { 'User-Agent': 'PDF-Signer', Accept: 'application/vnd.github+json' }
+      headers: { 'User-Agent': 'FieldMark', Accept: 'application/vnd.github+json' }
     }, (res) => {
       let data = '';
       res.on('data', (c) => { data += c; });

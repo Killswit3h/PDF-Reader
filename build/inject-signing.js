@@ -21,7 +21,7 @@ const ROOT = path.join(__dirname, '..');
 const appDir = path.resolve(process.argv[2] || path.join(ROOT, 'android', 'app'));
 const gradlePath = path.join(appDir, 'build.gradle');
 const srcKeystore = path.join(ROOT, 'build', 'debug.keystore');
-const MARKER = 'PDF Signer stable debug signing';
+const MARKER = 'FieldMark stable debug signing';
 
 if (!fs.existsSync(gradlePath)) {
   console.error('[inject-signing] not found:', gradlePath);

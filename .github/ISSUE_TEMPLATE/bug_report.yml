@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping test PDF Signer! Please fill in as much as you can —
+        Thanks for helping test FieldMark! Please fill in as much as you can —
         clear steps to reproduce and your OS are the most helpful.
 
         ⚠️ This app is fully offline and your files never leave your machine, so

@@ -148,7 +148,7 @@
       ByteRange: byteRange,
       Contents: placeholder,
       M: P.PDFString.fromDate(signingTime),
-      Prop_Build: { Filter: { Name: 'Adobe.PPKLite' }, App: { Name: o.appName || 'PDF Signer' } }
+      Prop_Build: { Filter: { Name: 'Adobe.PPKLite' }, App: { Name: o.appName || 'FieldMark' } }
     };
     if (o.reason) dict.Reason = P.PDFString.of(o.reason);
     if (o.name) dict.Name = P.PDFString.of(o.name);
