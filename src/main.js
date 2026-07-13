@@ -918,12 +918,22 @@ function createWindow() {
               const straight=App.state.annotations[App.state.annotations.length-1];
               App.Markup.repositionAll();
               const polylines=document.querySelectorAll('#viewer .markup-svg polyline').length;
+              // 4) smoothing: the curve-fit render densifies the raw pen stroke.
+              const inkSmoothPts=App.Markup.smoothStroke(ink).length;
+              const straightSmoothPts=App.Markup.smoothStroke(straight).length; // 2-pt stays 2
+              // 5) single-key tool shortcuts arm tools instantly; V returns to select.
+              const key=(k)=>window.dispatchEvent(new KeyboardEvent('keydown',{key:k,bubbles:true}));
+              key('a'); const kA=App.Markup.tool;
+              key('h'); const kH=App.Markup.tool;
+              key('v'); const kV=App.Markup.tool, kVmode=App.state.mode;
               let bytesLen=0,err='';
               try{const b=await App.Save.buildBytes();bytesLen=b.length;}catch(e){err=e.message;}
               return JSON.stringify({
                 hlType:hl&&hl.type, hlPts:hl&&hl.pts.length,
                 inkType:ink&&ink.type, inkPts:ink&&ink.pts.length,
                 straightMid, straightPts:straight&&straight.pts.length,
+                inkPtsRaw:ink&&ink.pts.length, inkSmoothPts, straightSmoothPts,
+                kA, kH, kV, kVmode,
                 polylines, bytesLen, err
               });
             })()`, true);

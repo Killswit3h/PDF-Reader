@@ -255,6 +255,15 @@
     return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
       t.isContentEditable);
   }
+  // Shottr-style single-key tool switching: bare letter arms a markup tool
+  // instantly (no menu), and the tool stays armed after each draw so you can drop
+  // several in a row. `v` is the resting Select/move tool (disarm everything).
+  // `r` is intentionally absent — it stays bound to Rotate page. Guarded by
+  // inEditable() so these never fire while typing in a field or a text box.
+  const MARKUP_KEYS = {
+    v: null, a: 'arrow', l: 'line', b: 'rect', o: 'ellipse',
+    p: 'ink', h: 'highlight', t: 'text', c: 'callout'
+  };
   function setupKeys() {
     window.addEventListener('keydown', (e) => {
       // Escape closes whichever modal is open (via its cancel/close button, so
@@ -338,6 +347,19 @@
         }
       }
       if (!App.state.pdfDoc) return;
+      // Single-key markup tool switching (bare keys only — modifiers stay
+      // reserved for app/OS commands). A single character key that maps to a tool
+      // arms it and consumes the event.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+        const mk = MARKUP_KEYS[e.key.toLowerCase()];
+        if (mk !== undefined) {
+          e.preventDefault();
+          if (App.Markup.textTool) App.Markup.stopTextMarkup();
+          if (mk === null) { App.setMode(null); App.toast('Select / move tool', 'info', 1500); }
+          else App.Markup.startTool(mk);
+          return;
+        }
+      }
       if (e.key === '+' || e.key === '=') { App.Viewer.zoomIn(); }
       else if (e.key === '-' || e.key === '_') { App.Viewer.zoomOut(); }
       else if (e.key === '0') { App.Viewer.resetZoom(); }
@@ -696,6 +718,16 @@
       { combos: [['Shift', 'Arrows']], label: 'Nudge ×10' },
       { combos: [['Delete']], label: 'Remove selected' },
       { combos: [['Esc']], label: 'Cancel / deselect' }
+    ] },
+    { title: 'Markup tools', rows: [
+      { combos: [['V']], label: 'Select / move' },
+      { combos: [['A']], label: 'Arrow' },
+      { combos: [['L']], label: 'Line' },
+      { combos: [['B']], label: 'Box (rectangle)' },
+      { combos: [['O']], label: 'Oval (ellipse)' },
+      { combos: [['P']], label: 'Pen (freehand)' },
+      { combos: [['H']], label: 'Highlighter' },
+      { combos: [['T'], ['C']], label: 'Text / callout' }
     ] },
     { title: 'View', rows: [
       { combos: [['mod', 'F']], label: 'Find' },

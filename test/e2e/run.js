@@ -134,6 +134,13 @@ const SCENARIOS = [
       check(j.straightMid === 2, `hold-to-straighten left ${j.straightMid} pts, expected 2`);
       check(j.straightPts === 2, `straightened stroke committed ${j.straightPts} pts`);
       check(j.polylines >= 2, `expected freehand polylines, got ${j.polylines}`);
+      // curve-fit smoothing densifies the raw pen stroke, but leaves a 2-pt line alone
+      check(j.inkSmoothPts > j.inkPtsRaw, `smoothing didn't densify: ${j.inkSmoothPts} <= ${j.inkPtsRaw}`);
+      check(j.straightSmoothPts === 2, `straight stroke should stay 2 pts, got ${j.straightSmoothPts}`);
+      // single-key tool shortcuts
+      check(j.kA === 'arrow', `key 'a' armed ${j.kA}, expected arrow`);
+      check(j.kH === 'highlight', `key 'h' armed ${j.kH}, expected highlight`);
+      check(j.kV === null && j.kVmode === null, `key 'v' should disarm to select (tool=${j.kV}, mode=${j.kVmode})`);
       check(j.err === '', `buildBytes error: ${j.err}`);
       check(j.bytesLen > 0, 'no PDF bytes produced');
     }

@@ -86,6 +86,52 @@ describe('Geom.nearestVertex', () => {
   });
 });
 
+describe('Geom.simplify', () => {
+  it('keeps only the endpoints of a straight, evenly-sampled run', () => {
+    const line = [P(0, 0), P(1, 0), P(2, 0), P(3, 0), P(4, 0)];
+    expect(Geom.simplify(line, 0.5)).toEqual([P(0, 0), P(4, 0)]);
+  });
+  it('preserves a real corner above epsilon', () => {
+    const bent = [P(0, 0), P(5, 0), P(10, 0), P(10, 10)];
+    const s = Geom.simplify(bent, 0.5);
+    expect(s).toContainEqual(P(10, 0)); // the corner survives
+    expect(s.length).toBeLessThan(bent.length); // the collinear mid-point is dropped
+  });
+  it('returns short inputs untouched', () => {
+    expect(Geom.simplify([P(0, 0), P(1, 1)], 1)).toEqual([P(0, 0), P(1, 1)]);
+  });
+});
+
+describe('Geom.smoothStroke', () => {
+  it('keeps the first and last anchor points', () => {
+    const raw = [P(0, 0), P(4, 6), P(9, 2), P(14, 8), P(20, 0)];
+    const s = Geom.smoothStroke(raw, { eps: 0.5, samples: 6 });
+    expect(s[0]).toEqual(P(0, 0));
+    expect(s[s.length - 1]).toEqual(P(20, 0));
+  });
+  it('densifies a multi-point stroke into a finer curve', () => {
+    const raw = [P(0, 0), P(4, 6), P(9, 2), P(14, 8), P(20, 0)];
+    const s = Geom.smoothStroke(raw, { eps: 0.5, samples: 8 });
+    expect(s.length).toBeGreaterThan(raw.length);
+  });
+  it('leaves a two-point (straightened) stroke as a plain segment', () => {
+    expect(Geom.smoothStroke([P(0, 0), P(10, 0)], {})).toEqual([P(0, 0), P(10, 0)]);
+  });
+  it('collapses tremor smaller than epsilon toward the trend line', () => {
+    // Zig-zag amplitude 3 < eps 4 -> simplify drops every wobble, leaving a flat line.
+    const zig = [P(0, 0), P(2, 3), P(4, -3), P(6, 3), P(8, -3), P(10, 0)];
+    const s = Geom.smoothStroke(zig, { eps: 4, samples: 10 });
+    const maxAbsY = Math.max(...s.map((p) => Math.abs(p.vy)));
+    expect(maxAbsY).toBeLessThan(0.001);
+  });
+  it('keeps spline overshoot bounded near the input envelope', () => {
+    const zig = [P(0, 0), P(2, 3), P(4, -3), P(6, 3), P(8, -3), P(10, 0)];
+    const s = Geom.smoothStroke(zig, { eps: 0.1, samples: 10 });
+    const maxAbsY = Math.max(...s.map((p) => Math.abs(p.vy)));
+    expect(maxAbsY).toBeLessThan(3.6); // Catmull-Rom may overshoot slightly, never wildly
+  });
+});
+
 describe('Geom.arrowHeadPoints', () => {
   it('returns two wing points behind the tip', () => {
     const [w1, w2] = Geom.arrowHeadPoints(P(0, 0), P(10, 0), 2);
