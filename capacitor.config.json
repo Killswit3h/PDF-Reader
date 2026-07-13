@@ -5,6 +5,9 @@
   "android": {
     "allowMixedContent": false
   },
+  "ios": {
+    "contentInset": "always"
+  },
   "plugins": {
     "CapacitorHttp": {
       "enabled": false

@@ -24,6 +24,7 @@
 
   const Cap = window.Capacitor || null;
   const isNative = !!(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
+  const platform = (Cap && Cap.getPlatform && Cap.getPlatform()) || 'web';
   const plugins = (Cap && Cap.Plugins) || {};
 
   // ---- helpers -----------------------------------------------------------
@@ -240,6 +241,11 @@
     // GitHub's REST API sends permissive CORS headers, so a plain fetch works in
     // the WebView (CapacitorHttp is disabled; connect-src allows https:).
     checkUpdates: async () => {
+      // iOS distributes exclusively through TestFlight / the App Store, which
+      // deliver and install updates themselves — there is no sideloadable IPA on
+      // a GitHub release to point at (unlike the Android APK below). So never run
+      // a self-update check on iOS; report "up to date" and let the store notify.
+      if (platform === 'ios') return { ok: true, current: version, latest: version, hasUpdate: false };
       const repo = window.APP_REPO;
       if (!repo) return { ok: true, current: version, latest: version, hasUpdate: false };
       try {
