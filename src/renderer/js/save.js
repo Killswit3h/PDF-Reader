@@ -58,7 +58,9 @@
     const { PDFName, PDFArray, PDFNumber, PDFString } = window.PDFLib;
     const ctx = pdfDoc.context;
     const s = an.style || {};
-    const P = an.pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
+    // Freehand ink/highlight export the same curve-fit points the screen shows.
+    const src = (App.Markup && App.Markup.smoothStroke) ? App.Markup.smoothStroke(an) : an.pts;
+    const P = src.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
     const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
     const rect = [Math.min(...xs) - 2, Math.min(...ys) - 2, Math.max(...xs) + 2, Math.max(...ys) + 2];
     const col = hexArr(s.stroke || '#e5484d');
@@ -319,7 +321,9 @@
         const op = s.opacity == null ? 1 : s.opacity;
         const hasFill = s.fill && s.fill !== 'none';
         const fillCol = hasFill ? hexRgb(s.fill) : null;
-        const P = an.pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
+        // Freehand ink/highlight export the same curve-fit points the screen shows.
+        const src = (App.Markup && App.Markup.smoothStroke) ? App.Markup.smoothStroke(an) : an.pts;
+        const P = src.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
         const corners = () => {
           const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
           return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };

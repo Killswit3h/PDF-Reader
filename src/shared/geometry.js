@@ -84,6 +84,55 @@
     return best;
   }
 
+  // Ramer–Douglas–Peucker: drop points that lie within `eps` of the line through
+  // their neighbours, killing hand tremor before we smooth. Iterative (no
+  // recursion) so a very long freehand stroke can't blow the stack.
+  function simplify(pts, eps) {
+    if (pts.length < 3) return pts.slice();
+    const keep = new Array(pts.length).fill(false);
+    keep[0] = keep[pts.length - 1] = true;
+    const stack = [[0, pts.length - 1]];
+    while (stack.length) {
+      const [lo, hi] = stack.pop();
+      let idx = -1, maxD = eps;
+      const a = pts[lo], b = pts[hi];
+      const dx = b.vx - a.vx, dy = b.vy - a.vy;
+      const len = Math.hypot(dx, dy) || 1;
+      for (let i = lo + 1; i < hi; i++) {
+        // perpendicular distance of pts[i] to segment a-b
+        const d = Math.abs((pts[i].vx - a.vx) * dy - (pts[i].vy - a.vy) * dx) / len;
+        if (d > maxD) { maxD = d; idx = i; }
+      }
+      if (idx !== -1) { keep[idx] = true; stack.push([lo, idx], [idx, hi]); }
+    }
+    return pts.filter((_, i) => keep[i]);
+  }
+
+  // Turn a raw freehand stroke into a silky one: simplify away jitter, then
+  // resample through the survivors with a centripetal-ish Catmull-Rom spline so
+  // the curve passes through every kept point with rounded, flowing joins.
+  // `samples` sub-segments per span (higher = smoother). Returns {vx,vy}[] in the
+  // same scale-1 space, so renderer and PDF export can share one curve.
+  function smoothStroke(pts, opts) {
+    opts = opts || {};
+    const eps = opts.eps == null ? 1 : opts.eps;
+    const samples = opts.samples == null ? 8 : opts.samples;
+    const p = simplify(pts, eps);
+    if (p.length < 3) return p.map((q) => ({ vx: q.vx, vy: q.vy }));
+    const out = [{ vx: p[0].vx, vy: p[0].vy }];
+    for (let i = 0; i < p.length - 1; i++) {
+      const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p[i + 1];
+      for (let s = 1; s <= samples; s++) {
+        const t = s / samples, t2 = t * t, t3 = t2 * t;
+        out.push({
+          vx: 0.5 * ((2 * p1.vx) + (-p0.vx + p2.vx) * t + (2 * p0.vx - 5 * p1.vx + 4 * p2.vx - p3.vx) * t2 + (-p0.vx + 3 * p1.vx - 3 * p2.vx + p3.vx) * t3),
+          vy: 0.5 * ((2 * p1.vy) + (-p0.vy + p2.vy) * t + (2 * p0.vy - 5 * p1.vy + 4 * p2.vy - p3.vy) * t2 + (-p0.vy + 3 * p1.vy - 3 * p2.vy + p3.vy) * t3)
+        });
+      }
+    }
+    return out;
+  }
+
   // The two wing points of an arrow head pointing from `from` to `to`.
   // `width` widens the head with the stroke. Returns [{vx,vy},{vx,vy}].
   function arrowHeadPoints(from, to, width) {
@@ -100,7 +149,8 @@
   return {
     Geom: {
       dist, polyLen, shoelace, angleAt, centroid, bbox,
-      rectFrom, ortho, nearestVertex, arrowHeadPoints
+      rectFrom, ortho, nearestVertex, arrowHeadPoints,
+      simplify, smoothStroke
     }
   };
 });

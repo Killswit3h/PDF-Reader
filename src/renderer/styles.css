@@ -453,6 +453,12 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 .tb-menu button:hover { background: var(--panel-2); }
 .tb-menu button.active { background: var(--accent); }
 .tb-menu-sep { height: 1px; background: var(--border); margin: 5px 4px; }
+/* Discoverable single-key shortcut hint, right-aligned in the tool menu row. */
+.mk-key {
+  float: right; margin-left: 16px; min-width: 15px; text-align: center;
+  font-size: 10px; line-height: 15px; font-weight: 600; opacity: 0.55;
+  border: 1px solid var(--border); border-radius: 4px; padding: 0 3px;
+}
 
 /* ===================== Scale modal ===================== */
 .scale-tab {

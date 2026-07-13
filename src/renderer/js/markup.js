@@ -35,6 +35,18 @@
   // it. Derived from the shared style width so the width slider still tunes it.
   function highlightWidth(style) { return Math.max(10, ((style && style.width) || 2) * 6); }
 
+  // Freehand strokes (pen + highlighter) are curve-fit for a silky, Shottr-like
+  // feel: jitter is simplified away then resampled through a Catmull-Rom spline.
+  // The raw pts stay in the model (so drag/move/handles are unchanged) — only the
+  // rendered + exported geometry is smoothed, and both share this one function so
+  // on-screen == on-page. A 2-point (hold-to-straighten) stroke passes through
+  // untouched. K.smoothStroke is exported so save.js reuses the exact same curve.
+  const SMOOTH = { eps: 1, samples: 8 };
+  function smoothStroke(an) {
+    return (an.type === 'ink' || an.type === 'highlight')
+      ? App.Geom.smoothStroke(an.pts, SMOOTH) : an.pts;
+  }
+
   const K = {
     tool: null,          // current drawing tool or null
     active: null,        // { type, page, pts:[], hover }
@@ -410,9 +422,9 @@
       if (an.type === 'arrow') arrowHead(svg, an.pts[0], an.pts[1], z, stroke, s.width);
     } else if (an.type === 'highlight') {
       // Freehand highlighter: a wide, translucent, round-capped band tracing the
-      // pen path so the underlying text stays legible through it.
+      // (curve-fit) pen path so the underlying text stays legible through it.
       const pl = ns('polyline');
-      pl.setAttribute('points', pts2str(an.pts, z));
+      pl.setAttribute('points', pts2str(smoothStroke(an), z));
       pl.setAttribute('fill', 'none');
       pl.setAttribute('stroke', stroke);
       pl.setAttribute('stroke-width', highlightWidth(s) * z);
@@ -435,12 +447,14 @@
       el.setAttribute('rx', (b.w / 2) * z); el.setAttribute('ry', (b.h / 2) * z);
       common(el, true);
     } else if (an.type === 'polyline' || an.type === 'ink') {
+      // Ink is curve-fit for a silky line; polyline keeps its exact vertices.
+      const rp = smoothStroke(an);
       const pl = ns('polyline');
-      pl.setAttribute('points', pts2str(an.pts, z));
+      pl.setAttribute('points', pts2str(rp, z));
       pl.setAttribute('fill', 'none'); common(pl, true);
       if (an.type === 'ink') pl.setAttribute('stroke-linejoin', 'round'), pl.setAttribute('stroke-linecap', 'round');
       const hp = ns('polyline');
-      hp.setAttribute('points', pts2str(an.pts, z));
+      hp.setAttribute('points', pts2str(rp, z));
       fatHit(hp);
     } else if (an.type === 'polygon') {
       const pg = ns('polygon');
@@ -817,6 +831,7 @@
   }
 
   K.highlightWidth = highlightWidth; // save.js reuses this so on-screen == exported
+  K.smoothStroke = smoothStroke;     // save.js reuses this so the exported curve matches the screen
   K._straighten = straightenActive;  // exposed for the e2e harness (deterministic, no 3s wait)
   App.Markup = K;
 })();
