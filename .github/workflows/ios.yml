@@ -40,9 +40,16 @@ jobs:
       - name: Compile for simulator (no signing)
         # CODE_SIGNING_ALLOWED=NO builds without certs so this stays secret-free and
         # runs on forks/PRs — it only proves the Capacitor app still compiles.
+        # Capacitor 8 generates a Swift Package Manager project (App.xcodeproj, no
+        # workspace) when CocoaPods isn't used; fall back to the workspace if one
+        # exists (CocoaPods mode) so this works either way.
         run: |
-          xcodebuild \
-            -workspace ios/App/App.xcworkspace \
+          if [ -d ios/App/App.xcworkspace ]; then
+            CONTAINER=(-workspace ios/App/App.xcworkspace)
+          else
+            CONTAINER=(-project ios/App/App.xcodeproj)
+          fi
+          xcodebuild "${CONTAINER[@]}" \
             -scheme App \
             -configuration Debug \
             -sdk iphonesimulator \

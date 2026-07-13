@@ -77,9 +77,11 @@ platform :ios do
       profile_name: PROFILE
     )
 
-    # 5. Archive + export a signed .ipa.
+    # 5. Archive + export a signed .ipa. Capacitor 8 emits an SPM project (no
+    #    .xcworkspace) unless CocoaPods is used — build whichever container exists.
+    container = File.exist?(WORKSPACE) ? { workspace: WORKSPACE } : { project: PROJECT }
     build_app(
-      workspace: WORKSPACE,
+      **container,
       scheme: SCHEME,
       configuration: "Release",
       export_method: "app-store",
