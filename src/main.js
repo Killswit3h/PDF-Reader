@@ -881,6 +881,58 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_FREEHAND: the highlighter + freehand pen paint a live multi-point
+      // stroke on press-drag (not a two-point box), and holding still snaps the
+      // stroke to a clean straight line. Exercised via the real inkStart/inkMove/
+      // inkEnd path plus the deterministic _straighten hook.
+      if (process.env.SMOKE_FREEHAND) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const layer=document.querySelector('.page .markup-layer');
+              const rc=layer.getBoundingClientRect();
+              const P=(x,y)=>({clientX:rc.left+x,clientY:rc.top+y});
+              const draw=(tool,pts)=>{
+                App.Markup.startTool(tool);
+                App.Markup.inkStart(1,layer,P(pts[0][0],pts[0][1]));
+                for(let i=1;i<pts.length;i++) App.Markup.handleMove(1,layer,P(pts[i][0],pts[i][1]));
+                App.Markup.inkEnd();
+              };
+              // 1) freehand highlighter — a curvy multi-point stroke
+              draw('highlight',[[40,60],[70,90],[110,70],[150,110],[190,80]]);
+              const hl=App.state.annotations[App.state.annotations.length-1];
+              // 2) freehand pen
+              draw('ink',[[40,200],[70,230],[110,210],[150,250]]);
+              const ink=App.state.annotations[App.state.annotations.length-1];
+              // 3) hold-to-straighten: draw, then fire the straighten hook mid-stroke
+              App.Markup.startTool('highlight');
+              App.Markup.inkStart(1,layer,P(40,320));
+              App.Markup.handleMove(1,layer,P(80,360));
+              App.Markup.handleMove(1,layer,P(140,330));
+              App.Markup.handleMove(1,layer,P(200,370));
+              App.Markup._straighten(1);
+              const straightMid=App.Markup.active&&App.Markup.active.pts.length;
+              App.Markup.inkEnd();
+              const straight=App.state.annotations[App.state.annotations.length-1];
+              App.Markup.repositionAll();
+              const polylines=document.querySelectorAll('#viewer .markup-svg polyline').length;
+              let bytesLen=0,err='';
+              try{const b=await App.Save.buildBytes();bytesLen=b.length;}catch(e){err=e.message;}
+              return JSON.stringify({
+                hlType:hl&&hl.type, hlPts:hl&&hl.pts.length,
+                inkType:ink&&ink.type, inkPts:ink&&ink.pts.length,
+                straightMid, straightPts:straight&&straight.pts.length,
+                polylines, bytesLen, err
+              });
+            })()`, true);
+            console.log('[freehand] ' + r);
+          } catch (e) { console.log('[freehand] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_ORGANIZE) {
         setTimeout(async () => {
           try {
