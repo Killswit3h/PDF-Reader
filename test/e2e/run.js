@@ -124,6 +124,21 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'freehand — highlighter + pen paint multi-point strokes; hold snaps straight',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_FREEHAND: '1' }, [SAMPLE]), 'freehand');
+      check(j.hlType === 'highlight', `highlight type ${j.hlType}`);
+      check(j.hlPts >= 4, `highlighter stroke only ${j.hlPts} pts — not freehand`);
+      check(j.inkType === 'ink', `ink type ${j.inkType}`);
+      check(j.inkPts >= 3, `ink stroke only ${j.inkPts} pts`);
+      check(j.straightMid === 2, `hold-to-straighten left ${j.straightMid} pts, expected 2`);
+      check(j.straightPts === 2, `straightened stroke committed ${j.straightPts} pts`);
+      check(j.polylines >= 2, `expected freehand polylines, got ${j.polylines}`);
+      check(j.err === '', `buildBytes error: ${j.err}`);
+      check(j.bytesLen > 0, 'no PDF bytes produced');
+    }
+  },
+  {
     name: 'organize — reorder/rotate/delete rebuilds the page set',
     run: () => {
       const j = tagJson(runApp({ SMOKE_ORGANIZE: '1' }, [BIG]), 'organize');

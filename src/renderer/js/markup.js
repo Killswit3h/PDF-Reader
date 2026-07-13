@@ -17,9 +17,23 @@
  */
 (function () {
   const SVGNS = 'http://www.w3.org/2000/svg';
-  const TWO_POINT = { line: 1, arrow: 1, rect: 1, ellipse: 1, highlight: 1 };
+  const TWO_POINT = { line: 1, arrow: 1, rect: 1, ellipse: 1 };
   const N_POINT = { polyline: 1, polygon: 1, cloud: 1 };
+  // Freehand tools use press-drag-release and paint a live stroke as the pen
+  // moves. `highlight` joined `ink` here: it used to be a two-point drag box, but
+  // now it's a translucent highlighter you draw by hand (like Apple Notes).
+  const FREEHAND = { ink: 1, highlight: 1 };
   const DEF_TEXT_W = 150, DEF_TEXT_H = 44;
+
+  // Apple-Pencil-style "hold to snap straight": while freehand drawing, if the
+  // pen stays put for this long the stroke collapses to a clean straight line
+  // from its first point to where the pen is resting. STILL_TOL is the jitter
+  // radius (scale-1 viewport points) within which the pen counts as "held".
+  const STRAIGHTEN_HOLD_MS = 3000, STILL_TOL = 4;
+
+  // A highlighter lays down a much wider band than a pen so text shows through
+  // it. Derived from the shared style width so the width slider still tunes it.
+  function highlightWidth(style) { return Math.max(10, ((style && style.width) || 2) * 6); }
 
   const K = {
     tool: null,          // current drawing tool or null
@@ -53,16 +67,19 @@
     const hint = type === 'text' ? 'Click to place a text box, then type. Click away to finish.'
       : type === 'callout' ? 'Click the target, then where the note goes.'
       : N_POINT[type] ? 'Click points, Enter/double-click to finish.'
-      : type === 'ink' ? 'Press and drag to draw.'
+      : FREEHAND[type] ? 'Press and drag to draw. Hold still 3s to snap it straight.'
       : 'Click start then end.';
     App.toast(`Markup: ${type}. ${hint}`, 'info', 3500);
   };
+  K.isFreehand = (t) => !!FREEHAND[t];
   K.stop = function () {
+    if (K.clearHold) K.clearHold();
+    K.inkDrawing = false;
     K.commitActive();
     K.tool = null; K.active = null;
     K.repositionAll();
   };
-  K.cancelActive = function () { K.active = null; K.repositionAll(); };
+  K.cancelActive = function () { if (K.clearHold) K.clearHold(); K.inkDrawing = false; K.active = null; K.repositionAll(); };
 
   K.commitActive = function () {
     const a = K.active; K.active = null;
@@ -112,7 +129,7 @@
   }
 
   K.handleClick = function (page, layer, e) {
-    if (!K.tool || K.tool === 'ink') return;
+    if (!K.tool || FREEHAND[K.tool]) return;
     const p = ptFromEvent(layer, e);
 
     // Text: one click drops a default-size editable box.
@@ -158,23 +175,64 @@
 
   K.finishDrawing = function () { K.commitActive(); K.repositionAll(); };
 
-  // Ink uses press-drag-release.
+  // Freehand (ink + highlight) use press-drag-release, painting a live stroke.
+  let _holdTimer = 0;
+  function clearHold() { if (_holdTimer) { clearTimeout(_holdTimer); _holdTimer = 0; } }
+  K.clearHold = clearHold;
+  // Arm the "held still" countdown. Every meaningful move re-arms it, so it only
+  // fires once the pen has rested (within STILL_TOL) for STRAIGHTEN_HOLD_MS.
+  function armHold(page) {
+    clearHold();
+    _holdTimer = setTimeout(() => { _holdTimer = 0; straightenActive(page); }, STRAIGHTEN_HOLD_MS);
+  }
+  // Collapse the freehand scribble to one clean straight segment: first point →
+  // where the pen is now resting. Locks `straight` so the rest of the drag just
+  // rubber-bands that endpoint (it behaves like a line tool until you lift).
+  function straightenActive(page) {
+    const a = K.active;
+    if (!a || a.straight || a.pts.length < 2) return;
+    const start = a.pts[0], end = a.pts[a.pts.length - 1];
+    if (Math.hypot(end.vx - start.vx, end.vy - start.vy) < STILL_TOL) return; // too tiny to bother
+    a.pts = [{ vx: start.vx, vy: start.vy }, { vx: end.vx, vy: end.vy }];
+    a.straight = true;
+    App.toast('Snapped straight — drag to adjust, release to place.', 'info', 1800);
+    K.repositionAll(page);
+  }
+
   K.inkStart = function (page, layer, e) {
-    if (K.tool !== 'ink') return;
+    if (!FREEHAND[K.tool]) return;
     K.inkDrawing = true;
-    K.active = { type: 'ink', page, pts: [ptFromEvent(layer, e)] };
+    const p = ptFromEvent(layer, e);
+    K.active = { type: K.tool, page, pts: [p], holdAnchor: p, straight: false };
+    armHold(page);
   };
   function inkMove(page, layer, e) {
     if (!K.active || K.active.page !== page) return;
     const p = ptFromEvent(layer, e);
+    if (K.active.straight) {
+      // Already snapped: keep two points and rubber-band the end.
+      K.active.pts = [K.active.pts[0], p];
+      K.scheduleReposition(page);
+      return;
+    }
     const last = K.active.pts[K.active.pts.length - 1];
     if (!last || Math.hypot(p.vx - last.vx, p.vy - last.vy) > 1.2) K.active.pts.push(p);
+    // Re-arm the straighten countdown only when the pen has actually travelled;
+    // small jitter within STILL_TOL counts as "holding still" so the timer runs.
+    const anchor = K.active.holdAnchor;
+    if (!anchor || Math.hypot(p.vx - anchor.vx, p.vy - anchor.vy) > STILL_TOL) {
+      K.active.holdAnchor = p;
+      armHold(page);
+    }
     K.scheduleReposition(page);
   }
   K.inkEnd = function () {
     if (!K.inkDrawing) return;
     K.inkDrawing = false;
+    clearHold();
     const a = K.active; K.active = null;
+    // finalize() rebuilds the stored annotation from pts alone, so the transient
+    // holdAnchor/straight fields never leak into App.state.annotations.
     if (a && a.pts.length >= 2) finalize(a);
     else K.repositionAll();
   };
@@ -350,13 +408,26 @@
       hl.setAttribute('x2', an.pts[1].vx * z); hl.setAttribute('y2', an.pts[1].vy * z);
       fatHit(hl);
       if (an.type === 'arrow') arrowHead(svg, an.pts[0], an.pts[1], z, stroke, s.width);
-    } else if (an.type === 'rect' || an.type === 'highlight') {
+    } else if (an.type === 'highlight') {
+      // Freehand highlighter: a wide, translucent, round-capped band tracing the
+      // pen path so the underlying text stays legible through it.
+      const pl = ns('polyline');
+      pl.setAttribute('points', pts2str(an.pts, z));
+      pl.setAttribute('fill', 'none');
+      pl.setAttribute('stroke', stroke);
+      pl.setAttribute('stroke-width', highlightWidth(s) * z);
+      pl.setAttribute('stroke-linejoin', 'round');
+      pl.setAttribute('stroke-linecap', 'round');
+      pl.setAttribute('opacity', 0.35);
+      pl.setAttribute('class', 'hit');
+      pl.addEventListener('pointerdown', (e) => startDrag(an, e));
+      svg.appendChild(pl);
+    } else if (an.type === 'rect') {
       const b = bbox(an.pts);
       const r = ns('rect');
       r.setAttribute('x', b.x * z); r.setAttribute('y', b.y * z);
       r.setAttribute('width', b.w * z); r.setAttribute('height', b.h * z);
-      if (an.type === 'highlight') { r.setAttribute('fill', stroke); r.setAttribute('opacity', 0.35); r.setAttribute('stroke', 'none'); r.setAttribute('class', 'hit'); r.addEventListener('pointerdown', (e) => startDrag(an, e)); svg.appendChild(r); }
-      else common(r, true);
+      common(r, true);
     } else if (an.type === 'ellipse') {
       const b = bbox(an.pts);
       const el = ns('ellipse');
@@ -492,6 +563,9 @@
       drawAnnoInto(g, tmp, z);
       App.state.annoSelectedId = prevSel;
     }
+    // Vertex dots are click-placement feedback; a freehand stroke has hundreds of
+    // points, so dotting each one just beads the line — skip them there.
+    if (FREEHAND[a.type]) return;
     a.pts.forEach((p) => {
       const c = ns('circle'); c.setAttribute('cx', p.vx * z); c.setAttribute('cy', p.vy * z);
       c.setAttribute('r', 3); c.setAttribute('fill', s.stroke); svg.appendChild(c);
@@ -742,5 +816,7 @@
     };
   }
 
+  K.highlightWidth = highlightWidth; // save.js reuses this so on-screen == exported
+  K._straighten = straightenActive;  // exposed for the e2e harness (deterministic, no 3s wait)
   App.Markup = K;
 })();

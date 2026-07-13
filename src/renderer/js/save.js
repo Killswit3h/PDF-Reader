@@ -62,7 +62,9 @@
     const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
     const rect = [Math.min(...xs) - 2, Math.min(...ys) - 2, Math.max(...xs) + 2, Math.max(...ys) + 2];
     const col = hexArr(s.stroke || '#e5484d');
-    const width = s.width || 2;
+    // Highlighter exports as a wide Ink stroke; everything else uses its style width.
+    const hlWidth = (App.Markup && App.Markup.highlightWidth) ? App.Markup.highlightWidth(s) : Math.max(10, (s.width || 2) * 6);
+    const width = an.type === 'highlight' ? hlWidth : (s.width || 2);
     const op = s.opacity == null ? 1 : s.opacity;
     const hasFill = s.fill && s.fill !== 'none';
     const numArr = (arr) => { const a = PDFArray.withContext(ctx); arr.forEach((n) => a.push(PDFNumber.of(n))); return a; };
@@ -76,10 +78,9 @@
     const bs = ctx.obj({}); bs.set(PDFName.of('W'), PDFNumber.of(width)); set('BS', bs);
 
     switch (an.type) {
-      case 'rect': case 'highlight':
+      case 'rect':
         set('Subtype', PDFName.of('Square'));
-        if (an.type === 'highlight') { set('IC', numArr(col)); set('CA', PDFNumber.of(0.35)); }
-        else if (hasFill) set('IC', numArr(hexArr(s.fill)));
+        if (hasFill) set('IC', numArr(hexArr(s.fill)));
         break;
       case 'ellipse':
         set('Subtype', PDFName.of('Circle'));
@@ -100,9 +101,12 @@
         if (hasFill) set('IC', numArr(hexArr(s.fill)));
         if (an.type === 'cloud') { const be = ctx.obj({}); be.set(PDFName.of('S'), PDFName.of('C')); be.set(PDFName.of('I'), PDFNumber.of(2)); set('BE', be); }
         break;
-      case 'ink': {
+      case 'ink': case 'highlight': {
+        // Freehand ink and the freehand highlighter both round-trip as Ink
+        // annotations; the highlighter just rides on the wide BS width + 0.35 CA.
         set('Subtype', PDFName.of('Ink'));
         const list = PDFArray.withContext(ctx); list.push(numArr([].concat.apply([], P))); set('InkList', list);
+        if (an.type === 'highlight') set('CA', PDFNumber.of(0.35));
         break;
       }
       case 'text': case 'callout': {
@@ -334,8 +338,14 @@
           const b = corners();
           page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined });
         } else if (an.type === 'highlight') {
-          const b = corners();
-          page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, color: col, opacity: 0.35 });
+          // Freehand highlighter: wide, translucent, round-jointed band along the
+          // pen path (matches the on-screen SVG stroke).
+          const hw = (App.Markup && App.Markup.highlightWidth) ? App.Markup.highlightWidth(s) : Math.max(10, (s.width || 2) * 6);
+          const cap = window.PDFLib.LineCapStyle ? window.PDFLib.LineCapStyle.Round : undefined;
+          for (let i = 0; i < P.length - 1; i++) {
+            page.drawLine({ start: { x: P[i][0], y: P[i][1] }, end: { x: P[i + 1][0], y: P[i + 1][1] }, thickness: hw, color: col, opacity: 0.35, lineCap: cap });
+          }
+          if (P.length === 1) page.drawCircle({ x: P[0][0], y: P[0][1], size: hw / 2, color: col, opacity: 0.35 });
         } else if (an.type === 'ellipse') {
           const b = corners();
           page.drawEllipse({ x: b.x + b.w / 2, y: b.y + b.h / 2, xScale: b.w / 2, yScale: b.h / 2, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined });

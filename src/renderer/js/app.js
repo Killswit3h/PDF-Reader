@@ -376,9 +376,10 @@
       }
     });
 
-    // ink press-drag-release (pointer events so touch/pen work, not just mouse)
+    // Freehand press-drag-release (ink + highlight) — pointer events so touch/pen
+    // work, not just mouse.
     container.addEventListener('pointerdown', (e) => {
-      if (App.state.mode !== 'markup' || App.Markup.tool !== 'ink') return;
+      if (App.state.mode !== 'markup' || !App.Markup.isFreehand(App.Markup.tool)) return;
       const pl = pageLayerFor(e);
       if (!pl) return;
       e.preventDefault();
