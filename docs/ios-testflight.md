@@ -28,6 +28,15 @@ routine release.
 Like `android/`, the generated `ios/` project is **git-ignored** and rebuilt from
 config on every run — so there's no Xcode project to hand-maintain.
 
+> **Why CocoaPods, not SPM:** the `ios:*` scripts and CI pass
+> `cap add ios --packagemanager CocoaPods`. Capacitor 8 otherwise defaults to a
+> Swift Package Manager project, whose resolver pulls the Capacitor Swift
+> packages from remote sources and can select versions incompatible with the
+> plugin sources pinned in `node_modules` (a real build break we hit — e.g. the
+> Share plugin against a mismatched core). CocoaPods references the local pinned
+> podspecs, so the build uses exactly the versions in `node_modules`. It also
+> produces `App.xcworkspace`, which the build/fastlane steps target.
+
 ---
 
 ## One-time setup (the only manual part — ~30 min)

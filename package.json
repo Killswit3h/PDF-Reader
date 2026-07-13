@@ -25,7 +25,7 @@
     "android:open": "npm run android:sync && cap open android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "ios:icons": "node build/make-ios-icons.js",
-    "ios:add": "npm run build:web && cap add ios && npm run ios:icons && node build/patch-ios.js",
+    "ios:add": "npm run build:web && cap add ios --packagemanager CocoaPods && npm run ios:icons && node build/patch-ios.js",
     "ios:sync": "npm run build:web && cap sync ios && npm run ios:icons && node build/patch-ios.js",
     "ios:open": "npm run ios:sync && cap open ios",
     "ios:beta": "npm run ios:sync && bundle exec fastlane ios beta",

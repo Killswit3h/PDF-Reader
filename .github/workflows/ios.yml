@@ -12,6 +12,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# macOS runner minutes are costly; a branch push during a PR triggers both the
+# push and pull_request events. Cancel any superseded run on the same ref.
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-check:
     name: Build check (unsigned)
@@ -28,7 +34,7 @@ jobs:
         # then stamp our icon set and Info.plist keys — same shape as the Android job.
         run: |
           npm run build:web
-          npx cap add ios
+          npx cap add ios --packagemanager CocoaPods
           npx cap sync ios
           node build/make-ios-icons.js
           node build/patch-ios.js
@@ -101,7 +107,7 @@ jobs:
       - name: Build web bundle + generate iOS project
         run: |
           npm run build:web
-          npx cap add ios
+          npx cap add ios --packagemanager CocoaPods
           npx cap sync ios
           node build/make-ios-icons.js
           node build/patch-ios.js
