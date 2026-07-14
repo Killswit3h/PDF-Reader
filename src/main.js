@@ -524,6 +524,12 @@ function createWindow() {
               const active=btns.filter(b=>b.classList.contains('active')).map(b=>b.dataset.color);
               const el=document.querySelector('#mk-stroke'); el.value='#abcdef'; el.dispatchEvent(new Event('input',{bubbles:true}));
               const customDef=App.state.annoStyle.stroke;
+              // Restore the default markup style: applyStyle persists annoStyle to
+              // localStorage, which is shared across the suite's Electron runs, so
+              // leaving a custom color here would poison later color-sensitive
+              // scenarios (e.g. wysiwyg's red-pixel check).
+              App.state.annoStyle={stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14};
+              if(App.Prefs)App.Prefs.set('annoStyle',App.state.annoStyle);
               return JSON.stringify({count,inputVal,defStroke,active,customDef});
             })()`, true);
             console.log('[mkpreset] ' + r);
