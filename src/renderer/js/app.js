@@ -416,6 +416,10 @@
           return;
         }
       }
+      // Backslash toggles the side-by-side split pane.
+      if (e.key === '\\' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault(); if (App.SplitView) App.SplitView.toggle(); return;
+      }
       if (e.key === '+' || e.key === '=') { App.Viewer.zoomIn(); }
       else if (e.key === '-' || e.key === '_') { App.Viewer.zoomOut(); }
       else if (e.key === '0') { App.Viewer.resetZoom(); }
@@ -564,6 +568,7 @@
         else if (d === 'chest') App.ToolChest.toggle();
         else if (d === 'digisign') App.DigiSign.open();
         else if (d === 'compare') App.Compare.open();
+        else if (d === 'split') App.SplitView.toggle();
       });
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
@@ -790,7 +795,8 @@
     { title: 'View', rows: [
       { combos: [['mod', 'F']], label: 'Find' },
       { combos: [['+'], ['−'], ['0']], label: 'Zoom in / out / 100%' },
-      { combos: [['mod', 'scroll']], label: 'Zoom to pointer' }
+      { combos: [['mod', 'scroll']], label: 'Zoom to pointer' },
+      { combos: [['\\']], label: 'Side by side' }
     ] },
     { title: 'Navigation', rows: [
       { combos: [['←'], ['→']], label: 'Previous / next page' },
@@ -862,6 +868,8 @@
       case 'zoom-reset': if (App.state.pdfDoc) App.Viewer.resetZoom(); break;
       case 'fit-width': if (App.state.pdfDoc) App.Viewer.fitWidth(); break;
       case 'rotate': if (App.state.pdfDoc) App.Viewer.rotate(90); break;
+      case 'split-view': if (App.SplitView) App.SplitView.toggle(); break;
+      case 'tile-windows': if (window.api && window.api.tileSideBySide) window.api.tileSideBySide(); break;
       case 'toggle-theme': App.$('#btn-theme').click(); break;
       case 'check-updates': checkForUpdates(true); break;
       case 'shortcuts': App.Shortcuts.open(); break;
@@ -883,6 +891,7 @@
     if (App.ToolChest) App.ToolChest.init();
     if (App.DigiSign) App.DigiSign.init();
     if (App.Compare) App.Compare.init();
+    if (App.SplitView) App.SplitView.init();
     if (App.TextCopy) App.TextCopy.init();
     loadRememberedSignatures();
     setupUpdates();

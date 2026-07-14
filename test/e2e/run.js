@@ -146,6 +146,18 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'split view — side-by-side pane renders a second doc; tile API present',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_SPLIT: '1' }, [SAMPLE]), 'split');
+      check(j.tabs === 2, `expected 2 tabs, got ${j.tabs}`);
+      check(j.paneVisible === true, 'split pane not visible');
+      check(j.canvases > 0, 'right pane rendered no page canvas');
+      check(j.options >= 3, `doc picker options ${j.options} < 3`);
+      check(j.closed === true, 'split did not close');
+      check(j.apiTile === true, 'tileSideBySide API missing');
+    }
+  },
+  {
     name: 'organize — reorder/rotate/delete rebuilds the page set',
     run: () => {
       const j = tagJson(runApp({ SMOKE_ORGANIZE: '1' }, [BIG]), 'organize');

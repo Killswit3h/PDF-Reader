@@ -184,6 +184,9 @@
     // platform — the tab UI hides the affordance when !isDesktop.
     openTearoff: () => Promise.resolve(false),
     onOpenTearoff: () => { /* desktop-only */ },
+    // Tiling separate OS windows is a desktop capability; the single WebView
+    // surface reports "unsupported" so callers can show a friendly message.
+    tileSideBySide: () => Promise.resolve({ ok: false, reason: 'Separate windows aren’t available on this platform.' }),
 
     // Print the finished document. Open the exported PDF so the WebView/browser
     // print (Android's system print → save-as-PDF or a networked printer) acts

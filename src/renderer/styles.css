@@ -165,6 +165,42 @@ body.has-tabs #viewerContainer { top: var(--tab-h, 34px); }
   overscroll-behavior: contain;
   will-change: scroll-position;
 }
+/* ---- Side-by-side split view ---- */
+#split-pane {
+  position: absolute; top: 0; right: 0; bottom: 0; left: 50%;
+  display: flex; flex-direction: column;
+  border-left: 1px solid var(--border); background: var(--bg-canvas); z-index: 5;
+}
+#split-pane.hidden { display: none; }
+body.has-split #viewerContainer { right: 50%; }
+body.has-tabs #split-pane { top: var(--tab-h, 34px); }
+#split-head {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding: 4px 6px;
+  background: var(--bg-surface); border-bottom: 1px solid var(--border);
+}
+#split-pick {
+  flex: 0 1 auto; max-width: 60%; height: 28px; padding: 0 6px;
+  background: var(--bg-input); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r-sm, 6px); font-size: 13px;
+}
+.split-spacer { flex: 1 1 auto; }
+#split-body {
+  flex: 1 1 auto; overflow: auto; background: var(--bg-canvas);
+  overscroll-behavior: contain;
+}
+.mini-viewer { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px 0; }
+.mini-page {
+  background: #fff; box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.mini-page canvas { display: block; }
+/* On a narrow window, stack the two panes instead of squeezing them. */
+@media (max-width: 720px) {
+  #split-pane { left: 0; top: 50%; }
+  body.has-split #viewerContainer { right: 0; bottom: 50%; }
+  body.has-tabs #split-pane { top: calc(50% + var(--tab-h, 34px) / 2); }
+}
+
 .pdfViewer .page {
   margin: 12px auto !important;
   box-shadow: 0 3px 14px rgba(0, 0, 0, 0.5);

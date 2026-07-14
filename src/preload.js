@@ -61,6 +61,10 @@ contextBridge.exposeInMainWorld('api', {
   // document to open. Fires once, right after the renderer signals ready.
   onOpenTearoff: (cb) =>
     ipcRenderer.on('open-tearoff', (_e, payload) => cb(payload)),
+  // Tile this window and another app window (a torn-off one, else the main
+  // window) to the left/right halves of the display — one per monitor when a
+  // second display exists. Resolves { ok } (or { ok:false, reason }).
+  tileSideBySide: () => ipcRenderer.invoke('window:tile'),
 
   // Print the finished document. `bytes` is the exported PDF (Uint8Array); the
   // main process renders it offscreen and opens the OS print dialog.

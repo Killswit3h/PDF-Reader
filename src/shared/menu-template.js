@@ -95,6 +95,9 @@ function buildMenuTemplate(opts) {
     { type: 'separator' },
     { label: 'Find…', accelerator: 'CmdOrCtrl+F', command: 'find', click: send('find') },
     { type: 'separator' },
+    { label: 'Side by Side', accelerator: 'CmdOrCtrl+\\', command: 'split-view', click: send('split-view') },
+    { label: 'Tile Windows Side by Side', command: 'tile-windows', click: send('tile-windows') },
+    { type: 'separator' },
     { label: 'Toggle Theme', command: 'toggle-theme', click: send('toggle-theme') },
     { type: 'separator' },
     { role: 'togglefullscreen' }
