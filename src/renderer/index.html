@@ -170,7 +170,18 @@
 
   <!-- ============ Markup properties bar ============ -->
   <div id="markup-props" class="hidden">
-    <label class="mk-prop">Line <input id="mk-stroke" type="color" value="#e5484d" /></label>
+    <div class="mk-prop mk-color-group">
+      <span>Line</span>
+      <div class="mk-presets" id="mk-stroke-presets">
+        <button type="button" class="mk-sw" data-color="#e5484d" style="background:#e5484d" title="Red" aria-label="Red"></button>
+        <button type="button" class="mk-sw" data-color="#f5a623" style="background:#f5a623" title="Orange" aria-label="Orange"></button>
+        <button type="button" class="mk-sw" data-color="#ffd400" style="background:#ffd400" title="Yellow" aria-label="Yellow"></button>
+        <button type="button" class="mk-sw" data-color="#21a366" style="background:#21a366" title="Green" aria-label="Green"></button>
+        <button type="button" class="mk-sw" data-color="#2f6fed" style="background:#2f6fed" title="Blue" aria-label="Blue"></button>
+        <button type="button" class="mk-sw" data-color="#1a1a1a" style="background:#1a1a1a" title="Black" aria-label="Black"></button>
+      </div>
+      <label class="mk-custom" title="Custom color (color wheel)"><input id="mk-stroke" type="color" value="#e5484d" /></label>
+    </div>
     <label class="mk-prop"><input id="mk-fill-on" type="checkbox" /> Fill <input id="mk-fill" type="color" value="#ffcc00" /></label>
     <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" /></label>
     <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" /></label>

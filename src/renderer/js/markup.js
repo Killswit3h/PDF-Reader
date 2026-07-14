@@ -601,6 +601,9 @@
     App.$('#mk-fill-on') && (App.$('#mk-fill-on').checked = !!(s.fill && s.fill !== 'none'));
     set('#mk-width', s.width);
     set('#mk-opacity', Math.round(s.opacity * 100));
+    // highlight the preset swatch matching the current line color (if any)
+    const cur = String(s.stroke || '').toLowerCase();
+    App.$$('#mk-stroke-presets .mk-sw').forEach((b) => b.classList.toggle('active', b.dataset.color.toLowerCase() === cur));
   }
   function applyStyle(patch) {
     const an = annoById(App.state.annoSelectedId);
@@ -614,6 +617,16 @@
     defaults();
     const wire = (id, ev, fn) => { const el = App.$(id); if (el) el.addEventListener(ev, fn); };
     wire('#mk-stroke', 'input', (e) => applyStyle({ stroke: e.target.value }));
+    // preset swatches: set the color input + reuse its input handler (above)
+    const presets = App.$('#mk-stroke-presets');
+    if (presets) presets.querySelectorAll('.mk-sw').forEach((b) => {
+      b.addEventListener('click', () => {
+        const el = App.$('#mk-stroke');
+        el.value = b.dataset.color;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        syncPropBar();
+      });
+    });
     wire('#mk-fill', 'input', (e) => { if (App.$('#mk-fill-on').checked) applyStyle({ fill: e.target.value }); });
     wire('#mk-fill-on', 'change', (e) => applyStyle({ fill: e.target.checked ? App.$('#mk-fill').value : 'none' }));
     wire('#mk-width', 'input', (e) => applyStyle({ width: parseFloat(e.target.value) }));

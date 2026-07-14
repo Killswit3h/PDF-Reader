@@ -505,6 +505,33 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_MKPRESET: the markup Line color exposes 6 quick presets; clicking
+      // one applies it (native input + default style + active swatch), and the
+      // color-wheel (native input) still applies a custom color.
+      if (process.env.SMOKE_MKPRESET) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,300));
+              const btns=Array.from(document.querySelectorAll('#mk-stroke-presets .mk-sw'));
+              const count=btns.length;
+              const blue=btns.find(b=>b.dataset.color==='#2f6fed');
+              blue.click();
+              await new Promise(r=>setTimeout(r,20));
+              const inputVal=document.querySelector('#mk-stroke').value;
+              const defStroke=App.state.annoStyle.stroke;
+              const active=btns.filter(b=>b.classList.contains('active')).map(b=>b.dataset.color);
+              const el=document.querySelector('#mk-stroke'); el.value='#abcdef'; el.dispatchEvent(new Event('input',{bubbles:true}));
+              const customDef=App.state.annoStyle.stroke;
+              return JSON.stringify({count,inputVal,defStroke,active,customDef});
+            })()`, true);
+            console.log('[mkpreset] ' + r);
+          } catch (e) { console.log('[mkpreset] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_COPY: selecting PDF text surfaces the copy button + a non-empty
       // text selection (the clipboard path itself can't be asserted headless).
       if (process.env.SMOKE_COPY) {

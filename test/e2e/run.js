@@ -297,6 +297,17 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'markup presets — Line color has 6 quick presets; clicking one applies it; wheel still works',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MKPRESET: '1' }, [SAMPLE]), 'mkpreset');
+      check(j.count === 6, `expected 6 line-color presets, got ${j.count}`);
+      check(j.inputVal === '#2f6fed', `clicking a preset did not set the color input: ${j.inputVal}`);
+      check(j.defStroke === '#2f6fed', `preset did not become the default line color: ${j.defStroke}`);
+      check(j.active.length === 1 && j.active[0] === '#2f6fed', `active swatch not marked: ${JSON.stringify(j.active)}`);
+      check(j.customDef === '#abcdef', `custom color-wheel value did not apply: ${j.customDef}`);
+    }
+  },
+  {
     name: 'text copy — selecting PDF text shows the copy button',
     run: () => {
       const j = tagJson(runApp({ SMOKE_COPY: '1' }, [SAMPLE]), 'copy');
