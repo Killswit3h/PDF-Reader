@@ -936,6 +936,11 @@
     // Native application-menu commands (desktop only; no-op elsewhere).
     window.api.onMenuCommand(handleMenuCommand);
 
+    // A tab torn off from another window arrives here (desktop only).
+    if (window.api.onOpenTearoff) {
+      window.api.onOpenTearoff((payload) => { if (App.Tabs) App.Tabs.openTearoff(payload); });
+    }
+
     // Now that the listener above is wired up, tell the main process we're ready.
     // It will deliver any file the app was launched to open (which may have
     // arrived before this listener existed).

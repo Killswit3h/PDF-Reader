@@ -421,6 +421,20 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'tear-off — a tab pops into a second window carrying its unsaved edits',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TEAROFF: '1' }, [SAMPLE]), 'tearoff');
+      check(j.setup.canTear === true, 'tear-off was not allowed with two tabs open');
+      check(j.setup.ok === true, 'tearOff did not report success');
+      check(j.setup.before === 2 && j.setup.after === 1, `source tab count wrong (before ${j.setup.before}, after ${j.setup.after})`);
+      check(j.windows === 2, `expected a second window, saw ${j.windows}`);
+      check(j.child && j.child.name === 'second.pdf', `new window opened the wrong doc: ${JSON.stringify(j.child)}`);
+      check(j.child.m === 1, `torn-off edits did not travel to the new window (measurements ${j.child && j.child.m})`);
+      check(j.child.tabs === 1, `new window tab count wrong (${j.child && j.child.tabs})`);
+      check(j.child.dirty === true, 'new window lost the dirty (unsaved) state');
+    }
+  },
+  {
     name: 'reopen — file opens after the window was closed (macOS lifecycle)',
     run: () => {
       const j = tagJson(runApp({ SMOKE_REOPEN: BIG }, [SAMPLE]), 'reopen');

@@ -179,6 +179,12 @@
     // No native menu to drive commands from — a harmless no-op for parity.
     onMenuCommand: () => { /* desktop-only */ },
 
+    // Tearing a tab into a separate OS window is desktop-only (a WebView can't
+    // spawn app windows). Keep the contract so app modules never branch on
+    // platform — the tab UI hides the affordance when !isDesktop.
+    openTearoff: () => Promise.resolve(false),
+    onOpenTearoff: () => { /* desktop-only */ },
+
     // Print the finished document. Open the exported PDF so the WebView/browser
     // print (Android's system print → save-as-PDF or a networked printer) acts
     // on the complete document rather than the app chrome.
