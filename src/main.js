@@ -470,6 +470,41 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_MCOLOR: a chosen measurement color applies only to measurements
+      // drawn AFTER the change; earlier ones keep their color, and Reset goes
+      // back to the per-type default. Drives the real tool flow (handleClick).
+      if (process.env.SMOKE_MCOLOR) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const M=App.Measure, z=App.state.zoom;
+              const ov={getBoundingClientRect:()=>({left:0,top:0})};
+              function line(x1,y1,x2,y2){
+                M.startTool('length');
+                M.handleClick(1,ov,{clientX:x1*z,clientY:y1*z,shiftKey:false});
+                M.handleClick(1,ov,{clientX:x2*z,clientY:y2*z,shiftKey:false});
+              }
+              line(40,60,200,60);      // default (blue)
+              M.setColor('#ff0000');   // pick red
+              line(40,120,200,120);    // red
+              M.setColor(null);        // reset to per-type default
+              line(40,180,200,180);    // default again
+              const ms=App.state.measurements;
+              const c=[ms[0].color,ms[1].color,ms[2].color];
+              M.repositionAll();
+              await new Promise(r=>setTimeout(r,60));
+              const strokes=Array.from(document.querySelectorAll('.page[data-page-number="1"] .measure-layer polyline.m-shape')).map(p=>p.getAttribute('stroke'));
+              let exportOk=false; try{ await App.Save.buildBytes(); exportOk=true; }catch(e){}
+              return JSON.stringify({n:ms.length,c,strokes,exportOk});
+            })()`, true);
+            console.log('[mcolor] ' + r);
+          } catch (e) { console.log('[mcolor] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_COPY: selecting PDF text surfaces the copy button + a non-empty
       // text selection (the clipboard path itself can't be asserted headless).
       if (process.env.SMOKE_COPY) {

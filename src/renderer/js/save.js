@@ -259,7 +259,7 @@
       for (const m of App.state.measurements) {
         const vp = App.state.baseViewports[m.page - 1];
         const page = pdfDoc.getPage(m.page - 1);
-        const color = hexRgb(M_COLORS[m.type] || '#2f6fed');
+        const color = hexRgb(m.color || M_COLORS[m.type] || '#2f6fed');
         // vertices -> PDF user space (rotation-safe)
         const P = m.pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
 

@@ -285,6 +285,18 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'measure color — chosen color applies only to later measurements; Reset restores default',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MCOLOR: '1' }, [SAMPLE]), 'mcolor');
+      check(j.n === 3, `expected 3 measurements, got ${j.n}`);
+      check(j.c[0] === '#2f6fed', `first measurement lost the default color: ${j.c[0]}`);
+      check(j.c[1] === '#ff0000', `chosen color did not apply to the next measurement: ${j.c[1]}`);
+      check(j.c[2] === '#2f6fed', `Reset did not restore the default color: ${j.c[2]}`);
+      check(j.strokes[1] === '#ff0000', `rendered stroke did not use the chosen color: ${JSON.stringify(j.strokes)}`);
+      check(j.exportOk === true, 'export threw with a custom measurement color');
+    }
+  },
+  {
     name: 'text copy — selecting PDF text shows the copy button',
     run: () => {
       const j = tagJson(runApp({ SMOKE_COPY: '1' }, [SAMPLE]), 'copy');

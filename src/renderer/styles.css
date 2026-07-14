@@ -453,6 +453,26 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 .tb-menu button:hover { background: var(--panel-2); }
 .tb-menu button.active { background: var(--accent); }
 .tb-menu-sep { height: 1px; background: var(--border); margin: 5px 4px; }
+/* Measurement color picker row (lives inside the Measure menu). */
+.mtool-color {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 6px; cursor: pointer;
+  color: var(--text); font-size: 13px;
+}
+.mtool-color:hover { background: var(--panel-2); }
+.mtool-color .mtool-color-active {
+  width: 14px; height: 14px; border-radius: 3px; flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, #2f6fed, #21a366);
+}
+.mtool-color input[type="color"] {
+  width: 26px; height: 22px; margin-left: auto; padding: 0;
+  border: none; background: none; cursor: pointer; flex: 0 0 auto;
+}
+.mtool-color-reset {
+  font-size: 12px; padding: 3px 8px !important; flex: 0 0 auto;
+  border: 1px solid var(--border) !important; border-radius: 5px; color: var(--text);
+}
 /* Discoverable single-key shortcut hint, right-aligned in the tool menu row. */
 .mk-key {
   float: right; margin-left: 16px; min-width: 15px; text-align: center;
