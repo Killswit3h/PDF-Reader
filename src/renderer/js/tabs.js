@@ -38,6 +38,18 @@
   // A document is dirty if the active one (live in App.state) or any snapshot is.
   T.anyDirty = () => sessions.some((s) => (s.id === activeId ? App.state.dirty : s.state.dirty));
 
+  // Open documents as { id, name, active } — used by the Split View doc picker.
+  T.list = () => sessions.map((s) => ({
+    id: s.id,
+    name: (s.id === activeId ? App.state.fileName : s.state.fileName) || 'PDF',
+    active: s.id === activeId
+  }));
+  // Raw PDF bytes / name for a tab (the active tab's live values, or a snapshot's).
+  T.bytesOf = (id) => (id === activeId ? App.state.pdfBytes
+    : (sessions.find((x) => x.id === id) || { state: {} }).state.pdfBytes || null);
+  T.nameOf = (id) => (id === activeId ? App.state.fileName
+    : (sessions.find((x) => x.id === id) || { state: {} }).state.fileName || null);
+
   function freshState(doc, original, name, filePath) {
     return {
       pdfDoc: doc, pdfBytes: original, fileName: name || 'document.pdf', filePath: filePath || null,

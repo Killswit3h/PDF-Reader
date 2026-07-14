@@ -156,6 +156,8 @@
           <button data-doc="chest">🧰 Tool Chest</button>
           <button data-doc="digisign">🔏 Digital Signature…</button>
           <button data-doc="compare">🔍 Compare Documents…</button>
+          <div class="tb-menu-sep"></div>
+          <button data-doc="split">◫ Side by Side<span class="mk-key">\</span></button>
         </div>
       </div>
     </div>
@@ -226,6 +228,20 @@
     <!-- Official PDF.js viewer (virtualized). Pages render on demand. -->
     <div id="viewerContainer">
       <div id="viewer" class="pdfViewer"></div>
+    </div>
+
+    <!-- Side-by-side reference pane (read-only MiniViewer). Shown when Split
+         View is on; the left viewer shrinks to make room. -->
+    <div id="split-pane" class="hidden">
+      <div id="split-head">
+        <select id="split-pick" title="Choose the document for this pane"></select>
+        <span class="split-spacer"></span>
+        <button id="split-zoom-out" class="tb-btn icon" title="Zoom out">−</button>
+        <button id="split-fit" class="tb-btn icon" title="Fit width">⤢</button>
+        <button id="split-zoom-in" class="tb-btn icon" title="Zoom in">+</button>
+        <button id="split-close" class="tb-btn icon" title="Close side-by-side">✕</button>
+      </div>
+      <div id="split-body" class="mini-scroll"></div>
     </div>
   </main>
 
@@ -649,6 +665,8 @@
   <script src="js/digisign.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/compare.js"></script>
+  <script src="js/miniviewer.js"></script>
+  <script src="js/splitview.js"></script>
   <script src="js/textcopy.js"></script>
   <script src="js/app.js"></script>
 </body>

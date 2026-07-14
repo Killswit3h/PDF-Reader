@@ -443,6 +443,34 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_SPLIT: the in-window Side-by-Side pane renders a second document
+      // read-only; the window-tiling API is present.
+      if (process.env.SMOKE_SPLIT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,800));
+              const b=App.state.pdfBytes;
+              await App.Tabs.open(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength),'second.pdf',null);
+              await new Promise(r=>setTimeout(r,400));
+              const tabs=App.Tabs.list().length;
+              App.SplitView.open();
+              let canvases=0;
+              for(let i=0;i<60;i++){canvases=document.querySelectorAll('#split-body .mini-page canvas').length;if(canvases>0)break;await new Promise(r=>setTimeout(r,100));}
+              const paneVisible=!document.getElementById('split-pane').classList.contains('hidden');
+              const options=document.querySelectorAll('#split-pick option').length;
+              App.SplitView.close();
+              const closed=!document.body.classList.contains('has-split');
+              const apiTile=typeof window.api.tileSideBySide==='function';
+              return JSON.stringify({ tabs, canvases, paneVisible, options, closed, apiTile });
+            })()`, true);
+            console.log('[split] ' + r);
+          } catch (e) { console.log('[split] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_TMARK: text markups (highlight/underline/strikeout) render + export.
       if (process.env.SMOKE_TMARK) {
         setTimeout(async () => {
@@ -1563,6 +1591,31 @@ ipcMain.handle('window:openTearoff', (_e, payload) => {
   if (!payload || !payload.base) return false;
   createChildWindow(payload);
   return true;
+});
+
+// Tile the requesting window and one other app window (a torn-off window if any,
+// else the main window) to the left/right halves of the display — one per
+// monitor when a second display is available. Complements tab tear-off so a
+// document dragged to another monitor lands cleanly beside the original.
+ipcMain.handle('window:tile', (e) => {
+  const requester = BrowserWindow.fromWebContents(e.sender);
+  if (!requester) return { ok: false, reason: 'No window to tile.' };
+  // The "other" window: prefer a different app window (torn-off or main).
+  let other = null;
+  for (const w of childWindows) { if (w !== requester && !w.isDestroyed()) { other = w; break; } }
+  if (!other && mainWindow && mainWindow !== requester && !mainWindow.isDestroyed()) other = mainWindow;
+  if (!other) return { ok: false, reason: 'Open a second window first (drag a tab to another monitor).' };
+  const displays = screen.getAllDisplays();
+  requester.unmaximize(); other.unmaximize();
+  if (displays.length >= 2) {
+    requester.setBounds(displays[0].workArea); other.setBounds(displays[1].workArea);
+  } else {
+    const wa = screen.getDisplayMatching(requester.getBounds()).workArea;
+    const halfW = Math.floor(wa.width / 2);
+    requester.setBounds({ x: wa.x, y: wa.y, width: halfW, height: wa.height });
+    other.setBounds({ x: wa.x + halfW, y: wa.y, width: wa.width - halfW, height: wa.height });
+  }
+  return { ok: true };
 });
 
 // Read a PDF from an absolute path (drag-drop / command-line open).
