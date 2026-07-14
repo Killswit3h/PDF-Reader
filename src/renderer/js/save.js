@@ -391,14 +391,14 @@
           delete model.__count;
           const json = new TextEncoder().encode(JSON.stringify(model));
           await pdfDoc.attach(json, App.SIDECAR.MODEL, {
-            mimeType: 'application/json', description: 'PDF Signer editable markups'
+            mimeType: 'application/json', description: 'FieldMark editable markups'
           });
           // Sidecar base = the document with form edits applied but our marks NOT
           // flattened, so reopening restores editable marks over the filled form.
           const baseDoc = await PDFDocument.load(App.state.pdfBytes);
           await applyFormEdits(baseDoc);
           await pdfDoc.attach(new Uint8Array(await baseDoc.save()), App.SIDECAR.BASE, {
-            mimeType: 'application/pdf', description: 'PDF Signer base document'
+            mimeType: 'application/pdf', description: 'FieldMark base document'
           });
         }
       } catch (e) { if (window.console) console.warn('sidecar embed skipped:', e && e.message); }

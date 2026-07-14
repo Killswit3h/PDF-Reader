@@ -9,7 +9,7 @@
  * exactly why it can't be set as the default PDF opener. An ad-hoc signature
  * (`codesign -s -`) makes it a launchable, associable app. Gatekeeper still
  * shows the milder "unidentified developer" for freshly-downloaded copies
- * (right-click → Open once, or `xattr -cr "/Applications/PDF Signer.app"`) —
+ * (right-click → Open once, or `xattr -cr "/Applications/FieldMark.app"`) —
  * that quarantine can only be removed entirely by notarization, which needs a
  * paid Apple Developer account.
  *

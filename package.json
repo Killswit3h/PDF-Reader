@@ -1,6 +1,6 @@
 {
   "name": "pdf-signer",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "description": "Offline app (Windows + macOS + Android) to view large PDFs, organize/merge pages, mark them up, measure by scale, fill forms, number/stamp, add cosmetic signatures/initials/dates, and apply certified (PKI) digital signatures.",
   "main": "src/main.js",
   "author": "",
@@ -89,10 +89,10 @@
       "category": "public.app-category.productivity",
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
-      "artifactName": "PDF-Signer-${version}-${arch}.${ext}"
+      "artifactName": "FieldMark-${version}-${arch}.${ext}"
     },
     "dmg": {
-      "title": "PDF Signer ${version}"
+      "title": "FieldMark ${version}"
     },
     "nsis": {
       "oneClick": false,
@@ -100,8 +100,8 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "PDF Signer",
-      "artifactName": "PDF-Signer-Setup.exe"
+      "shortcutName": "FieldMark",
+      "artifactName": "Field-Mark-Setup.exe"
     }
   },
   "dependencies": {
