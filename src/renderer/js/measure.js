@@ -533,6 +533,29 @@
   }
   M._startDrag = startMeasureDrag;
 
+  // ---------- Copy / duplicate ----------
+  M.getSelected = function () {
+    return App.state.measurements.find((x) => x.id === App.state.measureSelectedId) || null;
+  };
+  // Create a new measurement from a (cloned) data object, offset by (dx,dy)
+  // viewport points. The value/label are recomputed at the new location (the
+  // scale can differ per region). Returns the new id.
+  M.paste = function (data, dx, dy) {
+    if (!data) return null;
+    App.History.snapshot();
+    const m = JSON.parse(JSON.stringify(data));
+    m.id = ++App.state.measureSeq;
+    m.pts = m.pts.map((p) => ({ vx: p.vx + (dx || 0), vy: p.vy + (dy || 0) }));
+    const { value, unit } = computeValue(m.type, m.page, m.pts);
+    m.value = value; m.unit = unit;
+    m.label = value == null ? '(set scale)' : App.fmtMeasure(m.type, value, unit);
+    App.state.measurements.push(m);
+    App.$('#btn-save').disabled = false;
+    M.select(m.id);
+    M.renderPanel();
+    return m.id;
+  };
+
   M.remove = function (id) {
     App.History.snapshot();
     App.state.measurements = App.state.measurements.filter((m) => m.id !== id);

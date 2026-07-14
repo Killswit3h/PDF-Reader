@@ -324,5 +324,24 @@
     textEl.addEventListener('keydown', onKey);
   }
 
+  // ---------- Copy / duplicate ----------
+  P.getSelected = function () {
+    return App.state.placements.find((x) => x.id === App.state.selectedId) || null;
+  };
+  // Create a new placement from a (cloned) data object, offset by (dx,dy) points
+  // so the copy doesn't sit exactly on top of the original. Returns the new id.
+  P.paste = function (data, dx, dy) {
+    if (!data) return null;
+    App.History.snapshot();
+    const p = JSON.parse(JSON.stringify(data));
+    p.id = ++App.state.placementSeq;
+    p.vx += (dx || 0); p.vy += (dy || 0);
+    App.state.placements.push(p);
+    P.repositionAll();
+    P.select(p.id);
+    App.$('#btn-save').disabled = false;
+    return p.id;
+  };
+
   App.Placement = P;
 })();

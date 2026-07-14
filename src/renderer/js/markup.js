@@ -253,6 +253,23 @@
   function annoById(id) { return App.state.annotations.find((a) => a.id === id); }
   K.select = function (id) { App.state.annoSelectedId = id; K.repositionAll(); if (App.MarkupPanel) App.MarkupPanel.render(); syncPropBar(); App.refreshChrome && App.refreshChrome(); };
   K.deselect = function () { if (App.state.annoSelectedId != null) { App.state.annoSelectedId = null; K.repositionAll(); App.refreshChrome && App.refreshChrome(); } };
+
+  // ---------- Copy / duplicate ----------
+  K.getSelected = function () { return annoById(App.state.annoSelectedId) || null; };
+  // Create a new annotation from a (cloned) data object, offset by (dx,dy)
+  // viewport points. Returns the new id.
+  K.paste = function (data, dx, dy) {
+    if (!data) return null;
+    snapshot();
+    const an = JSON.parse(JSON.stringify(data));
+    App.state.annoSeq = (App.state.annoSeq || 0) + 1;
+    an.id = App.state.annoSeq;
+    an.pts = an.pts.map((p) => ({ vx: p.vx + (dx || 0), vy: p.vy + (dy || 0) }));
+    App.state.annotations.push(an);
+    App.$('#btn-save').disabled = false;
+    K.select(an.id);
+    return an.id;
+  };
   // Keyboard nudge (arrow keys) for the selected annotation.
   K.nudge = function (dx, dy) {
     const an = annoById(App.state.annoSelectedId);

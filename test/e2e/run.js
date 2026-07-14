@@ -297,6 +297,20 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'duplicate — Ctrl+D / Ctrl+C+V clone the selected object into an offset copy',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_DUP: '1' }, [SAMPLE]), 'dup');
+      check(j.place.after === 2, `Ctrl+D did not duplicate the placement (count ${j.place.after})`);
+      check(j.place.offX === 14 && j.place.offY === 14, `placement copy not offset: ${j.place.offX},${j.place.offY}`);
+      check(j.place.text === 'HELLO' && j.place.newId === true, 'placement copy lost text or reused id');
+      check(j.place.selected === true, 'placement copy was not selected after duplicate');
+      check(j.markup.after === 3, `Ctrl+C+V+V did not paste two markup copies (count ${j.markup.after})`);
+      check(j.markup.offX === 14, `first markup copy not offset: ${j.markup.offX}`);
+      check(j.markup.cascadeOff === 14, `repeated paste did not cascade offset: ${j.markup.cascadeOff}`);
+      check(j.markup.text === 'NOTE' && j.markup.newId === true, 'markup copy lost text or reused id');
+    }
+  },
+  {
     name: 'markup presets — Line color has 6 quick presets; clicking one applies it; wheel still works',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MKPRESET: '1' }, [SAMPLE]), 'mkpreset');

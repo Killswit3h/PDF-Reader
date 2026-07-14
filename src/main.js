@@ -505,6 +505,44 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_DUP: the selected placed object can be duplicated (Ctrl+D) and
+      // copy/pasted (Ctrl+C/Ctrl+V) into an offset copy. Covers placements and
+      // markups, driven through the real window keydown path.
+      if (process.env.SMOKE_DUP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const K=(key)=>window.dispatchEvent(new KeyboardEvent('keydown',{key,ctrlKey:true,bubbles:true,cancelable:true}));
+              const clearAll=()=>{App.Placement.deselect();App.Markup.deselect();App.state.measureSelectedId=null;App.Measure.repositionAll();};
+              // placement duplicate via Ctrl+D
+              clearAll();
+              App.state.placementSeq++;
+              const p0={id:App.state.placementSeq,type:'date',page:1,vx:100,vy:100,vw:80,vh:19,text:'HELLO',fontPt:14};
+              App.state.placements.push(p0); App.Placement.repositionAll(); App.Placement.select(p0.id);
+              K('d');
+              const pl=App.state.placements, np=pl[pl.length-1];
+              const place={after:pl.length,offX:np.vx-p0.vx,offY:np.vy-p0.vy,text:np.text,newId:np.id!==p0.id,selected:App.state.selectedId===np.id};
+              // markup copy/paste via Ctrl+C then Ctrl+V (twice → cascades)
+              clearAll();
+              App.state.annoSeq=(App.state.annoSeq||0)+1;
+              const a0={id:App.state.annoSeq,page:1,type:'text',pts:[{vx:50,vy:50}],style:{stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14},text:'NOTE'};
+              App.state.annotations.push(a0); App.Markup.select(a0.id);
+              K('c'); K('v');
+              const na1=App.state.annotations[App.state.annotations.length-1];
+              const firstOff=na1.pts[0].vx-a0.pts[0].vx; // 14 for the first paste
+              K('v'); // cascade: offsets again from na1
+              const an=App.state.annotations, na=an[an.length-1];
+              const markup={after:an.length,offX:firstOff,cascadeOff:na.pts[0].vx-na1.pts[0].vx,text:na.text,newId:na.id!==a0.id};
+              return JSON.stringify({place,markup});
+            })()`, true);
+            console.log('[dup] ' + r);
+          } catch (e) { console.log('[dup] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MKPRESET: the markup Line color exposes 6 quick presets; clicking
       // one applies it (native input + default style + active swatch), and the
       // color-wheel (native input) still applies a custom color.
