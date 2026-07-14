@@ -52,6 +52,16 @@ contextBridge.exposeInMainWorld('api', {
   onMenuCommand: (cb) =>
     ipcRenderer.on('menu-command', (_e, command) => cb(command)),
 
+  // ---- Tear-off: pop a tab into its own window ----
+  // Ask the main process to open a new app window pre-loaded with a document.
+  // payload = { base:Uint8Array, model, fileName, filePath, dirty }. Resolves
+  // true when the window was created. Desktop-only (no-op stub on web/Android).
+  openTearoff: (payload) => ipcRenderer.invoke('window:openTearoff', payload),
+  // The main process is handing THIS (freshly created) window its torn-off
+  // document to open. Fires once, right after the renderer signals ready.
+  onOpenTearoff: (cb) =>
+    ipcRenderer.on('open-tearoff', (_e, payload) => cb(payload)),
+
   // Print the finished document. `bytes` is the exported PDF (Uint8Array); the
   // main process renders it offscreen and opens the OS print dialog.
   print: (bytes) => ipcRenderer.invoke('app:print', bytes),

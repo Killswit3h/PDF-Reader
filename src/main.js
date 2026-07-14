@@ -49,6 +49,79 @@ let mainWindow = null;
 let rendererReady = false;
 let pendingFile = null;
 
+// Torn-off child windows + their pending initial documents (keyed by the new
+// window's webContents id; delivered on that window's 'renderer-ready').
+const childWindows = new Set();
+const pendingTearoffs = new Map();
+
+// Block navigation / new-window popups (a hostile PDF link must not replace the
+// app or spawn a window); real web links go to the user's browser. Applied to
+// every app window (main + torn-off).
+function applyWindowSecurity(win) {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (e, url) => {
+    e.preventDefault();
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+  });
+}
+
+// Prompt to save unsaved edits before a window closes (Save / Don't Save /
+// Cancel). Shared by the main window and every torn-off window.
+function attachCloseGuard(win) {
+  win.on('close', async (e) => {
+    if (win._forceClose || process.env.SMOKE_TEST) return;
+    e.preventDefault();
+    let dirty = false;
+    try {
+      dirty = await win.webContents.executeJavaScript(
+        '!!(window.App && ((App.Tabs && App.Tabs.anyDirty()) || (App.state && App.state.dirty)))');
+    } catch (_) { /* renderer gone → just close */ }
+    if (!dirty) { win._forceClose = true; win.close(); return; }
+
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      message: 'Do you want to save the changes you made to this PDF?',
+      detail: "Your changes will be lost if you don't save them."
+    });
+    if (response === 2) return;                       // Cancel → stay open
+    if (response === 1) { win._forceClose = true; win.close(); return; } // Don't Save
+
+    let ok = false;                                   // Save → save, then close if it worked
+    try { ok = await win.webContents.executeJavaScript('App.Save.saveForClose()'); } catch (_) {}
+    if (ok) { win._forceClose = true; win.close(); }
+  });
+}
+
+// Create a torn-off window pre-loaded with a document. `payload` is buffered and
+// pushed to the new renderer once it reports ready (see 'renderer-ready').
+function createChildWindow(payload) {
+  const parent = BrowserWindow.getFocusedWindow() || mainWindow;
+  const pb = parent && !parent.isDestroyed() ? parent.getBounds() : { x: 60, y: 60, width: 1280, height: 900 };
+  const win = new BrowserWindow({
+    width: pb.width, height: pb.height,
+    x: (pb.x || 60) + 40, y: (pb.y || 60) + 40,
+    minWidth: 800, minHeight: 600, backgroundColor: '#16171a', show: false, title: 'FieldMark',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true, nodeIntegration: false, sandbox: false
+    }
+  });
+  childWindows.add(win);
+  applyWindowSecurity(win);
+  attachCloseGuard(win);
+  win.on('closed', () => childWindows.delete(win));
+  if (payload) pendingTearoffs.set(win.webContents.id, payload);
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.once('ready-to-show', () => win.show());
+  return win;
+}
+
 // Hand a file path to the renderer, or buffer it until the renderer is ready.
 function openInRenderer(filePath) {
   if (!filePath) return;
@@ -91,8 +164,11 @@ function githubUrl() {
 // here in the main process.
 function handleMenuCommand(command) {
   if (command === 'open-github') { shell.openExternal(githubUrl()); return; }
-  if (mainWindow && mainWindow.webContents) {
-    mainWindow.webContents.send('menu-command', command);
+  // Route to the focused window so menu actions target the window the user is
+  // looking at (matters once tabs can be torn off into separate windows).
+  const win = BrowserWindow.getFocusedWindow() || mainWindow;
+  if (win && win.webContents) {
+    win.webContents.send('menu-command', command);
   }
 }
 
@@ -185,18 +261,9 @@ function createWindow() {
   mainWindow.on('move', saveWindowState);
   mainWindow.on('maximize', saveWindowState);
   mainWindow.on('unmaximize', saveWindowState);
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url)) shell.openExternal(url);
-    return { action: 'deny' };
-  });
-  mainWindow.webContents.on('will-navigate', (e, url) => {
-    // The app never navigates the main window after its initial load (that's a
-    // 'load', not a navigation). Block everything — including a file:// URL from
-    // a mis-dropped PDF that would otherwise replace the app — and send real
-    // web links to the user's browser instead.
-    e.preventDefault();
-    if (/^https?:/i.test(url)) shell.openExternal(url);
-  });
+  // Block navigation / popups (a mis-dropped file:// or a hostile PDF link must
+  // not replace the app); real web links open in the user's browser.
+  applyWindowSecurity(mainWindow);
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
 
@@ -335,6 +402,43 @@ function createWindow() {
             })()`, true);
             console.log('[tabreorder] ' + r);
           } catch (e) { console.log('[tabreorder] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_TEAROFF: tearing a tab off opens a SECOND window pre-loaded with
+      // that document — and its unsaved edits travel with it (base + marks model).
+      if (process.env.SMOKE_TEAROFF) {
+        setTimeout(async () => {
+          try {
+            const setup = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              // Open a SECOND tab (reuse the current bytes) so tear-off is allowed.
+              const b=App.state.pdfBytes;
+              await App.Tabs.open(b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength),'second.pdf',null);
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              // Mark the active (second) doc so we can prove edits travel with it.
+              App.state.measureSeq++; App.state.measurements.push({id:App.state.measureSeq,page:1,type:'length',pts:[{vx:40,vy:40},{vx:180,vy:40}],value:9,unit:'ft',label:"9'"});
+              App.state.dirty=true;
+              const before=App.Tabs.count();
+              const canTear=App.Tabs.canTearOff();
+              const ok=await App.Tabs.tearOffActive();
+              await new Promise(r=>setTimeout(r,150));
+              return JSON.stringify({before,after:App.Tabs.count(),canTear,ok,srcName:App.state.fileName});
+            })()`, true);
+            await new Promise((r) => setTimeout(r, 1500)); // child window boots + rehydrates
+            const wins = BrowserWindow.getAllWindows();
+            const child = wins.find((w) => w !== mainWindow);
+            let childState = 'null';
+            if (child) {
+              childState = await child.webContents.executeJavaScript(`(async()=>{
+                for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+                await new Promise(r=>setTimeout(r,200));
+                return JSON.stringify({name:App.state.fileName,m:App.state.measurements.length,tabs:App.Tabs.count(),dirty:App.state.dirty});
+              })()`, true);
+            }
+            console.log('[tearoff] ' + JSON.stringify({ windows: wins.length, setup: JSON.parse(setup), child: JSON.parse(childState) }));
+          } catch (e) { console.log('[tearoff] error', e && e.message); }
           app.quit();
         }, 1200);
         return;
@@ -1262,31 +1366,7 @@ function createWindow() {
   });
 
   // Prompt to save unsaved edits before the window closes.
-  mainWindow.on('close', async (e) => {
-    if (mainWindow._forceClose || process.env.SMOKE_TEST) return;
-    e.preventDefault();
-    let dirty = false;
-    try {
-      dirty = await mainWindow.webContents.executeJavaScript(
-        '!!(window.App && ((App.Tabs && App.Tabs.anyDirty()) || (App.state && App.state.dirty)))');
-    } catch (_) { /* renderer gone → just close */ }
-    if (!dirty) { mainWindow._forceClose = true; mainWindow.close(); return; }
-
-    const { response } = await dialog.showMessageBox(mainWindow, {
-      type: 'warning',
-      buttons: ['Save', "Don't Save", 'Cancel'],
-      defaultId: 0,
-      cancelId: 2,
-      message: 'Do you want to save the changes you made to this PDF?',
-      detail: "Your changes will be lost if you don't save them."
-    });
-    if (response === 2) return;                       // Cancel → stay open
-    if (response === 1) { mainWindow._forceClose = true; mainWindow.close(); return; } // Don't Save
-
-    let ok = false;                                   // Save → save, then close if it worked
-    try { ok = await mainWindow.webContents.executeJavaScript('App.Save.saveForClose()'); } catch (_) {}
-    if (ok) { mainWindow._forceClose = true; mainWindow.close(); }
-  });
+  attachCloseGuard(mainWindow);
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -1356,12 +1436,27 @@ ipcMain.handle('dialog:openPdfMulti', async () => {
 // The renderer has finished booting and is now listening for 'open-file-path'.
 // Flush any file that arrived before the renderer was ready.
 ipcMain.on('renderer-ready', (e) => {
+  // A torn-off window: hand it its buffered document and stop (it isn't the
+  // primary window, so it must not claim `pendingFile` or flip rendererReady).
+  const pend = pendingTearoffs.get(e.sender.id);
+  if (pend) {
+    pendingTearoffs.delete(e.sender.id);
+    e.sender.send('open-tearoff', pend);
+    return;
+  }
   rendererReady = true;
   if (pendingFile) {
     const f = pendingFile;
     pendingFile = null;
     e.sender.send('open-file-path', f);
   }
+});
+
+// Renderer asks to pop a document into its own window (tab tear-off).
+ipcMain.handle('window:openTearoff', (_e, payload) => {
+  if (!payload || !payload.base) return false;
+  createChildWindow(payload);
+  return true;
 });
 
 // Read a PDF from an absolute path (drag-drop / command-line open).

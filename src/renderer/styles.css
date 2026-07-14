@@ -140,6 +140,20 @@ body.has-tabs #viewerContainer { top: var(--tab-h, 34px); }
 }
 .tab-add:hover { color: var(--text); border-color: var(--text-faint); }
 
+/* Tab right-click menu (tear-off, and future split view). */
+.tab-menu {
+  position: fixed; z-index: 200; min-width: 180px; padding: 5px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+}
+.tab-menu-item {
+  text-align: left; background: none; border: none; color: var(--text);
+  padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; white-space: nowrap;
+}
+.tab-menu-item:hover:not(:disabled) { background: var(--panel-2); }
+.tab-menu-item:disabled { color: var(--text-faint); cursor: default; }
+
 /* Official PDF.js viewer scroll container */
 #viewerContainer {
   position: absolute; inset: 0;
