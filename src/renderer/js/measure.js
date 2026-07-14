@@ -25,8 +25,13 @@
     _tool: null, // 'calibrate'|'length'|'perimeter'|'area'|'angle'|'count'|'viewport'
     _active: null, // { tool, page, pts:[{vx,vy}], hover:{vx,vy,snap} }
     _calib: null, // { page, pdfLen }  pending calibration line
-    _scaleTarget: null // { kind:'page', page } | { kind:'viewport', page, rect }
+    _scaleTarget: null, // { kind:'page', page } | { kind:'viewport', page, rect }
+    _color: null // custom color for NEW measurements; null = per-type default (COLORS)
   };
+
+  // Effective draw color for a measurement: its own stored color, else the
+  // per-type default. Older measurements (or loaded state) have no color field.
+  function colorOf(m) { return m.color || COLORS[m.type] || '#2f6fed'; }
 
   /* ---------------- geometry (shared, unit-tested: src/shared/geometry.js) --- */
   const { dist, angleAt, centroid } = App.Geom;
@@ -57,6 +62,19 @@
     });
     M.repositionAll();
     M.renderPanel();
+  };
+
+  /* ---------------- color ---------------- */
+  // Set the color used for measurements drawn from now on. Pass null to go back
+  // to the per-type defaults. Existing measurements keep their frozen color.
+  M.setColor = function (hex) {
+    M._color = hex || null;
+    const sw = App.$('#measure-color-active');
+    if (sw) sw.style.background = M._color || 'linear-gradient(135deg,#2f6fed,#21a366)';
+    const reset = App.$('#measure-color-reset');
+    if (reset) reset.classList.toggle('hidden', !M._color);
+    // Recolor the in-progress preview immediately if one is being drawn.
+    if (M._active) M.repositionAll(M._active.page);
   };
 
   /* ---------------- tool lifecycle ---------------- */
@@ -104,6 +122,7 @@
       type: a.tool,
       pts,
       value, unit,
+      color: M._color || COLORS[a.tool], // freeze the color at creation time
       label: value == null ? '(set scale)' : App.fmtMeasure(a.tool, value, unit)
     };
     App.state.measurements.push(m);
@@ -244,7 +263,7 @@
   }
 
   function drawMeasurement(layer, m, z, selected) {
-    const color = COLORS[m.type];
+    const color = colorOf(m);
     if (m.type === 'count') {
       m.pts.forEach((pt, idx) => {
         const c = ns('circle');
@@ -300,7 +319,7 @@
   }
 
   function drawPreview(layer, a, z) {
-    const color = COLORS[a.tool] || '#2f6fed';
+    const color = M._color || COLORS[a.tool] || '#2f6fed';
     const pts = a.pts.slice();
     const live = pts.concat(a.hover ? [a.hover] : []);
     if (live.length >= 2) {
@@ -441,7 +460,7 @@
         const row = document.createElement('div');
         row.className = 'mp-row' + (m.id === App.state.measureSelectedId ? ' selected' : '');
         row.innerHTML =
-          `<span class="mp-swatch" style="background:${COLORS[m.type]}"></span>` +
+          `<span class="mp-swatch" style="background:${colorOf(m)}"></span>` +
           `<span class="mp-type">${m.type}</span>` +
           `<span class="mp-val">${m.label}</span>` +
           `<span class="mp-pg">p${m.page}</span>` +
@@ -513,6 +532,29 @@
     window.addEventListener('pointercancel', up);
   }
   M._startDrag = startMeasureDrag;
+
+  // ---------- Copy / duplicate ----------
+  M.getSelected = function () {
+    return App.state.measurements.find((x) => x.id === App.state.measureSelectedId) || null;
+  };
+  // Create a new measurement from a (cloned) data object, offset by (dx,dy)
+  // viewport points. The value/label are recomputed at the new location (the
+  // scale can differ per region). Returns the new id.
+  M.paste = function (data, dx, dy) {
+    if (!data) return null;
+    App.History.snapshot();
+    const m = JSON.parse(JSON.stringify(data));
+    m.id = ++App.state.measureSeq;
+    m.pts = m.pts.map((p) => ({ vx: p.vx + (dx || 0), vy: p.vy + (dy || 0) }));
+    const { value, unit } = computeValue(m.type, m.page, m.pts);
+    m.value = value; m.unit = unit;
+    m.label = value == null ? '(set scale)' : App.fmtMeasure(m.type, value, unit);
+    App.state.measurements.push(m);
+    App.$('#btn-save').disabled = false;
+    M.select(m.id);
+    M.renderPanel();
+    return m.id;
+  };
 
   M.remove = function (id) {
     App.History.snapshot();
@@ -602,6 +644,12 @@
       App.$$('.page-holder').forEach((h) => h.classList.add('measuring'));
       App.toast('Click two points on a known dimension.', 'info', 4000);
     });
+
+    // measurement color picker (applies to new measurements only)
+    const colorInput = App.$('#measure-color');
+    if (colorInput) colorInput.addEventListener('input', () => M.setColor(colorInput.value));
+    const colorReset = App.$('#measure-color-reset');
+    if (colorReset) colorReset.addEventListener('click', (e) => { e.stopPropagation(); M.setColor(null); });
 
     // panel
     App.$('#mp-close').addEventListener('click', M.togglePanel);

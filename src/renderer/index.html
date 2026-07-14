@@ -108,6 +108,14 @@
           <button data-mtool="angle">📐 Angle</button>
           <button data-mtool="count">🔢 Count</button>
           <div class="tb-menu-sep"></div>
+          <label class="mtool-color" title="Color for new measurements (existing ones keep their color)">
+            <span class="mtool-color-ico" aria-hidden="true">🎨</span>
+            <span>Color</span>
+            <span id="measure-color-active" class="mtool-color-active" aria-hidden="true"></span>
+            <input id="measure-color" type="color" value="#2f6fed" aria-label="Measurement color" />
+            <button id="measure-color-reset" type="button" class="mtool-color-reset hidden" title="Use default colors per type">Reset</button>
+          </label>
+          <div class="tb-menu-sep"></div>
           <button data-mtool="viewport">🗺️ Add Scale Region…</button>
           <button data-mtool="toggle-panel">📋 Measurements List</button>
         </div>
@@ -162,7 +170,18 @@
 
   <!-- ============ Markup properties bar ============ -->
   <div id="markup-props" class="hidden">
-    <label class="mk-prop">Line <input id="mk-stroke" type="color" value="#e5484d" /></label>
+    <div class="mk-prop mk-color-group">
+      <span>Line</span>
+      <div class="mk-presets" id="mk-stroke-presets">
+        <button type="button" class="mk-sw" data-color="#e5484d" style="background:#e5484d" title="Red" aria-label="Red"></button>
+        <button type="button" class="mk-sw" data-color="#f5a623" style="background:#f5a623" title="Orange" aria-label="Orange"></button>
+        <button type="button" class="mk-sw" data-color="#ffd400" style="background:#ffd400" title="Yellow" aria-label="Yellow"></button>
+        <button type="button" class="mk-sw" data-color="#21a366" style="background:#21a366" title="Green" aria-label="Green"></button>
+        <button type="button" class="mk-sw" data-color="#2f6fed" style="background:#2f6fed" title="Blue" aria-label="Blue"></button>
+        <button type="button" class="mk-sw" data-color="#1a1a1a" style="background:#1a1a1a" title="Black" aria-label="Black"></button>
+      </div>
+      <label class="mk-custom" title="Custom color (color wheel)"><input id="mk-stroke" type="color" value="#e5484d" /></label>
+    </div>
     <label class="mk-prop"><input id="mk-fill-on" type="checkbox" /> Fill <input id="mk-fill" type="color" value="#ffcc00" /></label>
     <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" /></label>
     <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" /></label>

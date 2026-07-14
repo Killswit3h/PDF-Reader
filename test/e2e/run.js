@@ -285,6 +285,43 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'measure color — chosen color applies only to later measurements; Reset restores default',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MCOLOR: '1' }, [SAMPLE]), 'mcolor');
+      check(j.n === 3, `expected 3 measurements, got ${j.n}`);
+      check(j.c[0] === '#2f6fed', `first measurement lost the default color: ${j.c[0]}`);
+      check(j.c[1] === '#ff0000', `chosen color did not apply to the next measurement: ${j.c[1]}`);
+      check(j.c[2] === '#2f6fed', `Reset did not restore the default color: ${j.c[2]}`);
+      check(j.strokes[1] === '#ff0000', `rendered stroke did not use the chosen color: ${JSON.stringify(j.strokes)}`);
+      check(j.exportOk === true, 'export threw with a custom measurement color');
+    }
+  },
+  {
+    name: 'duplicate — Ctrl+D / Ctrl+C+V clone the selected object into an offset copy',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_DUP: '1' }, [SAMPLE]), 'dup');
+      check(j.place.after === 2, `Ctrl+D did not duplicate the placement (count ${j.place.after})`);
+      check(j.place.offX === 14 && j.place.offY === 14, `placement copy not offset: ${j.place.offX},${j.place.offY}`);
+      check(j.place.text === 'HELLO' && j.place.newId === true, 'placement copy lost text or reused id');
+      check(j.place.selected === true, 'placement copy was not selected after duplicate');
+      check(j.markup.after === 3, `Ctrl+C+V+V did not paste two markup copies (count ${j.markup.after})`);
+      check(j.markup.offX === 14, `first markup copy not offset: ${j.markup.offX}`);
+      check(j.markup.cascadeOff === 14, `repeated paste did not cascade offset: ${j.markup.cascadeOff}`);
+      check(j.markup.text === 'NOTE' && j.markup.newId === true, 'markup copy lost text or reused id');
+    }
+  },
+  {
+    name: 'markup presets — Line color has 6 quick presets; clicking one applies it; wheel still works',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MKPRESET: '1' }, [SAMPLE]), 'mkpreset');
+      check(j.count === 6, `expected 6 line-color presets, got ${j.count}`);
+      check(j.inputVal === '#2f6fed', `clicking a preset did not set the color input: ${j.inputVal}`);
+      check(j.defStroke === '#2f6fed', `preset did not become the default line color: ${j.defStroke}`);
+      check(j.active.length === 1 && j.active[0] === '#2f6fed', `active swatch not marked: ${JSON.stringify(j.active)}`);
+      check(j.customDef === '#abcdef', `custom color-wheel value did not apply: ${j.customDef}`);
+    }
+  },
+  {
     name: 'text copy — selecting PDF text shows the copy button',
     run: () => {
       const j = tagJson(runApp({ SMOKE_COPY: '1' }, [SAMPLE]), 'copy');

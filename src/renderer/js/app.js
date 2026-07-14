@@ -255,6 +255,41 @@
     return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
       t.isContentEditable);
   }
+
+  // ---- In-app clipboard: copy / paste / duplicate a placed object across the
+  // three layers. Distinct from the OS clipboard (which copies selected PDF
+  // *text*). Holds a deep clone of a placement, markup, or measurement.
+  let _clip = null;
+  const OBJ_LAYERS = [
+    { kind: 'placement', idKey: 'selectedId', mod: () => App.Placement },
+    { kind: 'markup', idKey: 'annoSelectedId', mod: () => App.Markup },
+    { kind: 'measure', idKey: 'measureSelectedId', mod: () => App.Measure }
+  ];
+  function selectedLayer() { return OBJ_LAYERS.find((L) => App.state[L.idKey] != null) || null; }
+  function clearObjectSelection() {
+    App.Placement.deselect(); App.Markup.deselect();
+    if (App.state.measureSelectedId != null) { App.state.measureSelectedId = null; App.Measure.repositionAll(); }
+  }
+  function copySelectedObject() {
+    const L = selectedLayer(); if (!L) return false;
+    const obj = L.mod().getSelected && L.mod().getSelected();
+    if (!obj) return false;
+    _clip = { kind: L.kind, data: JSON.parse(JSON.stringify(obj)) };
+    return true;
+  }
+  function pasteObject() {
+    if (!_clip) return false;
+    const L = OBJ_LAYERS.find((x) => x.kind === _clip.kind); if (!L) return false;
+    clearObjectSelection();
+    const OFF = 14; // viewport points, so the copy sits just off the original
+    const id = L.mod().paste(JSON.parse(JSON.stringify(_clip.data)), OFF, OFF);
+    if (id == null) return false;
+    // Cascade repeated pastes: the next one offsets from the item just dropped.
+    const dropped = L.mod().getSelected && L.mod().getSelected();
+    if (dropped) _clip.data = JSON.parse(JSON.stringify(dropped));
+    App.$('#btn-save').disabled = false;
+    return true;
+  }
   // Shottr-style single-key tool switching: bare letter arms a markup tool
   // instantly (no menu), and the tool stays armed after each draw so you can drop
   // several in a row. `v` is the resting Select/move tool (disarm everything).
@@ -310,6 +345,27 @@
         }
       }
       if (inEditable(e.target)) return;
+
+      // Copy / paste / duplicate the selected placed object (text box, image,
+      // markup, measurement). An in-app clipboard — PDF-text copy stays native.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'c') {
+          const winSel = window.getSelection();
+          if (winSel && !winSel.isCollapsed && String(winSel).trim()) return; // copying PDF text
+          if (copySelectedObject()) { e.preventDefault(); App.toast('Copied', 'info', 1200); }
+          return;
+        }
+        if (k === 'v') {
+          if (pasteObject()) { e.preventDefault(); App.toast('Pasted', 'success', 1200); }
+          return;
+        }
+        if (k === 'd') {
+          e.preventDefault();
+          if (copySelectedObject() && pasteObject()) App.toast('Duplicated', 'success', 1200);
+          return;
+        }
+      }
 
       // '?' (Shift+/) or F1 opens the keyboard-shortcuts help on any platform.
       if (e.key === '?' || e.key === 'F1') { e.preventDefault(); App.Shortcuts.open(); return; }
@@ -716,6 +772,8 @@
       { combos: [['Enter']], label: 'Finish shape' },
       { combos: [['Arrows']], label: 'Nudge selected' },
       { combos: [['Shift', 'Arrows']], label: 'Nudge ×10' },
+      { combos: [['mod', 'D']], label: 'Duplicate selected' },
+      { combos: [['mod', 'C'], ['mod', 'V']], label: 'Copy / paste selected' },
       { combos: [['Delete']], label: 'Remove selected' },
       { combos: [['Esc']], label: 'Cancel / deselect' }
     ] },

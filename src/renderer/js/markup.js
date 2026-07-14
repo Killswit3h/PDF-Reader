@@ -253,6 +253,23 @@
   function annoById(id) { return App.state.annotations.find((a) => a.id === id); }
   K.select = function (id) { App.state.annoSelectedId = id; K.repositionAll(); if (App.MarkupPanel) App.MarkupPanel.render(); syncPropBar(); App.refreshChrome && App.refreshChrome(); };
   K.deselect = function () { if (App.state.annoSelectedId != null) { App.state.annoSelectedId = null; K.repositionAll(); App.refreshChrome && App.refreshChrome(); } };
+
+  // ---------- Copy / duplicate ----------
+  K.getSelected = function () { return annoById(App.state.annoSelectedId) || null; };
+  // Create a new annotation from a (cloned) data object, offset by (dx,dy)
+  // viewport points. Returns the new id.
+  K.paste = function (data, dx, dy) {
+    if (!data) return null;
+    snapshot();
+    const an = JSON.parse(JSON.stringify(data));
+    App.state.annoSeq = (App.state.annoSeq || 0) + 1;
+    an.id = App.state.annoSeq;
+    an.pts = an.pts.map((p) => ({ vx: p.vx + (dx || 0), vy: p.vy + (dy || 0) }));
+    App.state.annotations.push(an);
+    App.$('#btn-save').disabled = false;
+    K.select(an.id);
+    return an.id;
+  };
   // Keyboard nudge (arrow keys) for the selected annotation.
   K.nudge = function (dx, dy) {
     const an = annoById(App.state.annoSelectedId);
@@ -601,6 +618,9 @@
     App.$('#mk-fill-on') && (App.$('#mk-fill-on').checked = !!(s.fill && s.fill !== 'none'));
     set('#mk-width', s.width);
     set('#mk-opacity', Math.round(s.opacity * 100));
+    // highlight the preset swatch matching the current line color (if any)
+    const cur = String(s.stroke || '').toLowerCase();
+    App.$$('#mk-stroke-presets .mk-sw').forEach((b) => b.classList.toggle('active', b.dataset.color.toLowerCase() === cur));
   }
   function applyStyle(patch) {
     const an = annoById(App.state.annoSelectedId);
@@ -614,6 +634,16 @@
     defaults();
     const wire = (id, ev, fn) => { const el = App.$(id); if (el) el.addEventListener(ev, fn); };
     wire('#mk-stroke', 'input', (e) => applyStyle({ stroke: e.target.value }));
+    // preset swatches: set the color input + reuse its input handler (above)
+    const presets = App.$('#mk-stroke-presets');
+    if (presets) presets.querySelectorAll('.mk-sw').forEach((b) => {
+      b.addEventListener('click', () => {
+        const el = App.$('#mk-stroke');
+        el.value = b.dataset.color;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        syncPropBar();
+      });
+    });
     wire('#mk-fill', 'input', (e) => { if (App.$('#mk-fill-on').checked) applyStyle({ fill: e.target.value }); });
     wire('#mk-fill-on', 'change', (e) => applyStyle({ fill: e.target.checked ? App.$('#mk-fill').value : 'none' }));
     wire('#mk-width', 'input', (e) => applyStyle({ width: parseFloat(e.target.value) }));

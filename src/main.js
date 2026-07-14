@@ -470,6 +470,112 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_MCOLOR: a chosen measurement color applies only to measurements
+      // drawn AFTER the change; earlier ones keep their color, and Reset goes
+      // back to the per-type default. Drives the real tool flow (handleClick).
+      if (process.env.SMOKE_MCOLOR) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const M=App.Measure, z=App.state.zoom;
+              const ov={getBoundingClientRect:()=>({left:0,top:0})};
+              function line(x1,y1,x2,y2){
+                M.startTool('length');
+                M.handleClick(1,ov,{clientX:x1*z,clientY:y1*z,shiftKey:false});
+                M.handleClick(1,ov,{clientX:x2*z,clientY:y2*z,shiftKey:false});
+              }
+              line(40,60,200,60);      // default (blue)
+              M.setColor('#ff0000');   // pick red
+              line(40,120,200,120);    // red
+              M.setColor(null);        // reset to per-type default
+              line(40,180,200,180);    // default again
+              const ms=App.state.measurements;
+              const c=[ms[0].color,ms[1].color,ms[2].color];
+              M.repositionAll();
+              await new Promise(r=>setTimeout(r,60));
+              const strokes=Array.from(document.querySelectorAll('.page[data-page-number="1"] .measure-layer polyline.m-shape')).map(p=>p.getAttribute('stroke'));
+              let exportOk=false; try{ await App.Save.buildBytes(); exportOk=true; }catch(e){}
+              return JSON.stringify({n:ms.length,c,strokes,exportOk});
+            })()`, true);
+            console.log('[mcolor] ' + r);
+          } catch (e) { console.log('[mcolor] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_DUP: the selected placed object can be duplicated (Ctrl+D) and
+      // copy/pasted (Ctrl+C/Ctrl+V) into an offset copy. Covers placements and
+      // markups, driven through the real window keydown path.
+      if (process.env.SMOKE_DUP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const K=(key)=>window.dispatchEvent(new KeyboardEvent('keydown',{key,ctrlKey:true,bubbles:true,cancelable:true}));
+              const clearAll=()=>{App.Placement.deselect();App.Markup.deselect();App.state.measureSelectedId=null;App.Measure.repositionAll();};
+              // placement duplicate via Ctrl+D
+              clearAll();
+              App.state.placementSeq++;
+              const p0={id:App.state.placementSeq,type:'date',page:1,vx:100,vy:100,vw:80,vh:19,text:'HELLO',fontPt:14};
+              App.state.placements.push(p0); App.Placement.repositionAll(); App.Placement.select(p0.id);
+              K('d');
+              const pl=App.state.placements, np=pl[pl.length-1];
+              const place={after:pl.length,offX:np.vx-p0.vx,offY:np.vy-p0.vy,text:np.text,newId:np.id!==p0.id,selected:App.state.selectedId===np.id};
+              // markup copy/paste via Ctrl+C then Ctrl+V (twice → cascades)
+              clearAll();
+              App.state.annoSeq=(App.state.annoSeq||0)+1;
+              const a0={id:App.state.annoSeq,page:1,type:'text',pts:[{vx:50,vy:50}],style:{stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14},text:'NOTE'};
+              App.state.annotations.push(a0); App.Markup.select(a0.id);
+              K('c'); K('v');
+              const na1=App.state.annotations[App.state.annotations.length-1];
+              const firstOff=na1.pts[0].vx-a0.pts[0].vx; // 14 for the first paste
+              K('v'); // cascade: offsets again from na1
+              const an=App.state.annotations, na=an[an.length-1];
+              const markup={after:an.length,offX:firstOff,cascadeOff:na.pts[0].vx-na1.pts[0].vx,text:na.text,newId:na.id!==a0.id};
+              return JSON.stringify({place,markup});
+            })()`, true);
+            console.log('[dup] ' + r);
+          } catch (e) { console.log('[dup] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_MKPRESET: the markup Line color exposes 6 quick presets; clicking
+      // one applies it (native input + default style + active swatch), and the
+      // color-wheel (native input) still applies a custom color.
+      if (process.env.SMOKE_MKPRESET) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,300));
+              const btns=Array.from(document.querySelectorAll('#mk-stroke-presets .mk-sw'));
+              const count=btns.length;
+              const blue=btns.find(b=>b.dataset.color==='#2f6fed');
+              blue.click();
+              await new Promise(r=>setTimeout(r,20));
+              const inputVal=document.querySelector('#mk-stroke').value;
+              const defStroke=App.state.annoStyle.stroke;
+              const active=btns.filter(b=>b.classList.contains('active')).map(b=>b.dataset.color);
+              const el=document.querySelector('#mk-stroke'); el.value='#abcdef'; el.dispatchEvent(new Event('input',{bubbles:true}));
+              const customDef=App.state.annoStyle.stroke;
+              // Restore the default markup style: applyStyle persists annoStyle to
+              // localStorage, which is shared across the suite's Electron runs, so
+              // leaving a custom color here would poison later color-sensitive
+              // scenarios (e.g. wysiwyg's red-pixel check).
+              App.state.annoStyle={stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14};
+              if(App.Prefs)App.Prefs.set('annoStyle',App.state.annoStyle);
+              return JSON.stringify({count,inputVal,defStroke,active,customDef});
+            })()`, true);
+            console.log('[mkpreset] ' + r);
+          } catch (e) { console.log('[mkpreset] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_COPY: selecting PDF text surfaces the copy button + a non-empty
       // text selection (the clipboard path itself can't be asserted headless).
       if (process.env.SMOKE_COPY) {
