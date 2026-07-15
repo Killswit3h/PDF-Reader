@@ -936,6 +936,62 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_PRINTPREVIEW: the print flow shows a preview modal with one rendered
+      // (non-blank) thumbnail per page; a typed page range narrows the print to a
+      // subset (App.Print.buildSubset yields a PDF with just those pages); and
+      // cancelling closes the modal without printing (preview resolves null).
+      if (process.env.SMOKE_PRINTPREVIEW) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const bytes=await App.Save.buildBytes();
+              const grid=document.getElementById('pp-grid');
+              const fire=(el,t)=>el.dispatchEvent(new Event(t,{bubbles:true}));
+
+              // --- pass 1: open, render thumbnails, then cancel ---
+              let pending=App.Print.preview(bytes);
+              let thumbs=0,drawn=0;
+              for(let i=0;i<80;i++){
+                const cs=[...grid.querySelectorAll('.pp-thumb')];
+                thumbs=cs.length; drawn=cs.filter(c=>c.dataset.done).length;
+                if(thumbs===App.state.numPages && drawn>0) break;
+                await new Promise(r=>setTimeout(r,100));
+              }
+              const open=!document.getElementById('printprev-modal').classList.contains('hidden');
+              let darkPx=0; const first=grid.querySelector('.pp-thumb');
+              if(first && first.width){ const x=first.getContext('2d');
+                const d=x.getImageData(0,0,first.width,first.height).data;
+                for(let i=0;i<d.length;i+=4){ if(d[i]<200&&d[i+1]<200&&d[i+2]<200)darkPx++; } }
+              App.Print.cancel();
+              const proceed=await pending;
+              const closed=document.getElementById('printprev-modal').classList.contains('hidden');
+
+              // --- pass 2: open, choose a range, print a subset ---
+              const N=App.state.numPages;
+              const range = N>=2 ? '1' : '1';          // first page only
+              pending=App.Print.preview(bytes);
+              for(let i=0;i<40 && !grid.querySelector('.pp-thumb');i++) await new Promise(r=>setTimeout(r,50));
+              const rr=document.getElementById('pp-mode-range'); rr.checked=true; fire(rr,'change');
+              const inp=document.getElementById('pp-range'); inp.value=range; fire(inp,'input');
+              const excluded=[...grid.querySelectorAll('.pp-tile.excluded')].length;
+              const printDisabled=document.getElementById('pp-print').disabled;
+              App.Print.confirm();
+              const sel=await pending;
+              const sub=await App.Print.buildSubset(bytes, sel.pages, sel.total);
+              const jsdoc=await window.pdfjsLib.getDocument({data:new Uint8Array(sub)}).promise;
+              const subPages=jsdoc.numPages; try{jsdoc.destroy();}catch(_){}
+
+              return JSON.stringify({numPages:N,thumbs,drawn,open,closed,proceed,darkPx,
+                selPages:sel&&sel.pages,excluded,printDisabled,subPages});
+            })()`, true);
+            console.log('[printpreview] ' + r);
+          } catch (e) { console.log('[printpreview] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {

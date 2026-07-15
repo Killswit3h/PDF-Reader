@@ -394,6 +394,25 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'print preview — thumbnails render, a page range prints a subset, cancel closes it',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_PRINTPREVIEW: '1' }, [SAMPLE]), 'printpreview');
+      // pass 1: modal + thumbnails + cancel
+      check(j.open === true, 'print-preview modal did not open');
+      check(j.thumbs === j.numPages && j.thumbs >= 1, `thumbnail count ${j.thumbs} != pages ${j.numPages}`);
+      check(j.drawn >= 1, 'no thumbnail finished rendering');
+      check(j.darkPx > 500, `first thumbnail looks blank (${j.darkPx} dark px)`);
+      check(j.proceed === null, 'cancel should resolve preview() to null');
+      check(j.closed === true, 'modal did not close after cancel');
+      // pass 2: page-range selection prints only the chosen page(s)
+      check(Array.isArray(j.selPages) && j.selPages.length === 1 && j.selPages[0] === 1,
+        `range "1" should select page 1 only, got ${JSON.stringify(j.selPages)}`);
+      check(j.printDisabled === false, 'Print should be enabled for a valid range');
+      check(j.excluded === j.numPages - 1, `expected ${j.numPages - 1} excluded thumbnails, got ${j.excluded}`);
+      check(j.subPages === 1, `subset PDF should have 1 page, got ${j.subPages}`);
+    }
+  },
+  {
     name: 'wysiwyg — a clicked text mark flattens where it shows on screen',
     run: () => {
       const j = tagJson(runApp({ SMOKE_WYSIWYG: '1' }, [SAMPLE]), 'wysiwyg');

@@ -429,6 +429,27 @@
     <div id="tc-list" class="tc-list"></div>
   </aside>
 
+  <!-- ============ Print preview modal ============ -->
+  <div id="printprev-modal" class="modal-backdrop hidden">
+    <div class="modal pp-modal">
+      <div class="modal-head">
+        <h2>Print preview</h2>
+        <button id="pp-close" class="modal-x" title="Close">✕</button>
+      </div>
+      <div class="pp-toolbar">
+        <label class="pp-opt"><input type="radio" name="pp-mode" id="pp-mode-all" checked /> All pages</label>
+        <label class="pp-opt"><input type="radio" name="pp-mode" id="pp-mode-range" /> Pages</label>
+        <input id="pp-range" type="text" class="pp-range" placeholder="e.g. 1-3, 5" disabled />
+      </div>
+      <div id="pp-grid" class="pp-grid"></div>
+      <div class="modal-foot">
+        <span id="pp-count" class="pp-count"></span>
+        <button id="pp-cancel" class="tb-btn">Cancel</button>
+        <button id="pp-print" class="tb-btn primary">Print</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ Document stamps modal (Bates / header-footer / watermark) ============ -->
   <div id="docstamp-modal" class="modal-backdrop hidden">
     <div class="modal" style="width:600px">
@@ -661,6 +682,7 @@
   <script src="js/organize.js"></script>
   <script src="js/docstamp.js"></script>
   <script src="js/toolchest.js"></script>
+  <script src="js/print.js"></script>
   <script src="js/save.js"></script>
   <script src="js/digisign.js"></script>
   <script src="js/tabs.js"></script>
