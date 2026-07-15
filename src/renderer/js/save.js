@@ -342,14 +342,31 @@
           const b = corners();
           page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined });
         } else if (an.type === 'highlight') {
-          // Freehand highlighter: wide, translucent, round-jointed band along the
-          // pen path (matches the on-screen SVG stroke).
+          // Freehand highlighter: one wide, translucent, round-capped band along
+          // the pen path (matches the on-screen SVG stroke). It MUST be drawn as a
+          // single stroked path: drawing it segment-by-segment (each its own 0.35
+          // opacity) makes the round end-caps overlap and stack into a chain of
+          // dark blobs — a beaded line instead of a clean highlight. drawSvgPath
+          // strokes the whole path under one shared ExtGState, so the 0.35 alpha
+          // applies once and overlaps don't darken.
           const hw = (App.Markup && App.Markup.highlightWidth) ? App.Markup.highlightWidth(s) : Math.max(10, (s.width || 2) * 6);
-          const cap = window.PDFLib.LineCapStyle ? window.PDFLib.LineCapStyle.Round : undefined;
-          for (let i = 0; i < P.length - 1; i++) {
-            page.drawLine({ start: { x: P[i][0], y: P[i][1] }, end: { x: P[i + 1][0], y: P[i + 1][1] }, thickness: hw, color: col, opacity: 0.35, lineCap: cap });
+          const { LineCapStyle, LineJoinStyle, setLineJoin } = window.PDFLib;
+          if (P.length === 1) {
+            page.drawCircle({ x: P[0][0], y: P[0][1], size: hw / 2, color: col, opacity: 0.35 });
+          } else {
+            // drawSvgPath maps a path point (px,py) to PDF user space as
+            // (x+px, y-py) — its Y axis is flipped — so with x:0,y:0 we negate Y
+            // to place each point. Round joins keep the corners smooth.
+            const d = 'M ' + P.map((p) => p[0] + ' ' + (-p[1])).join(' L ');
+            if (setLineJoin && LineJoinStyle) page.pushOperators(setLineJoin(LineJoinStyle.Round));
+            page.drawSvgPath(d, {
+              x: 0, y: 0,
+              borderColor: col,
+              borderWidth: hw,
+              borderOpacity: 0.35,
+              borderLineCap: LineCapStyle ? LineCapStyle.Round : undefined,
+            });
           }
-          if (P.length === 1) page.drawCircle({ x: P[0][0], y: P[0][1], size: hw / 2, color: col, opacity: 0.35 });
         } else if (an.type === 'ellipse') {
           const b = corners();
           page.drawEllipse({ x: b.x + b.w / 2, y: b.y + b.h / 2, xScale: b.w / 2, yScale: b.h / 2, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined });
