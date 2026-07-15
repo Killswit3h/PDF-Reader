@@ -142,10 +142,19 @@
       return;
     }
     // Show the pages that will print (rendered from the exported bytes) and let
-    // the user confirm or back out before we hand anything to the printer.
+    // the user confirm, narrow to a page range, or back out before we hand
+    // anything to the printer.
+    let printBytes = bytes;
     if (App.Print && App.Print.preview) {
-      const proceed = await App.Print.preview(bytes);
-      if (!proceed) return;
+      const sel = await App.Print.preview(bytes);
+      if (!sel) return;
+      // Narrow to just the chosen pages (a no-op when all pages are selected).
+      try {
+        printBytes = await App.Print.buildSubset(bytes, sel.pages, sel.total);
+      } catch (e) {
+        App.toast('Could not select those pages: ' + (e && e.message ? e.message : e), 'error');
+        return;
+      }
     }
     App.toast('Preparing print…', 'info', 2500);
     try {
@@ -153,10 +162,10 @@
       // (images always paint) vs handing the PDF to Chromium's offscreen viewer,
       // which was printing blank. Web/Android keep the open-in-viewer path.
       if (window.api.printHtml) {
-        const html = await buildPrintHtml(bytes);
+        const html = await buildPrintHtml(printBytes);
         await window.api.printHtml(html);
       } else {
-        await window.api.print(bytes);
+        await window.api.print(printBytes);
       }
     } catch (e) {
       App.toast('Could not print: ' + (e && e.message ? e.message : e), 'error');
