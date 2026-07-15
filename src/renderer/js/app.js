@@ -134,9 +134,21 @@
   // print path. Shared by the native File → Print menu and the Ctrl/Cmd+P key.
   async function doPrint() {
     if (!App.state.pdfDoc) return;
+    let bytes;
+    try {
+      bytes = await App.Save.buildBytes();
+    } catch (e) {
+      App.toast('Could not prepare print: ' + (e && e.message ? e.message : e), 'error');
+      return;
+    }
+    // Show the pages that will print (rendered from the exported bytes) and let
+    // the user confirm or back out before we hand anything to the printer.
+    if (App.Print && App.Print.preview) {
+      const proceed = await App.Print.preview(bytes);
+      if (!proceed) return;
+    }
     App.toast('Preparing print…', 'info', 2500);
     try {
-      const bytes = await App.Save.buildBytes();
       // Desktop: rasterize the pages here and print them as images — reliable
       // (images always paint) vs handing the PDF to Chromium's offscreen viewer,
       // which was printing blank. Web/Android keep the open-in-viewer path.
@@ -308,7 +320,8 @@
           ['#sig-modal', '#sig-cancel'], ['#scale-modal', '#scale-cancel'],
           ['#update-modal', '#upd-close'], ['#confirm-modal', '#confirm-no'],
           ['#docstamp-modal', '#ds-cancel'], ['#shortcuts-modal', '#sc-close'],
-          ['#digisign-modal', '#dsig-close'], ['#compare-modal', '#cmp-close']
+          ['#digisign-modal', '#dsig-close'], ['#compare-modal', '#cmp-close'],
+          ['#printprev-modal', '#pp-cancel']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
         if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
       }

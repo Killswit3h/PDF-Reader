@@ -394,6 +394,18 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'print preview — modal shows one non-blank thumbnail per page, cancel closes it',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_PRINTPREVIEW: '1' }, [SAMPLE]), 'printpreview');
+      check(j.open === true, 'print-preview modal did not open');
+      check(j.thumbs === j.numPages && j.thumbs >= 1, `thumbnail count ${j.thumbs} != pages ${j.numPages}`);
+      check(j.drawn >= 1, 'no thumbnail finished rendering');
+      check(j.darkPx > 500, `first thumbnail looks blank (${j.darkPx} dark px)`);
+      check(j.proceed === false, 'cancel should resolve preview() to false');
+      check(j.closed === true, 'modal did not close after cancel');
+    }
+  },
+  {
     name: 'wysiwyg — a clicked text mark flattens where it shows on screen',
     run: () => {
       const j = tagJson(runApp({ SMOKE_WYSIWYG: '1' }, [SAMPLE]), 'wysiwyg');

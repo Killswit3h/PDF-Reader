@@ -936,6 +936,42 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_PRINTPREVIEW: opening the print flow shows a preview modal with one
+      // rendered (non-blank) thumbnail per page, and cancelling closes it without
+      // printing (App.Print.preview resolves false).
+      if (process.env.SMOKE_PRINTPREVIEW) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const bytes=await App.Save.buildBytes();
+              const pending=App.Print.preview(bytes); // opens the modal
+              const grid=document.getElementById('pp-grid');
+              let thumbs=0,drawn=0;
+              for(let i=0;i<80;i++){
+                const cs=[...grid.querySelectorAll('.pp-thumb')];
+                thumbs=cs.length; drawn=cs.filter(c=>c.dataset.done).length;
+                if(thumbs===App.state.numPages && drawn>0) break;
+                await new Promise(r=>setTimeout(r,100));
+              }
+              const open=!document.getElementById('printprev-modal').classList.contains('hidden');
+              // Confirm the first thumbnail actually painted (not a blank canvas).
+              let darkPx=0; const first=grid.querySelector('.pp-thumb');
+              if(first && first.width){ const x=first.getContext('2d');
+                const d=x.getImageData(0,0,first.width,first.height).data;
+                for(let i=0;i<d.length;i+=4){ if(d[i]<200&&d[i+1]<200&&d[i+2]<200)darkPx++; } }
+              App.Print.cancel();                     // resolve pending -> false
+              const proceed=await pending;
+              const closed=document.getElementById('printprev-modal').classList.contains('hidden');
+              return JSON.stringify({numPages:App.state.numPages,thumbs,drawn,open,closed,proceed,darkPx});
+            })()`, true);
+            console.log('[printpreview] ' + r);
+          } catch (e) { console.log('[printpreview] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MDRAG: a placed measurement can be grabbed + dragged to move it.
       if (process.env.SMOKE_MDRAG) {
         setTimeout(async () => {
