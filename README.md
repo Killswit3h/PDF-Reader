@@ -401,6 +401,37 @@ How the port works:
 > (`./gradlew bundleRelease` with a real release keystore held in GitHub Secrets)
 > — out of scope for this repo's CI, which only produces a sideloadable debug APK.
 
+## Build the iPad / iPhone app (TestFlight)
+
+iOS is the **same Capacitor target as Android** — `cap add ios` wraps the exact
+same self-contained `www/` bundle in a WKWebView, so the whole UI + PDF engine
+ships to iPad for free. The only iOS-specific pieces are an opaque app icon
+(`build/make-ios-icons.js`), a couple of `Info.plist` keys
+(`build/patch-ios.js`), and the signing/upload lane (`fastlane/`). Like
+`android/`, the generated `ios/` project is **git-ignored** and rebuilt from
+config each run.
+
+Distribution is via **TestFlight** — no public App Store release required, and
+frequent builds land on your iPad in minutes with no per-build review. The whole
+pipeline is automated: merging a PR to `main` triggers
+`.github/workflows/ios.yml`, which builds, signs, and uploads a new TestFlight
+build; the TestFlight app then delivers it as an update (so the in-app updater is
+a no-op on iOS — see `checkUpdates` in `platform-web.js`).
+
+**Prerequisites:** a Mac + Xcode for local builds; an Apple Developer account and
+seven GitHub secrets for the automated pipeline. The full one-time setup and the
+everyday loop are documented in **[`docs/ios-testflight.md`](docs/ios-testflight.md)**.
+
+```bash
+npm ci
+npm run ios:add     # first time only: generate the native ios/ project (needs macOS)
+npm run ios:open    # open in Xcode → Run on a simulator or a connected iPad
+npm run ios:beta    # build + upload to TestFlight from your Mac (needs the Apple env vars)
+```
+
+Every push and PR also runs an **unsigned build-check** on a macOS CI runner to
+keep the iOS port compiling — no secrets required.
+
 ## Publishing a release (one-time setup)
 
 You don't need a Windows machine to publish — a GitHub Actions workflow

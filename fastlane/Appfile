@@ -1,0 +1,8 @@
+# fastlane app metadata. The bundle id matches capacitor.config.json's appId and
+# the Electron/Android appId, so all platforms share one identity.
+#
+# The Apple team id and the App Store Connect login come from the environment
+# (set as GitHub secrets in CI, or exported locally) rather than being committed:
+#   APPLE_TEAM_ID  – your 10-char Apple Developer Team ID
+app_identifier("com.pdfsigner.app")
+team_id(ENV["APPLE_TEAM_ID"])

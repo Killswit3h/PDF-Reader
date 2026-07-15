@@ -1,0 +1,115 @@
+name: iOS
+
+# Two jobs:
+#  - build-check: on every push/PR, assemble the web bundle, generate the iOS
+#    project, apply icons + Info.plist, and compile for the simulator WITHOUT
+#    signing. No secrets needed — keeps the iOS port buildable (mirrors android.yml).
+#  - testflight: on pushes to main (i.e. a merged PR) or manual dispatch, sign and
+#    upload a build to TestFlight via fastlane. Needs the Apple secrets below.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# macOS runner minutes are costly; a branch push during a PR triggers both the
+# push and pull_request events. Cancel any superseded run on the same ref.
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-check:
+    name: Build check (unsigned)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build web bundle + generate iOS project
+        # ios/ is generated (git-ignored); create it fresh from capacitor.config.json,
+        # then stamp our icon set and Info.plist keys — same shape as the Android job.
+        run: |
+          npm run build:web
+          npx cap add ios --packagemanager CocoaPods
+          npx cap sync ios
+          node build/make-ios-icons.js
+          node build/patch-ios.js
+      - name: Assert icon + plist patches landed
+        run: |
+          test -f ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png
+          grep -q ITSAppUsesNonExemptEncryption ios/App/App/Info.plist
+          echo "iOS project OK"
+      - name: Compile for simulator (no signing)
+        # CODE_SIGNING_ALLOWED=NO builds without certs so this stays secret-free and
+        # runs on forks/PRs — it only proves the Capacitor app still compiles.
+        # Capacitor 8 generates a Swift Package Manager project (App.xcodeproj, no
+        # workspace) when CocoaPods isn't used; fall back to the workspace if one
+        # exists (CocoaPods mode) so this works either way.
+        run: |
+          if [ -d ios/App/App.xcworkspace ]; then
+            CONTAINER=(-workspace ios/App/App.xcworkspace)
+          else
+            CONTAINER=(-project ios/App/App.xcodeproj)
+          fi
+          xcodebuild "${CONTAINER[@]}" \
+            -scheme App \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  testflight:
+    name: Upload to TestFlight
+    runs-on: macos-14
+    needs: build-check
+    # Only ship from main (a merged PR) or an explicit manual run — never from PRs.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
+      # Unique, monotonically increasing build number for each upload.
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - name: Preflight — required Apple secrets present
+        # Fail early with a clear message rather than deep inside fastlane if the
+        # repo hasn't been given its secrets yet (see docs/ios-testflight.md).
+        run: |
+          missing=()
+          for v in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 APPLE_TEAM_ID \
+                   MATCH_GIT_URL MATCH_PASSWORD MATCH_GIT_BASIC_AUTHORIZATION; do
+            if [ -z "${!v}" ]; then missing+=("$v"); fi
+          done
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}. Add them in Settings → Secrets, see docs/ios-testflight.md"
+            exit 1
+          fi
+      - run: npm ci
+      - name: Install fastlane
+        run: bundle install
+      - name: Build web bundle + generate iOS project
+        run: |
+          npm run build:web
+          npx cap add ios --packagemanager CocoaPods
+          npx cap sync ios
+          node build/make-ios-icons.js
+          node build/patch-ios.js
+      - name: Build + upload to TestFlight
+        run: bundle exec fastlane ios beta
