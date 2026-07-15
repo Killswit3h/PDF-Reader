@@ -1,0 +1,328 @@
+/* =============================================================================
+ * Liquid Glass — macOS visual overhaul (scoped to html.platform-mac only)
+ *
+ * Re-skins FieldMark's chrome on macOS as Apple's "Liquid Glass" material: the
+ * top bar, tool rail, side panels, menus, modals and popovers become
+ * translucent frosted surfaces that let the OS vibrancy (main.js sets
+ * `vibrancy: 'under-window'`) blur the desktop behind the window, with a
+ * specular top-edge highlight, a cool hairline, and a soft floating shadow so
+ * each layer reads as a real pane of glass.
+ *
+ * It is deliberately additive: every rule is prefixed with `html.platform-mac`,
+ * so Windows and the Android WebView keep the opaque "drafting table" chrome
+ * from styles.css untouched. The palette still speaks FieldMark's blueprint
+ * language — the glass is tinted graphite-navy in the dark theme and cool
+ * vellum-white in the light theme, and blueprint blue remains the accent.
+ *
+ * Loaded LAST (after styles.css) so these refinements win by source order as
+ * well as by the platform-scoped specificity.
+ * ========================================================================== */
+
+/* ---- Glass material tokens (themed) ------------------------------------- */
+html.platform-mac[data-theme="dark"] {
+  --lg-material:        rgba(18, 29, 41, 0.55);   /* frosted graphite-navy */
+  --lg-material-strong: rgba(21, 33, 47, 0.74);   /* menus/modals: legibility over blur */
+  --lg-material-quiet:  rgba(150, 190, 230, 0.06);/* inset wells, unselected chips */
+  --lg-hairline:        rgba(150, 194, 235, 0.16);/* cool edge line */
+  --lg-hairline-soft:   rgba(150, 194, 235, 0.10);
+  --lg-specular:        rgba(255, 255, 255, 0.16);/* top-edge sheen */
+  --lg-hover:           rgba(180, 214, 245, 0.10);/* brighten-on-hover film */
+  --lg-press:           rgba(0, 0, 0, 0.14);
+  --lg-accent-glass:    rgba(62, 155, 224, 0.30); /* primary/armed glass tint */
+  --lg-accent-glow:     rgba(62, 155, 224, 0.42);
+  --lg-blur:            saturate(175%) blur(30px);
+  --lg-blur-strong:     saturate(180%) blur(42px);
+  --lg-shadow:          0 10px 34px rgba(0, 0, 0, 0.46), 0 2px 8px rgba(0, 0, 0, 0.34);
+  --lg-shadow-lift:     0 16px 44px rgba(0, 0, 0, 0.52), 0 3px 10px rgba(0, 0, 0, 0.4);
+}
+html.platform-mac[data-theme="light"] {
+  --lg-material:        rgba(255, 255, 255, 0.60);/* frosted vellum */
+  --lg-material-strong: rgba(255, 255, 255, 0.80);
+  --lg-material-quiet:  rgba(30, 80, 140, 0.05);
+  --lg-hairline:        rgba(28, 78, 132, 0.14);
+  --lg-hairline-soft:   rgba(28, 78, 132, 0.09);
+  --lg-specular:        rgba(255, 255, 255, 0.85);
+  --lg-hover:           rgba(30, 80, 140, 0.07);
+  --lg-press:           rgba(28, 78, 132, 0.10);
+  --lg-accent-glass:    rgba(30, 111, 184, 0.18);
+  --lg-accent-glow:     rgba(30, 111, 184, 0.32);
+  --lg-blur:            saturate(180%) blur(30px);
+  --lg-blur-strong:     saturate(185%) blur(42px);
+  --lg-shadow:          0 10px 34px rgba(18, 42, 74, 0.16), 0 2px 8px rgba(18, 42, 74, 0.10);
+  --lg-shadow-lift:     0 16px 44px rgba(18, 42, 74, 0.22), 0 3px 10px rgba(18, 42, 74, 0.14);
+}
+
+html.platform-mac {
+  /* A little breathing room + softer springs read as "glass", not "panel". */
+  --lg-ease: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* The window itself is transparent (vibrancy shows through); keep the app body
+ * from painting an opaque fill over it. The document canvas stays opaque via
+ * #viewer-wrap below, so only the chrome is see-through. */
+html.platform-mac,
+html.platform-mac body {
+  background: transparent;
+}
+
+/* Reusable specular sheen: a bright hairline along the top edge that fades as it
+ * wraps the sides — the tell-tale of a lit pane of glass. Applied as an inset
+ * box-shadow so it layers over any background. */
+html.platform-mac #toolbar,
+html.platform-mac #tool-rail,
+html.platform-mac #measure-panel,
+html.platform-mac #markup-panel,
+html.platform-mac .tb-menu,
+html.platform-mac .tab-menu,
+html.platform-mac .modal,
+html.platform-mac #toast {
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+}
+
+/* ============================ Top bar (title bar) ========================= */
+/* Under hiddenInset the toolbar IS the drag region and the title bar. Clear the
+ * traffic lights on the left, drop the hard border for a frosted seam, and let
+ * the OS vibrancy show through. */
+html.platform-mac #toolbar {
+  padding-left: 82px;                    /* clear the traffic-light cluster */
+  background: var(--lg-material);
+  border-bottom: 0.5px solid var(--lg-hairline);
+  box-shadow: inset 0 1px 0 var(--lg-specular), 0 1px 12px rgba(0, 0, 0, 0.16);
+  -webkit-app-region: drag;              /* empty bar area drags the window */
+}
+/* Anything interactive must opt back out of the drag region, or clicks become
+ * window moves. */
+html.platform-mac #toolbar .tb-btn,
+html.platform-mac #toolbar .tb-dropdown,
+html.platform-mac #toolbar .tb-readout,
+html.platform-mac #toolbar #page-input,
+html.platform-mac #toolbar .brand,
+html.platform-mac #toolbar input,
+html.platform-mac #toolbar select {
+  -webkit-app-region: no-drag;
+}
+html.platform-mac .tb-sep { background: var(--lg-hairline-soft); }
+
+/* ============================== Buttons ================================== */
+/* Glass pills: translucent fill, hairline, a faint top sheen, and a spring lift
+ * on hover. */
+html.platform-mac .tb-btn {
+  background: var(--lg-material-quiet);
+  border: 0.5px solid var(--lg-hairline);
+  border-radius: 9px;
+  box-shadow: inset 0 1px 0 var(--lg-specular);
+  transition: background var(--dur-fast) var(--lg-ease),
+              border-color var(--dur-fast) var(--lg-ease),
+              box-shadow var(--dur-med) var(--lg-ease),
+              transform var(--dur-fast) var(--lg-ease);
+}
+html.platform-mac .tb-btn:hover:not(:disabled) {
+  background: var(--lg-hover);
+  border-color: var(--lg-hairline);
+  box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow);
+  transform: translateY(-1px);
+}
+html.platform-mac .tb-btn:active:not(:disabled) {
+  transform: translateY(0);
+  background: var(--lg-press);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.22);
+}
+html.platform-mac .tb-btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+html.platform-mac .tb-btn.ghost:hover:not(:disabled) {
+  background: var(--lg-hover);
+  box-shadow: inset 0 1px 0 var(--lg-specular);
+}
+
+/* Primary + armed: tinted accent glass with a glow — the one place the material
+ * catches colour. The ::after is a diagonal specular streak (the "liquid"
+ * signature) that slides across on hover. */
+html.platform-mac .tb-btn.primary,
+html.platform-mac .tb-btn.armed,
+html.platform-mac .rail-btn.armed {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(var(--lg-accent-glass), var(--lg-accent-glass)),
+              var(--lg-material);
+  border-color: var(--lg-accent-glow);
+  box-shadow: inset 0 1px 0 var(--lg-specular), 0 0 0 0.5px var(--lg-accent-glow),
+              0 6px 18px var(--lg-accent-glass);
+}
+html.platform-mac .tb-btn.primary { color: var(--text); }
+html.platform-mac .tb-btn.primary::after,
+html.platform-mac .tb-btn.armed::after,
+html.platform-mac .rail-btn.armed::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%,
+              rgba(255, 255, 255, 0.30) 48%, transparent 66%);
+  transform: translateX(-120%);
+  transition: transform 0.55s var(--lg-ease);
+  pointer-events: none;
+}
+html.platform-mac .tb-btn.primary:hover:not(:disabled)::after,
+html.platform-mac .tb-btn.armed:hover:not(:disabled)::after,
+html.platform-mac .rail-btn.armed:hover::after {
+  transform: translateX(120%);
+}
+html.platform-mac .tb-btn.primary:hover:not(:disabled),
+html.platform-mac .tb-btn.armed:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 var(--lg-specular), 0 0 0 0.5px var(--lg-accent-glow),
+              0 10px 26px var(--lg-accent-glass);
+}
+
+/* Danger keeps its solid red identity (safety signal) but gains the glass edge. */
+html.platform-mac .tb-btn.danger {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), var(--lg-shadow);
+  border-color: transparent;
+}
+
+html.platform-mac #page-input {
+  background: var(--lg-material-quiet);
+  border: 0.5px solid var(--lg-hairline);
+  border-radius: 7px;
+}
+
+/* ============================== Tool rail ================================ */
+html.platform-mac #tool-rail {
+  background: var(--lg-material);
+  border-right: 0.5px solid var(--lg-hairline);
+  box-shadow: inset -1px 0 0 var(--lg-specular);
+}
+html.platform-mac .rail-btn {
+  border-radius: 9px;
+  transition: background var(--dur-fast) var(--lg-ease),
+              transform var(--dur-fast) var(--lg-ease),
+              box-shadow var(--dur-med) var(--lg-ease);
+}
+html.platform-mac .rail-btn:hover:not(:disabled) {
+  background: var(--lg-hover);
+  box-shadow: inset 0 1px 0 var(--lg-specular);
+  transform: translateY(-1px);
+}
+html.platform-mac .rail-sep { background: var(--lg-hairline-soft); }
+
+/* ============================== Doc tabs ================================= */
+html.platform-mac #tab-bar {
+  background: var(--lg-material);
+  border-bottom: 0.5px solid var(--lg-hairline);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+}
+html.platform-mac .tab {
+  background: var(--lg-material-quiet);
+  border: 0.5px solid var(--lg-hairline-soft);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+}
+html.platform-mac .tab.active {
+  background: var(--lg-hover);
+  box-shadow: inset 0 1px 0 var(--lg-specular);
+}
+html.platform-mac .tab-add {
+  background: var(--lg-material-quiet);
+  border: 0.5px solid var(--lg-hairline);
+  border-radius: 8px;
+}
+
+/* =========================== Side panels ================================= */
+html.platform-mac #measure-panel,
+html.platform-mac #markup-panel {
+  background: var(--lg-material-strong);
+  border-left: 0.5px solid var(--lg-hairline);
+  box-shadow: inset 1px 0 0 var(--lg-specular);
+}
+html.platform-mac .mp-head,
+html.platform-mac .mp-totals,
+html.platform-mac .mp-foot { border-color: var(--lg-hairline-soft); }
+html.platform-mac .mp-row { transition: background var(--dur-fast) var(--lg-ease); }
+html.platform-mac .mp-row:hover { background: var(--lg-hover); }
+
+/* ============================ Mode banner =============================== */
+html.platform-mac #mode-banner {
+  background: linear-gradient(var(--lg-accent-glass), var(--lg-accent-glass)),
+              var(--lg-material);
+  border-bottom: 0.5px solid var(--lg-hairline);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  -webkit-app-region: drag;              /* also part of the title-bar seam */
+}
+html.platform-mac #mode-banner .link-btn,
+html.platform-mac #mode-banner button { -webkit-app-region: no-drag; }
+
+/* ======================== Menus / dropdowns ============================= */
+html.platform-mac .tb-menu,
+html.platform-mac .tab-menu {
+  background: var(--lg-material-strong);
+  border: 0.5px solid var(--lg-hairline);
+  border-radius: 13px;
+  box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow-lift);
+}
+html.platform-mac .tb-menu-item,
+html.platform-mac .tab-menu-item { border-radius: 8px; }
+html.platform-mac .tb-menu-item:hover:not(:disabled),
+html.platform-mac .tab-menu-item:hover:not(:disabled) { background: var(--lg-hover); }
+
+/* ============================== Modals ================================== */
+html.platform-mac .modal-backdrop { background: rgba(6, 12, 20, 0.42); }
+html.platform-mac .modal {
+  background: var(--lg-material-strong);
+  border: 0.5px solid var(--lg-hairline);
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow-lift);
+  -webkit-backdrop-filter: var(--lg-blur-strong);
+  backdrop-filter: var(--lg-blur-strong);
+}
+html.platform-mac .modal-head,
+html.platform-mac .modal-foot { border-color: var(--lg-hairline-soft); }
+html.platform-mac #sig-type-input {
+  background: var(--lg-material-quiet);
+  border: 0.5px solid var(--lg-hairline);
+}
+
+/* =========================== Toast / loading =========================== */
+html.platform-mac #toast {
+  background: var(--lg-material-strong);
+  color: var(--text);
+  border: 0.5px solid var(--lg-hairline);
+  border-radius: 13px;
+  box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow-lift);
+}
+html.platform-mac #toast.error {
+  background: linear-gradient(rgba(229, 71, 59, 0.22), rgba(229, 71, 59, 0.22)),
+              var(--lg-material-strong);
+  border-color: rgba(229, 71, 59, 0.5);
+  color: var(--text);
+}
+html.platform-mac #toast.success {
+  background: linear-gradient(rgba(52, 192, 122, 0.22), rgba(52, 192, 122, 0.22)),
+              var(--lg-material-strong);
+  border-color: rgba(52, 192, 122, 0.5);
+  color: var(--text);
+}
+html.platform-mac #loading { background: rgba(6, 12, 20, 0.42); }
+
+/* =========================== Keep canvas opaque ======================== */
+/* The document must never turn translucent — only the chrome is glass. These
+ * paint a solid substrate over the transparent window behind the pages. */
+html.platform-mac #viewer-wrap,
+html.platform-mac #viewerContainer,
+html.platform-mac #split-pane { background: var(--bg-canvas); }
+
+/* ============================ Reduced motion =========================== */
+/* Honour the OS setting: drop the lift + specular slide, keep the material. */
+@media (prefers-reduced-motion: reduce) {
+  html.platform-mac .tb-btn:hover:not(:disabled),
+  html.platform-mac .rail-btn:hover:not(:disabled),
+  html.platform-mac .tb-btn.primary:hover:not(:disabled),
+  html.platform-mac .tb-btn.armed:hover:not(:disabled) { transform: none; }
+  html.platform-mac .tb-btn.primary::after,
+  html.platform-mac .tb-btn.armed::after,
+  html.platform-mac .rail-btn.armed::after { display: none; }
+}

@@ -29,6 +29,21 @@ try { app.setPath('userData', path.join(app.getPath('appData'), 'PDF Signer')); 
 const store = process.env.SMOKE_TEST ? null : createStore(app.getPath('userData'));
 const IS_MAC = process.platform === 'darwin';
 
+// macOS "Liquid Glass" window shell. On darwin the window becomes translucent so
+// the OS vibrancy material blurs the desktop behind the frosted chrome, and the
+// title bar is integrated (hiddenInset) — the toolbar itself becomes the drag
+// region and reads as one continuous glass surface, with the traffic lights
+// vertically centred in its 52px height. Everything is guarded to macOS; on
+// Windows/Linux this object is empty and the standard opaque frame is used.
+// `visualEffectState: 'active'` keeps the material lively even when unfocused.
+const MAC_GLASS_WINDOW = IS_MAC ? {
+  vibrancy: 'under-window',
+  visualEffectState: 'active',
+  titleBarStyle: 'hiddenInset',
+  trafficLightPosition: { x: 19, y: 18 },
+  backgroundColor: '#00000000'
+} : {};
+
 // Disable Chromium's native pinch-zoom at the browser level. On macOS a trackpad
 // pinch is otherwise consumed as native page zoom and never reaches the DOM, so
 // viewer.js can't turn it into PDF zoom. This is a second, independent guard
@@ -107,6 +122,7 @@ function createChildWindow(payload) {
     width: pb.width, height: pb.height,
     x: (pb.x || 60) + 40, y: (pb.y || 60) + 40,
     minWidth: 800, minHeight: 600, backgroundColor: '#16171a', show: false, title: 'FieldMark',
+    ...MAC_GLASS_WINDOW,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: false
@@ -243,7 +259,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false
     }
-  }, saved || {}));
+  }, MAC_GLASS_WINDOW, saved || {}));
 
   // Native application menu (File / Edit / View / Window / Help) with
   // accelerators. The Edit-menu roles also restore Cmd+C/V/X/A in text fields on
