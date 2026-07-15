@@ -1205,13 +1205,86 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 }
 .ds-flatten { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 8px; }
 
-/* Digital-signature saved-ID indicator */
-.dsig-saved { display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  font-size: 12px; color: var(--text-dim); background: var(--panel-2, var(--bg-hover));
-  border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; margin: -4px 0 4px; }
-.dsig-saved.hidden { display: none; }
-.dsig-saved b { color: var(--text); }
 .dsig-check { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+
+/* ---- Digital signature: grouped sections ---- */
+.dsig-section { display: flex; flex-direction: column; gap: var(--sp-3);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-3) var(--sp-4); background: var(--panel-2, var(--bg-hover)); }
+.dsig-section.hidden { display: none; }
+.dsig-section-head { font-size: var(--fs-sm); font-weight: 600; color: var(--text);
+  letter-spacing: 0.01em; }
+.dsig-subopts { display: flex; flex-direction: column; gap: var(--sp-2);
+  padding-left: 26px; }
+.dsig-subopts.hidden { display: none; }
+.link-btn { align-self: flex-start; background: none; border: none; padding: 0;
+  color: var(--accent); font-size: var(--fs-sm); cursor: pointer; }
+.link-btn:hover { color: var(--accent-hover); text-decoration: underline; }
+.link-btn.hidden { display: none; }
+
+/* Saved-ID chips */
+.dsig-id-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+.dsig-id { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 9px 11px; cursor: pointer; color: var(--text); font: inherit; }
+.dsig-id:hover { border-color: var(--accent); }
+.dsig-id.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
+  background: var(--accent-quiet); }
+.dsig-id-radio { width: 14px; height: 14px; border-radius: 50%; flex: 0 0 auto;
+  border: 2px solid var(--text-faint); position: relative; }
+.dsig-id.selected .dsig-id-radio { border-color: var(--accent); }
+.dsig-id.selected .dsig-id-radio::after { content: ''; position: absolute; inset: 2px;
+  border-radius: 50%; background: var(--accent); }
+.dsig-id-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dsig-id-label { font-size: var(--fs-md); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsig-id-sub { font-size: 11px; color: var(--text-dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsig-id-forget { background: none; border: none; color: var(--text-faint); cursor: pointer;
+  font-size: 12px; padding: 2px 6px; border-radius: var(--r-sm); flex: 0 0 auto; }
+.dsig-id-forget:hover { color: var(--danger); background: var(--bg-hover); }
+
+/* Placement mode tiles */
+.dsig-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.dsig-mode { display: flex; align-items: flex-start; gap: 8px;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--r-sm);
+  padding: 10px; cursor: pointer; }
+.dsig-mode:hover { border-color: var(--accent); }
+.dsig-mode:has(input:checked) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
+  background: var(--accent-quiet); }
+.dsig-mode input { margin-top: 2px; flex: 0 0 auto; }
+.dsig-mode-body { display: flex; flex-direction: column; gap: 2px; }
+.dsig-mode-t { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+.dsig-mode-d { font-size: 11px; color: var(--text-dim); line-height: 1.35; }
+
+/* Visual corner picker: a page-shaped grid with a dot in each corner */
+.dsig-corner-wrap { display: flex; align-items: flex-end; gap: var(--sp-4); }
+.dsig-corner-wrap.hidden { display: none; }
+.dsig-corner-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+  gap: 6px; width: 84px; height: 108px; padding: 8px;
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.dsig-corner-btn { border: 1px dashed var(--border); border-radius: 3px; background: transparent;
+  cursor: pointer; position: relative; padding: 0; }
+.dsig-corner-btn::after { content: ''; position: absolute; width: 10px; height: 6px; border-radius: 2px;
+  background: var(--text-faint); }
+.dsig-corner-btn[data-corner="tl"]::after { top: 3px; left: 3px; }
+.dsig-corner-btn[data-corner="tr"]::after { top: 3px; right: 3px; }
+.dsig-corner-btn[data-corner="bl"]::after { bottom: 3px; left: 3px; }
+.dsig-corner-btn[data-corner="br"]::after { bottom: 3px; right: 3px; }
+.dsig-corner-btn:hover { border-color: var(--accent); }
+.dsig-corner-btn.selected { border-style: solid; border-color: var(--accent); background: var(--accent-quiet); }
+.dsig-corner-btn.selected::after { background: var(--accent); }
+
+/* Live preview of the drawn signature block (mirrors pdf-sign's two-column layout) */
+.dsig-preview { display: flex; align-items: stretch; gap: 0; overflow: hidden;
+  border: 1px solid var(--accent); border-radius: var(--r-sm);
+  background: #fff; color: #1c2140; }
+.dsig-preview.hidden { display: none; }
+.dsig-preview-name { flex: 0 0 44%; display: flex; align-items: center;
+  padding: 6px 10px; font-size: 20px; font-weight: 600; line-height: 1.1;
+  border-right: 1px solid #b3c4e6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsig-preview-detail { flex: 1; min-width: 0; padding: 6px 10px; font-size: 10px; line-height: 1.45; }
+.dsig-preview-detail > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ============ Document compare ============ */
 .cmp-modal { width: 980px; max-width: 96vw; height: 90vh; }

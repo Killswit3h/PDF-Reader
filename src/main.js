@@ -1414,6 +1414,50 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_DSIGN: the restructured digital-signature dialog — saved digital IDs
+      // (attach once, remembered), the placement-mode picker (Invisible / Click /
+      // Corner) with its visual corner grid + live preview, and forgetting an ID.
+      if (process.env.SMOKE_DSIGN) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 80 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              App.DigitalIds.clear();
+              const out = {};
+              // Empty state → attach form, no saved chips.
+              App.DigiSign.open();
+              out.emptyShowsNew = !App.$('#dsig-new').classList.contains('hidden');
+              out.emptyHidesSaved = App.$('#dsig-saved-wrap').classList.contains('hidden');
+              out.modeCount = document.querySelectorAll('input[name="dsig-mode"]').length;
+              out.cornerBtns = document.querySelectorAll('.dsig-corner-btn').length;
+              // Corner mode reveals the grid + preview; picking a corner selects it.
+              const cr = document.querySelector('input[name="dsig-mode"][value="corner"]');
+              cr.checked = true; cr.dispatchEvent(new Event('change'));
+              out.cornerOptsShown = !App.$('#dsig-corner-opts').classList.contains('hidden');
+              out.previewShown = !App.$('#dsig-preview').classList.contains('hidden');
+              document.querySelector('.dsig-corner-btn[data-corner="tl"]').click();
+              out.tlSelected = document.querySelector('.dsig-corner-btn[data-corner="tl"]').classList.contains('selected');
+              const nr = document.querySelector('input[name="dsig-mode"][value="none"]');
+              nr.checked = true; nr.dispatchEvent(new Event('change'));
+              out.previewHiddenOnNone = App.$('#dsig-preview').classList.contains('hidden');
+              // A saved ID prefills everything and enables Sign without retyping.
+              App.DigitalIds.save({ label:'Work ID', fileName:'work.p12', p12:'AAA=', savePass:true, pass:'pw', name:'Jane Doe', reason:'Approve', location:'NYC' });
+              App.DigiSign.open();
+              out.savedShown = !App.$('#dsig-saved-wrap').classList.contains('hidden');
+              out.chipCount = document.querySelectorAll('#dsig-id-list .dsig-id').length;
+              out.namePrefilled = App.$('#dsig-name').value === 'Jane Doe';
+              out.goEnabled = !App.$('#dsig-go').disabled;
+              // Forget drops it back to the empty state.
+              document.querySelector('#dsig-id-list .dsig-id-forget').click();
+              out.afterForget = App.DigitalIds.list().length;
+              return JSON.stringify(out);
+            })()`, true);
+            console.log('[dsign] ' + r);
+          } catch (e) { console.log('[dsign] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_UPDATE) {
         setTimeout(async () => {
           try {
