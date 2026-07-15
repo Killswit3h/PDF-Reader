@@ -189,15 +189,23 @@ at runtime. Handwriting fonts are bundled with the app.
 distinct from the cosmetic Sign/Initials tools — using your own **digital ID**
 (a `.p12`/`.pfx` file that holds your private key + certificate):
 
-- Import your digital ID, enter its password, optionally add a **visible
-  signature block** on a chosen page/corner, then **Sign & Save**. The visible
-  block mirrors Adobe's default layout — your **name large on the left**, and
-  **"Digitally signed by … / Date … / Reason / Location"** on the right. The
-  output carries a standard `adbe.pkcs7.detached` signature.
+- Attach your digital ID, enter its password, choose how the signature appears,
+  then **Sign & Save**. The visible block mirrors Adobe's default layout — your
+  **name large on the left**, and **"Digitally signed by … / Date … / Reason /
+  Location"** on the right. The output carries a standard `adbe.pkcs7.detached`
+  signature.
+- **Save your digital ID (optional).** Tick *"Save this digital ID on this
+  device"* and it's remembered for next time — attach several and switch between
+  them from the list, so you never re-attach the key or retype your name. You can
+  also tick *"Also save the password"* to make signing one click, or leave it off
+  to be asked for the password each time. A saved ID lives **only on this device**
+  (browser/app local storage); nothing is ever uploaded. **Forget** removes it.
+- **Choose where it appears** — *Invisible* (cryptographic only), *Click to
+  place* (drop the block exactly where you click), or *Pin to a corner* (a visual
+  corner picker + page number). A live preview shows the block before you sign.
 - **Fully offline & private.** Signing runs entirely in the app (node-forge +
   pdf-lib in the renderer, so Windows/macOS/Android all use one implementation).
-  Your key and password stay in memory for the signing operation only — they are
-  never written to disk or sent anywhere.
+  Your key and password are used only here, on your device — never sent anywhere.
 - **Tamper-evident + identity-bound.** Any change after signing invalidates the
   signature. If your certificate chains to a trusted CA (e.g. an **Adobe AATL**
   member such as IdenTrust/DigiCert/GlobalSign), Adobe shows the green *"Signed

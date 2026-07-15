@@ -488,6 +488,25 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'digital signature UI — saved IDs, placement modes, and preview wire up',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_DSIGN: '1' }, [SAMPLE]), 'dsign');
+      check(j.emptyShowsNew === true, 'attach form not shown with no saved IDs');
+      check(j.emptyHidesSaved === true, 'saved-ID section shown with no saved IDs');
+      check(j.modeCount === 3, `expected 3 placement modes, got ${j.modeCount}`);
+      check(j.cornerBtns === 4, `expected 4 corner buttons, got ${j.cornerBtns}`);
+      check(j.cornerOptsShown === true, 'corner options not revealed in corner mode');
+      check(j.previewShown === true, 'preview not shown for a visible placement');
+      check(j.tlSelected === true, 'corner picker did not select the clicked corner');
+      check(j.previewHiddenOnNone === true, 'preview shown for an invisible signature');
+      check(j.savedShown === true, 'saved-ID section not shown after saving one');
+      check(j.chipCount === 1, `expected 1 saved-ID chip, got ${j.chipCount}`);
+      check(j.namePrefilled === true, 'saved ID did not prefill the signer name');
+      check(j.goEnabled === true, 'Sign disabled despite a saved password');
+      check(j.afterForget === 0, 'forgetting a saved ID did not remove it');
+    }
+  },
+  {
     name: 'save/flatten — signed PDF written to disk is valid',
     run: () => {
       const outFile = path.join(os.tmpdir(), `pdfsigner-e2e-${process.pid}.pdf`);

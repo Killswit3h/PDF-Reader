@@ -583,17 +583,35 @@
       <div class="dsig-body">
         <p class="dsig-intro">Apply a certified, tamper-evident signature using your digital ID
           (<code>.p12</code>/<code>.pfx</code>). Your key and password stay on this device — nothing is uploaded.</p>
-        <label class="dsig-field">Digital ID (.p12 / .pfx)
-          <input id="dsig-p12" type="file" accept=".p12,.pfx,application/x-pkcs12" />
-        </label>
-        <div id="dsig-saved" class="dsig-saved hidden">
-          <span>Using saved digital ID: <b id="dsig-saved-name">—</b></span>
-          <button id="dsig-forget" type="button" class="link-btn">Forget</button>
-        </div>
+
+        <!-- Saved identities: pick one and its key + details are already filled in. -->
+        <section id="dsig-saved-wrap" class="dsig-section hidden">
+          <div class="dsig-section-head">Signing identity</div>
+          <div id="dsig-id-list" class="dsig-id-list" role="radiogroup" aria-label="Saved digital IDs"></div>
+          <button id="dsig-add-new" type="button" class="link-btn">+ Use a different digital ID</button>
+        </section>
+
+        <!-- Attach a new digital ID (shown when there are none saved, or on "Use a different"). -->
+        <section id="dsig-new" class="dsig-section">
+          <label class="dsig-field">Digital ID (.p12 / .pfx)
+            <input id="dsig-p12" type="file" accept=".p12,.pfx,application/x-pkcs12" />
+          </label>
+          <label class="dsig-check" title="Keeps this digital ID on this computer so you don't attach it again next time."><input id="dsig-remember" type="checkbox" checked /> Save this digital ID on this device</label>
+          <div id="dsig-remember-opts" class="dsig-subopts">
+            <label class="dsig-field">Nickname (optional)
+              <input id="dsig-label" type="text" placeholder="e.g. Work ID" />
+            </label>
+            <label class="dsig-check" title="Stores the password too, so signing is one click next time. Leave off to be asked for it each time."><input id="dsig-savepass" type="checkbox" checked /> Also save the password (skip it next time)</label>
+          </div>
+          <button id="dsig-use-saved" type="button" class="link-btn hidden">‹ Back to saved IDs</button>
+        </section>
+
+        <!-- Password applies to whichever identity is active (saved or freshly attached). -->
         <label class="dsig-field">Password
           <input id="dsig-pass" type="password" autocomplete="off" placeholder="Password for your digital ID" />
         </label>
-        <label class="dsig-check" title="Stores the digital ID and password on this computer only, so you don't re-enter them each time."><input id="dsig-remember" type="checkbox" checked /> Remember this digital ID on this device</label>
+
+        <!-- Signer details (apply whichever identity is selected). -->
         <label class="dsig-field">Name (shown on the signature)
           <input id="dsig-name" type="text" placeholder="e.g. Jane Doe" />
         </label>
@@ -605,19 +623,42 @@
             <input id="dsig-loc" type="text" placeholder="e.g. New York" />
           </label>
         </div>
-        <label class="dsig-check"><input id="dsig-visible" type="checkbox" /> Add a visible signature block</label>
-        <div id="dsig-visible-opts" class="dsig-row hidden">
-          <label class="dsig-field">Page <input id="dsig-page" type="number" min="1" value="1" /></label>
-          <label class="dsig-field">Position
-            <select id="dsig-corner">
-              <option value="click">Click on the page…</option>
-              <option value="bl">Bottom-left</option>
-              <option value="br">Bottom-right</option>
-              <option value="tl">Top-left</option>
-              <option value="tr">Top-right</option>
-            </select>
-          </label>
-        </div>
+
+        <!-- Visible signature: pick how it appears on the page, not a bare toggle. -->
+        <section class="dsig-section">
+          <div class="dsig-section-head">Visible signature</div>
+          <div class="dsig-modes" role="radiogroup" aria-label="Visible signature placement">
+            <label class="dsig-mode">
+              <input type="radio" name="dsig-mode" value="none" checked />
+              <span class="dsig-mode-body"><span class="dsig-mode-t">Invisible</span><span class="dsig-mode-d">Signature only — nothing drawn on the page</span></span>
+            </label>
+            <label class="dsig-mode">
+              <input type="radio" name="dsig-mode" value="click" />
+              <span class="dsig-mode-body"><span class="dsig-mode-t">Click to place</span><span class="dsig-mode-d">Drop the block exactly where you click</span></span>
+            </label>
+            <label class="dsig-mode">
+              <input type="radio" name="dsig-mode" value="corner" />
+              <span class="dsig-mode-body"><span class="dsig-mode-t">Pin to a corner</span><span class="dsig-mode-d">Snap to a corner of a page</span></span>
+            </label>
+          </div>
+          <div id="dsig-corner-opts" class="dsig-corner-wrap hidden">
+            <div class="dsig-corner-grid" role="group" aria-label="Corner">
+              <button type="button" class="dsig-corner-btn" data-corner="tl" title="Top-left" aria-label="Top-left"></button>
+              <button type="button" class="dsig-corner-btn" data-corner="tr" title="Top-right" aria-label="Top-right"></button>
+              <button type="button" class="dsig-corner-btn" data-corner="bl" title="Bottom-left" aria-label="Bottom-left"></button>
+              <button type="button" class="dsig-corner-btn selected" data-corner="br" title="Bottom-right" aria-label="Bottom-right"></button>
+            </div>
+            <label class="dsig-field">Page <input id="dsig-page" type="number" min="1" value="1" /></label>
+          </div>
+          <div id="dsig-preview" class="dsig-preview hidden" aria-hidden="true">
+            <div class="dsig-preview-name">Signer</div>
+            <div class="dsig-preview-detail">
+              <div>Digitally signed by <span class="dsig-preview-name-inline">Signer</span></div>
+              <div class="dsig-preview-date">Date: —</div>
+            </div>
+          </div>
+        </section>
+
         <p id="dsig-status" class="dsig-status"></p>
       </div>
       <div class="modal-foot">
@@ -669,6 +710,7 @@
   <script src="../shared/measure-math.js"></script>
   <script src="../shared/date-util.js"></script>
   <script src="../shared/prefs.js"></script>
+  <script src="../shared/digital-ids.js"></script>
   <script src="../shared/pdf-sign.js"></script>
 
   <!-- ======= App modules ======= -->
