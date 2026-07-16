@@ -925,8 +925,10 @@ function createWindow() {
         }, 1200);
         return;
       }
-      // SMOKE_PRINT: the print path rasterizes every page to a non-blank image
-      // (guards the image-based print that replaced the blank PDF-viewer print).
+      // SMOKE_PRINT: the print path hands the OS default PDF app the complete
+      // exported document — a non-blank PDF with one page per sheet — and the
+      // main process writes a temp PDF and reports ok (opening is skipped on CI
+      // via SMOKE_NO_PRINT_OPEN, since headless has no PDF handler).
       if (process.env.SMOKE_PRINT) {
         setTimeout(async () => {
           try {
@@ -934,17 +936,21 @@ function createWindow() {
               for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
               await new Promise(r=>setTimeout(r,500));
               const bytes=await App.Save.buildBytes();
-              const html=await App.buildPrintHtml(bytes);
-              const imgCount=(html.match(/<img /g)||[]).length;
-              const hasData=/data:image\\/png;base64,/.test(html);
-              // decode the first page image and check it isn't blank
-              const url=(html.match(/data:image\\/png;base64,[A-Za-z0-9+/=]+/)||[])[0];
-              let darkPx=0,w=0,h=0;
-              if(url){ const im=new Image(); await new Promise(res=>{im.onload=res;im.onerror=res;im.src=url;});
-                const c=document.createElement('canvas'); c.width=w=im.naturalWidth; c.height=h=im.naturalHeight;
-                const x=c.getContext('2d'); x.drawImage(im,0,0); const d=x.getImageData(0,0,c.width,c.height).data;
-                for(let i=0;i<d.length;i+=4){ if(d[i]<200&&d[i+1]<200&&d[i+2]<200)darkPx++; } }
-              return JSON.stringify({imgCount,numPages:App.state.numPages,hasData,w,h,darkPx});
+              // The exported PDF the printer receives: same page count, not blank.
+              const doc=await window.pdfjsLib.getDocument({data:new Uint8Array(bytes)}).promise;
+              const printPages=doc.numPages;
+              const page=await doc.getPage(1);
+              const vp=page.getViewport({scale:1});
+              const c=document.createElement('canvas');
+              const w=c.width=Math.ceil(vp.width), h=c.height=Math.ceil(vp.height);
+              await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
+              const d=c.getContext('2d').getImageData(0,0,w,h).data;
+              let darkPx=0; for(let i=0;i<d.length;i+=4){ if(d[i]<200&&d[i+1]<200&&d[i+2]<200)darkPx++; }
+              try{doc.destroy();}catch(_){}
+              // Drive the real IPC print path (open is skipped in this harness).
+              const res=await window.api.print(bytes);
+              return JSON.stringify({numPages:App.state.numPages,printPages,w,h,darkPx,
+                printOk:!!(res&&res.ok),hasFile:!!(res&&res.file)});
             })()`, true);
             console.log('[print] ' + r);
           } catch (e) { console.log('[print] error', e && e.message); }
@@ -1681,7 +1687,14 @@ if (!gotLock) {
   });
 
   // A debounced bounds write could still be pending when the app exits — flush.
-  app.on('before-quit', () => { if (store) store.flushNow(); });
+  // Also drop any temp PDFs we opened for printing (the OS PDF app is done with
+  // them by the time the user quits; a still-held file just fails to unlink).
+  app.on('before-quit', () => {
+    if (store) store.flushNow();
+    while (printTempFiles.length) {
+      try { fs.unlinkSync(printTempFiles.pop()); } catch (_) { /* ignore */ }
+    }
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -1782,87 +1795,32 @@ ipcMain.handle('file:writePdf', async (_e, { filePath, bytes }) => {
   }
 });
 
+// Temp PDFs written for printing. We hand them to the OS default PDF app, which
+// owns the file until the user is done, so we can't delete them inline — they're
+// cleaned up when the app quits.
+const printTempFiles = [];
+
 // Print the finished document (all pages, with every placement/markup/measure
-// baked in). The renderer hands us the same bytes `Save` would write; we render
-// them through Chromium's PDF viewer in an offscreen window so the OS print
-// dialog gets the complete document rather than only the on-screen (virtualized)
-// pages.
+// baked in). The renderer hands us the same bytes `Save` would write; we write
+// them to a temp PDF and open it in the OS default PDF application (Edge/Adobe on
+// Windows, Preview on macOS). That gives the user a real, working print preview
+// and printer picker — Electron's own offscreen print goes through the Windows
+// native dialog, whose preview pane can't render app content ("This app doesn't
+// support print preview") and was prone to blank output.
 ipcMain.handle('app:print', async (_e, bytes) => {
   if (!bytes) return { ok: false, error: 'Nothing to print' };
-  let tmpFile = null;
-  let printWin = null;
   try {
-    tmpFile = path.join(app.getPath('temp'), `pdfsigner-print-${process.pid}-${Date.now()}.pdf`);
+    const tmpFile = path.join(app.getPath('temp'), `fieldmark-print-${process.pid}-${Date.now()}.pdf`);
     fs.writeFileSync(tmpFile, Buffer.from(bytes));
-    printWin = new BrowserWindow({
-      show: false,
-      // paintWhenInitiallyHidden keeps the offscreen window rendering (else a
-      // hidden window can skip painting the PDF → a blank print); backgroundThrottling
-      // off stops Chromium from pausing the PDF viewer while it's not visible.
-      paintWhenInitiallyHidden: true,
-      webPreferences: { plugins: true, backgroundThrottling: false } // built-in PDF viewer
-    });
-    // Wait for the document to finish loading, and fail loudly if it can't.
-    await new Promise((resolve, reject) => {
-      printWin.webContents.once('did-finish-load', resolve);
-      printWin.webContents.once('did-fail-load', (_ev, code, desc) => reject(new Error(desc || ('load error ' + code))));
-      printWin.loadURL('file://' + tmpFile);
-    });
-    // Chromium's PDF viewer paints its pages asynchronously after load, and there
-    // is no "PDF rendered" event — printing too early captures a blank page. Give
-    // the viewer a moment to render before sending it to the printer.
-    await new Promise((r) => setTimeout(r, 1500));
-    const result = await new Promise((resolve) => {
-      printWin.webContents.print({ printBackground: true }, (success, reason) => {
-        resolve({ ok: success, error: success ? undefined : reason });
-      });
-    });
-    return result;
+    printTempFiles.push(tmpFile);
+    // The e2e smoke harness exercises the pipeline without launching an external
+    // app (there's no PDF handler on headless CI).
+    if (process.env.SMOKE_NO_PRINT_OPEN) return { ok: true, file: tmpFile };
+    const err = await shell.openPath(tmpFile);
+    if (err) return { ok: false, error: err, file: tmpFile };
+    return { ok: true, file: tmpFile };
   } catch (err) {
     return { ok: false, error: err.message };
-  } finally {
-    if (printWin && !printWin.isDestroyed()) printWin.close();
-    if (tmpFile) { try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore */ } }
-  }
-});
-
-// Print an HTML document of pre-rendered page images (built by the renderer with
-// PDF.js). This avoids Chromium's offscreen PDF viewer entirely — images always
-// paint, so the print is never blank — at the cost of raster (vs vector) output.
-ipcMain.handle('app:printHtml', async (_e, html) => {
-  if (!html) return { ok: false, error: 'Nothing to print' };
-  let tmpFile = null;
-  let printWin = null;
-  try {
-    tmpFile = path.join(app.getPath('temp'), `pdfsigner-print-${process.pid}-${Date.now()}.html`);
-    fs.writeFileSync(tmpFile, html, 'utf8');
-    printWin = new BrowserWindow({
-      show: false,
-      paintWhenInitiallyHidden: true,
-      webPreferences: { backgroundThrottling: false }
-    });
-    await new Promise((resolve, reject) => {
-      printWin.webContents.once('did-finish-load', resolve);
-      printWin.webContents.once('did-fail-load', (_ev, code, desc) => reject(new Error(desc || ('load error ' + code))));
-      printWin.loadURL('file://' + tmpFile);
-    });
-    // Make sure every page image has actually decoded before printing.
-    try {
-      await printWin.webContents.executeJavaScript(
-        'Promise.all([...document.images].map(i => (i.decode ? i.decode().catch(() => {}) : (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })))))');
-    } catch (_) { /* best effort */ }
-    await new Promise((r) => setTimeout(r, 250));
-    const result = await new Promise((resolve) => {
-      printWin.webContents.print({ printBackground: true }, (success, reason) => {
-        resolve({ ok: success, error: success ? undefined : reason });
-      });
-    });
-    return result;
-  } catch (err) {
-    return { ok: false, error: err.message };
-  } finally {
-    if (printWin && !printWin.isDestroyed()) printWin.close();
-    if (tmpFile) { try { fs.unlinkSync(tmpFile); } catch (_) { /* ignore */ } }
   }
 });
 

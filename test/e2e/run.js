@@ -396,13 +396,14 @@ const SCENARIOS = [
     }
   },
   {
-    name: 'print — every page rasterizes to a non-blank image (no blank print)',
+    name: 'print — hands the OS PDF app the full, non-blank exported document',
     run: () => {
-      const j = tagJson(runApp({ SMOKE_PRINT: '1' }, [SAMPLE]), 'print');
-      check(j.imgCount === j.numPages && j.imgCount >= 1, `image count ${j.imgCount} != pages ${j.numPages}`);
-      check(j.hasData === true, 'no page images embedded');
-      check(j.w > 0 && j.h > 0, 'first page image has no size');
-      check(j.darkPx > 500, `first page image looks blank (${j.darkPx} dark px)`);
+      const j = tagJson(runApp({ SMOKE_PRINT: '1', SMOKE_NO_PRINT_OPEN: '1' }, [SAMPLE]), 'print');
+      check(j.printPages === j.numPages && j.printPages >= 1, `printed PDF has ${j.printPages} pages, doc has ${j.numPages}`);
+      check(j.w > 0 && j.h > 0, 'first page has no size');
+      check(j.darkPx > 500, `first page looks blank (${j.darkPx} dark px)`);
+      check(j.printOk === true, 'print IPC did not report ok');
+      check(j.hasFile === true, 'print IPC wrote no temp PDF file');
     }
   },
   {
