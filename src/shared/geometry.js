@@ -133,6 +133,51 @@
     return out;
   }
 
+  // Compose two affine matrices [a,b,c,d,e,f] the PDF.js way: the result applied
+  // to a point equals m1(m2(point)) — i.e. `m2` acts first. Used to accumulate a
+  // content stream's current transform (CTM) while harvesting path geometry.
+  function matMul(m1, m2) {
+    return [
+      m1[0] * m2[0] + m1[2] * m2[1],
+      m1[1] * m2[0] + m1[3] * m2[1],
+      m1[0] * m2[2] + m1[2] * m2[3],
+      m1[1] * m2[2] + m1[3] * m2[3],
+      m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+      m1[1] * m2[4] + m1[3] * m2[5] + m1[5]
+    ];
+  }
+
+  // Apply an affine matrix [a,b,c,d,e,f] to (x, y) → [x', y'].
+  function matApply(m, x, y) {
+    return [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+  }
+
+  // Extract the on-path anchor vertices (segment endpoints + rectangle corners)
+  // from a PDF.js `constructPath` operator's `(ops, args)`. Bezier control points
+  // are skipped — only points the pen actually lands on, which are the useful
+  // snap targets. `codes` maps op names → this PDF.js build's numeric OPS values
+  // (moveTo/lineTo/curveTo/curveTo2/curveTo3/rectangle/closePath), so this stays
+  // pure and dependency-free (unit-tested without pdf.js). Returns [[x,y], …] in
+  // the path's local user space; apply the CTM separately.
+  function constructPathVertices(ops, args, codes) {
+    const out = [];
+    let j = 0;
+    for (let k = 0; k < ops.length; k++) {
+      const op = ops[k] | 0;
+      if (op === codes.rectangle) {
+        const x = args[j], y = args[j + 1], w = args[j + 2], h = args[j + 3]; j += 4;
+        out.push([x, y], [x + w, y], [x + w, y + h], [x, y + h]);
+      } else if (op === codes.moveTo || op === codes.lineTo) {
+        out.push([args[j], args[j + 1]]); j += 2;
+      } else if (op === codes.curveTo) {
+        out.push([args[j + 4], args[j + 5]]); j += 6;   // cubic: land on the 3rd point
+      } else if (op === codes.curveTo2 || op === codes.curveTo3) {
+        out.push([args[j + 2], args[j + 3]]); j += 4;   // shorthand cubics: 2 arg-pairs
+      } // closePath carries no coordinates
+    }
+    return out;
+  }
+
   // The two wing points of an arrow head pointing from `from` to `to`.
   // `width` widens the head with the stroke. Returns [{vx,vy},{vx,vy}].
   function arrowHeadPoints(from, to, width) {
@@ -150,7 +195,8 @@
     Geom: {
       dist, polyLen, shoelace, angleAt, centroid, bbox,
       rectFrom, ortho, nearestVertex, arrowHeadPoints,
-      simplify, smoothStroke
+      simplify, smoothStroke,
+      matMul, matApply, constructPathVertices
     }
   };
 });

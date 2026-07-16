@@ -187,6 +187,18 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'measure — snap-to-drawing, feet-inches, and per-segment breakdown',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MSNAP: '1' }, [SAMPLE]), 'msnap');
+      check(j.snapPoints >= 4, `content snap harvested too few points (${j.snapPoints})`);
+      check(j.snapHit && Math.abs(j.snapHit.vx - 72) <= 3 && Math.abs(j.snapHit.vy - 92) <= 3,
+        `cursor did not snap to the border-box corner: ${JSON.stringify(j.snapHit)}`);
+      check(j.decimal === '30.00 ft', `decimal label ${j.decimal}`);
+      check(j.ftin === "30'-0\"", `feet-inches label ${j.ftin}`);
+      check(JSON.stringify(j.segs) === JSON.stringify([40, 30]), `segments ${JSON.stringify(j.segs)}`);
+    }
+  },
+  {
     name: 'annotations — editable annotations export cleanly',
     run: () => {
       const j = tagJson(runApp({ SMOKE_ANNOT: '1' }, [SAMPLE]), 'annot');

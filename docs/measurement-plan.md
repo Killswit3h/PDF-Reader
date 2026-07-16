@@ -4,7 +4,27 @@
 > `src/renderer/js/measure.js` — calibrate/set-scale (calibrate-by-drawing,
 > ratio/preset), Length, Perimeter, Area (shoelace), Angle, Count, snapping
 > (vertex + Shift-ortho), multi-scale Viewports, the Measurements panel, and CSV
-> export. Measurements flatten into the saved PDF via `save.js`. **Phase 6**
+> export. Measurements flatten into the saved PDF via `save.js`.
+>
+> **Take-off precision add-ons (built):**
+> - **Snap to drawing geometry** — the cursor snaps to the PDF's *own* linework
+>   (line endpoints, polyline vertices, rectangle corners), not just previously
+>   drawn measurement vertices. Harvested from PDF.js's operator list into a
+>   per-page spatial index (`src/renderer/js/snap.js`, pure geometry in
+>   `src/shared/geometry.js`), so a take-off traces the real drawing. Toggle in
+>   the Measure menu ("Snap to drawing"); a square cue marks a content snap vs.
+>   the round vertex-snap dot.
+> - **Feet-inches display** — imperial lengths render as architectural
+>   `24'-6"` (fraction denominator configurable in code) instead of decimal
+>   feet, via `formatFeetInches` in `src/shared/measure-math.js`. Toggle in the
+>   Measure menu; the setting persists and re-labels every measurement, the
+>   panel totals, and the flattened PDF text.
+> - **Per-segment breakdown** — selecting a length/perimeter/area shows each
+>   leg's length at its midpoint on the drawing and as a list in the panel
+>   (`segmentLengths` in `src/shared/measure-math.js`) — pipe/conduit/wall runs
+>   read per-segment, not just the total.
+>
+> **Phase 6**
 > (writing spec-compliant `/VP` + `/Measure` + `/NumberFormat` dictionaries so
 > Acrobat/Bluebeam read them as native measurements) is intentionally
 > **deferred** — it's low-level pdf-lib work that needs validation in Acrobat and

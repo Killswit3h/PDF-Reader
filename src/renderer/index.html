@@ -120,6 +120,17 @@
             <button id="measure-color-reset" type="button" class="mtool-color-reset hidden" title="Use default colors per type">Reset</button>
           </label>
           <div class="tb-menu-sep"></div>
+          <label class="mtool-toggle" title="Snap the cursor to the drawing's own lines, corners and endpoints">
+            <input id="measure-snap" type="checkbox" checked />
+            <span class="mtool-toggle-ico" aria-hidden="true">🧲</span>
+            <span>Snap to drawing</span>
+          </label>
+          <label class="mtool-toggle" title="Show imperial lengths as feet-inches (e.g. 24'-6&quot;) instead of decimal feet">
+            <input id="measure-ftin" type="checkbox" />
+            <span class="mtool-toggle-ico" aria-hidden="true">📐</span>
+            <span>Feet-inches</span>
+          </label>
+          <div class="tb-menu-sep"></div>
           <button data-mtool="viewport">🗺️ Add Scale Region…</button>
           <button data-mtool="toggle-panel">📋 Measurements List</button>
         </div>
@@ -723,6 +734,7 @@
   <script src="js/signature.js"></script>
   <script src="js/placement.js"></script>
   <script src="js/viewer.js"></script>
+  <script src="js/snap.js"></script>
   <script src="js/measure.js"></script>
   <script src="js/markup.js"></script>
   <script src="js/organize.js"></script>
