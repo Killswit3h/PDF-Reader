@@ -1517,6 +1517,8 @@ function createWindow() {
               A.scales[2] = { factor: 0.5, unit: 'ft', ratioLabel: '1pt=0.5ft' };
               A.measurements.push({ id: 1, page: 2, type: 'length', pts: [{vx:100,vy:100},{vx:300,vy:100}] });
               A.measurements.push({ id: 2, page: 2, type: 'area', pts: [{vx:100,vy:100},{vx:300,vy:100},{vx:300,vy:300},{vx:100,vy:300}] });
+              // continuous: an open multi-segment run whose value is the sum of every leg
+              A.measurements.push({ id: 6, page: 2, type: 'continuous', pts: [{vx:100,vy:100},{vx:300,vy:100},{vx:300,vy:300}] });
               A.measurements.push({ id: 3, page: 2, type: 'angle', pts: [{vx:100,vy:100},{vx:200,vy:100},{vx:200,vy:200}] });
               A.measurements.push({ id: 4, page: 2, type: 'count', pts: [{vx:50,vy:50},{vx:60,vy:60},{vx:70,vy:70}] });
               // viewport with a different scale, plus a length inside it

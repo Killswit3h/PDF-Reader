@@ -38,7 +38,7 @@
     (Math.atan2(q[1] - p[1], q[0] - p[0]) * 180) / Math.PI;
 
   const M_COLORS = {
-    length: '#2f6fed', perimeter: '#7b61ff', area: '#21a366',
+    length: '#2f6fed', continuous: '#0891b2', perimeter: '#7b61ff', area: '#21a366',
     angle: '#d1348c', count: '#e5a300'
   };
   function hexRgb(hex) {

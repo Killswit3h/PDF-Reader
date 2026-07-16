@@ -178,10 +178,12 @@ const SCENARIOS = [
     }
   },
   {
-    name: 'measure — length/area/angle/count + region scale export',
+    name: 'measure — length/continuous/area/angle/count + region scale export',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MEASURE: '1' }, [BIG]), 'measure');
-      check(Array.isArray(j.out) && j.out.length === 5, `measurements ${JSON.stringify(j.out)}`);
+      check(Array.isArray(j.out) && j.out.length === 6, `measurements ${JSON.stringify(j.out)}`);
+      // the continuous run sums its two 200-pt legs at 0.5 ft/pt → 200 ft
+      check(j.out.includes('continuous=200.00 ft'), `continuous total wrong: ${JSON.stringify(j.out)}`);
       check(j.err === '', `buildBytes error: ${j.err}`);
       check(j.bytesLen > 0, 'no PDF bytes produced');
     }
