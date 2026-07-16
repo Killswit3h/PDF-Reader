@@ -132,6 +132,47 @@ describe('Geom.smoothStroke', () => {
   });
 });
 
+describe('Geom.matMul / matApply', () => {
+  const I = [1, 0, 0, 1, 0, 0];
+  it('identity is a no-op under matApply', () => {
+    expect(Geom.matApply(I, 3, 7)).toEqual([3, 7]);
+  });
+  it('applies scale+translate', () => {
+    // 2x scale, then +(10,20)
+    expect(Geom.matApply([2, 0, 0, 2, 10, 20], 3, 4)).toEqual([16, 28]);
+  });
+  it('composes so m2 acts first (matMul then apply == nested apply)', () => {
+    const m1 = [2, 0, 0, 2, 10, 20];   // scale 2, translate
+    const m2 = [1, 0, 0, 1, 5, 5];     // translate (5,5)
+    const composed = Geom.matMul(m1, m2);
+    const p = [3, 4];
+    const nested = Geom.matApply(m1, ...Geom.matApply(m2, p[0], p[1]));
+    expect(Geom.matApply(composed, p[0], p[1])).toEqual(nested);
+  });
+});
+
+describe('Geom.constructPathVertices', () => {
+  // Mirror the PDF.js 3.11 OPS numbers used by the content-snap harvester.
+  const CODES = { moveTo: 13, lineTo: 14, curveTo: 15, curveTo2: 16, curveTo3: 17, rectangle: 19, closePath: 18 };
+  it('collects moveTo/lineTo endpoints', () => {
+    const v = Geom.constructPathVertices([CODES.moveTo, CODES.lineTo], [1, 2, 3, 4], CODES);
+    expect(v).toEqual([[1, 2], [3, 4]]);
+  });
+  it('expands a rectangle into 4 corners', () => {
+    const v = Geom.constructPathVertices([CODES.rectangle], [0, 0, 10, 5], CODES);
+    expect(v).toEqual([[0, 0], [10, 0], [10, 5], [0, 5]]);
+  });
+  it('keeps only the on-curve endpoint of a cubic bezier', () => {
+    // curveTo consumes 6 args (c1x,c1y,c2x,c2y,x,y) → anchor is (x,y)
+    const v = Geom.constructPathVertices([CODES.moveTo, CODES.curveTo], [0, 0, 1, 1, 2, 2, 9, 8], CODES);
+    expect(v).toEqual([[0, 0], [9, 8]]);
+  });
+  it('ignores closePath (no coordinates)', () => {
+    const v = Geom.constructPathVertices([CODES.moveTo, CODES.lineTo, CODES.closePath], [0, 0, 4, 0], CODES);
+    expect(v).toEqual([[0, 0], [4, 0]]);
+  });
+});
+
 describe('Geom.arrowHeadPoints', () => {
   it('returns two wing points behind the tip', () => {
     const [w1, w2] = Geom.arrowHeadPoints(P(0, 0), P(10, 0), 2);

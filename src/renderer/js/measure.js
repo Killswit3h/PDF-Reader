@@ -26,12 +26,21 @@
     _active: null, // { tool, page, pts:[{vx,vy}], hover:{vx,vy,snap} }
     _calib: null, // { page, pdfLen }  pending calibration line
     _scaleTarget: null, // { kind:'page', page } | { kind:'viewport', page, rect }
-    _color: null // custom color for NEW measurements; null = per-type default (COLORS)
+    _color: null, // custom color for NEW measurements; null = per-type default (COLORS)
+    _fiOn: false, // display imperial lengths as feet-inches (24'-6") vs decimal
+    _fiDenom: 16  // inch-fraction denominator for feet-inches display
   };
 
   // Effective draw color for a measurement: its own stored color, else the
   // per-type default. Older measurements (or loaded state) have no color field.
   function colorOf(m) { return m.color || COLORS[m.type] || '#2f6fed'; }
+
+  // Active display options for value formatting (feet-inches vs decimal feet).
+  function fmtOpts() { return { feetInches: M._fiOn, denom: M._fiDenom }; }
+  // Format a computed value+unit with the active options, or the "set scale" cue.
+  function fmtVal(type, value, unit) {
+    return value == null ? '(set scale)' : App.fmtMeasure(type, value, unit, fmtOpts());
+  }
 
   /* ---------------- geometry (shared, unit-tested: src/shared/geometry.js) --- */
   const { dist, angleAt, centroid } = App.Geom;
@@ -58,10 +67,21 @@
     App.state.measurements.forEach((m) => {
       const { value, unit } = computeValue(m.type, m.page, m.pts);
       m.value = value; m.unit = unit;
-      m.label = value == null ? '(set scale)' : App.fmtMeasure(m.type, value, unit);
+      m.label = fmtVal(m.type, value, unit);
     });
     M.repositionAll();
     M.renderPanel();
+  };
+
+  /* ---------------- display format ---------------- */
+  // Toggle architectural feet-inches display (persisted). Recomputes every
+  // measurement's cached label and refreshes the overlay + panel.
+  M.setFeetInches = function (on) {
+    M._fiOn = !!on;
+    if (App.Prefs) { try { App.Prefs.set('measureFeetInches', M._fiOn); } catch (_) { /* quota */ } }
+    const cb = App.$('#measure-ftin');
+    if (cb) cb.checked = M._fiOn;
+    M.recomputeAll();
   };
 
   /* ---------------- color ---------------- */
@@ -84,6 +104,9 @@
     M._tool = tool;
     M._active = null;
     App.setMode('measure');
+    // Warm the content-snap index for the current page so the first click can
+    // already snap to the drawing's geometry (harvest is async + cached).
+    if (App.Snap) App.Snap.ensure(App.state.currentPage);
     App.$$('.page-holder').forEach((h) => h.classList.add('measuring'));
     const label = tool === 'viewport' ? 'a scale region (drag a box)' : tool;
     App.toast(`Measure: click to draw ${label}. Enter to finish, Esc to cancel.`, 'info', 4000);
@@ -123,7 +146,7 @@
       pts,
       value, unit,
       color: M._color || COLORS[a.tool], // freeze the color at creation time
-      label: value == null ? '(set scale)' : App.fmtMeasure(a.tool, value, unit)
+      label: fmtVal(a.tool, value, unit)
     };
     App.state.measurements.push(m);
     App.$('#btn-save').disabled = false;
@@ -170,6 +193,7 @@
   };
 
   M.handleMove = function (page, overlay, e) {
+    if (App.Snap) App.Snap.ensure(page); // harvest this page's geometry once, lazily
     if (!M._active || M._active.page !== page || !M._active.pts.length) return;
     const p = pointFromEvent(page, overlay, e);
     M._active.hover = p;
@@ -187,10 +211,20 @@
     const rect = overlay.getBoundingClientRect();
     const z = App.state.zoom;
     const raw = { vx: (e.clientX - rect.left) / z, vy: (e.clientY - rect.top) / z };
+    const thr = SNAP_PX / z;
 
-    // 1) snap to nearby existing vertices
-    const snap = snapVertex(page, raw, SNAP_PX / z);
-    if (snap) return { vx: snap.vx, vy: snap.vy, snap: true };
+    // 1) snap to the nearest of: an existing measurement vertex, or the drawing's
+    //    OWN geometry (line endpoints / corners, harvested by App.Snap). Whichever
+    //    is closer wins, so a take-off traces the real linework, not an eyeballed
+    //    point. `snapKind` lets the preview show a distinct cue per source.
+    let best = null, kind = null, bd = thr;
+    const v = snapVertex(page, raw, thr);
+    if (v) { best = v; bd = App.Geom.dist(v, raw); kind = 'vertex'; }
+    if (App.Snap && App.Snap.enabled) {
+      const c = App.Snap.query(page, raw, thr);
+      if (c) { const d = App.Geom.dist(c, raw); if (d < bd) { best = c; bd = d; kind = 'content'; } }
+    }
+    if (best) return { vx: best.vx, vy: best.vy, snap: true, snapKind: kind };
 
     // 2) ortho constraint on Shift, relative to last active point
     if (M._active && M._active.pts.length && e.shiftKey) {
@@ -312,10 +346,36 @@
     hit.addEventListener('pointerdown', (e) => startMeasureDrag(m, e));
     layer.appendChild(hit);
 
+    // Per-segment leg lengths for the selected shape (pipe/conduit/wall runs).
+    if (selected && (m.type === 'length' || m.type === 'perimeter' || m.type === 'area')) {
+      drawSegmentLabels(layer, m, z);
+    }
+
     const anchor = m.type === 'area' ? centroid(m.pts)
       : m.type === 'angle' ? m.pts[1]
         : { vx: (m.pts[0].vx + m.pts[m.pts.length - 1].vx) / 2, vy: (m.pts[0].vy + m.pts[m.pts.length - 1].vy) / 2 };
     label(layer, anchor.vx * z + 6, anchor.vy * z - 6, m.label, color);
+  }
+
+  // Draw a small length label at the midpoint of every segment of a selected
+  // length/perimeter/area measurement. Only shown when there are ≥2 segments —
+  // a single-segment length already reads its total. Respects the feet-inches
+  // display toggle. For an area the closing leg (last→first) is included.
+  function drawSegmentLabels(layer, m, z) {
+    const sc = scaleFor(m.page, m.pts);
+    const segs = App.segmentLengths(m.type, m.pts, sc);
+    if (!segs || segs.length < 2) return;
+    const n = m.pts.length;
+    for (let i = 0; i < segs.length; i++) {
+      const a = m.pts[i], b = m.pts[(i + 1) % n];
+      const t = ns('text');
+      t.setAttribute('class', 'm-seglabel');
+      t.setAttribute('x', (a.vx + b.vx) / 2 * z);
+      t.setAttribute('y', (a.vy + b.vy) / 2 * z - 3);
+      t.setAttribute('text-anchor', 'middle');
+      t.textContent = App.fmtMeasure('length', segs[i], sc.unit, fmtOpts());
+      layer.appendChild(t);
+    }
   }
 
   function drawPreview(layer, a, z) {
@@ -331,9 +391,17 @@
     }
     live.forEach((pt) => vdot(layer, pt, z, color));
     if (a.hover && a.hover.snap) {
-      const c = ns('circle'); c.setAttribute('class', 'm-snap-dot');
-      c.setAttribute('cx', a.hover.vx * z); c.setAttribute('cy', a.hover.vy * z); c.setAttribute('r', 5);
-      layer.appendChild(c);
+      if (a.hover.snapKind === 'content') {
+        // Snapped to the drawing's own geometry — a CAD-style square endpoint cue.
+        const s = 9, r = ns('rect'); r.setAttribute('class', 'm-snap-sq');
+        r.setAttribute('x', a.hover.vx * z - s / 2); r.setAttribute('y', a.hover.vy * z - s / 2);
+        r.setAttribute('width', s); r.setAttribute('height', s);
+        layer.appendChild(r);
+      } else {
+        const c = ns('circle'); c.setAttribute('class', 'm-snap-dot');
+        c.setAttribute('cx', a.hover.vx * z); c.setAttribute('cy', a.hover.vy * z); c.setAttribute('r', 5);
+        layer.appendChild(c);
+      }
     }
     // live readout
     if (live.length >= 2) {
@@ -348,7 +416,7 @@
     const type = a.tool === 'area' ? 'area' : a.tool === 'perimeter' ? 'perimeter' : 'length';
     const pts = a.tool === 'area' ? live : live;
     const { value, unit } = computeValue(type, a.page, pts);
-    return value == null ? '(set scale)' : App.fmtMeasure(type, value, unit);
+    return fmtVal(type, value, unit);
   }
 
   function drawViewport(layer, v, z) {
@@ -470,6 +538,19 @@
           M.select(m.id);
         });
         list.appendChild(row);
+        // Selected length/perimeter/area: list each leg's length underneath.
+        if (m.id === App.state.measureSelectedId &&
+            (m.type === 'length' || m.type === 'perimeter' || m.type === 'area')) {
+          const sc = scaleFor(m.page, m.pts);
+          const segs = App.segmentLengths(m.type, m.pts, sc);
+          if (segs && segs.length >= 2) {
+            const box = document.createElement('div');
+            box.className = 'mp-segs';
+            box.innerHTML = segs.map((s, i) =>
+              `<span class="mp-seg"><b>${i + 1}</b>&nbsp;${App.fmtMeasure('length', s, sc.unit, fmtOpts())}</span>`).join('');
+            list.appendChild(box);
+          }
+        }
       });
     }
     // totals per unit for length + area (over all measurements, not the filter)
@@ -482,7 +563,14 @@
       tot[key] = (tot[key] || 0) + m.value;
     });
     const totEl = App.$('#mp-totals');
-    const parts = Object.keys(tot).map((k) => `${k}: <b>${k.startsWith('count') ? tot[k] : tot[k].toFixed(2)}</b>`);
+    const parts = Object.keys(tot).map((k) => {
+      if (k === 'count') return `count: <b>${tot[k]}</b>`;
+      if (k.startsWith('length ')) {
+        // Respect the feet-inches toggle for the aggregate length too.
+        return `length: <b>${App.fmtMeasure('length', tot[k], k.slice(7), fmtOpts())}</b>`;
+      }
+      return `${k}: <b>${tot[k].toFixed(2)}</b>`; // area <unit>²
+    });
     totEl.innerHTML = parts.length ? parts.join('<br>') : '';
   };
 
@@ -548,7 +636,7 @@
     m.pts = m.pts.map((p) => ({ vx: p.vx + (dx || 0), vy: p.vy + (dy || 0) }));
     const { value, unit } = computeValue(m.type, m.page, m.pts);
     m.value = value; m.unit = unit;
-    m.label = value == null ? '(set scale)' : App.fmtMeasure(m.type, value, unit);
+    m.label = fmtVal(m.type, value, unit);
     App.state.measurements.push(m);
     App.$('#btn-save').disabled = false;
     M.select(m.id);
@@ -581,10 +669,10 @@
   M.exportCsv = async function () {
     const ms = App.state.measurements;
     if (!ms.length) { App.toast('No measurements to export.', 'error'); return; }
-    const rows = [['#', 'Type', 'Page', 'Value', 'Unit', 'Points']];
+    const rows = [['#', 'Type', 'Page', 'Value', 'Unit', 'Display', 'Points']];
     ms.forEach((m, i) => {
       const unit = m.type === 'area' ? (m.unit ? m.unit + '²' : '') : (m.unit || '');
-      rows.push([i + 1, m.type, m.page, m.value == null ? '' : m.value.toFixed(3), unit, m.pts.length]);
+      rows.push([i + 1, m.type, m.page, m.value == null ? '' : m.value.toFixed(3), unit, m.label || '', m.pts.length]);
     });
     const csv = rows.map((r) => r.map((c) => {
       const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -650,6 +738,21 @@
     if (colorInput) colorInput.addEventListener('input', () => M.setColor(colorInput.value));
     const colorReset = App.$('#measure-color-reset');
     if (colorReset) colorReset.addEventListener('click', (e) => { e.stopPropagation(); M.setColor(null); });
+
+    // Snap-to-drawing toggle — snap the cursor to the PDF's own geometry.
+    if (App.Snap) App.Snap.init();
+    const snapCb = App.$('#measure-snap');
+    if (snapCb) {
+      if (App.Snap) snapCb.checked = App.Snap.enabled;
+      snapCb.addEventListener('change', () => { if (App.Snap) App.Snap.setEnabled(snapCb.checked); });
+    }
+    // Feet-inches display toggle (persisted) — recompute every label on change.
+    M._fiOn = App.Prefs ? App.Prefs.get('measureFeetInches', false) === true : false;
+    const fiCb = App.$('#measure-ftin');
+    if (fiCb) {
+      fiCb.checked = M._fiOn;
+      fiCb.addEventListener('change', () => M.setFeetInches(fiCb.checked));
+    }
 
     // panel
     App.$('#mp-close').addEventListener('click', M.togglePanel);

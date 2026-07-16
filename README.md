@@ -134,13 +134,24 @@ at runtime. Handwriting fonts are bundled with the app.
     default** (choose *This page* in the dialog to scope it to one sheet); scale
     regions still override per-area.
   - **Length, Perimeter, Area, Angle, Count** — draw on the page and get live,
-    real-world values (area in unit², angle in degrees). Snapping to existing
-    vertices; hold **Shift** for orthogonal/45° lines. **Enter** finishes a
+    real-world values (area in unit², angle in degrees). **Enter** finishes a
     polyline/polygon, **Esc** cancels.
+  - **Snap to drawing** — the cursor snaps to the PDF's own geometry (line
+    endpoints, corners, polyline/rectangle vertices), not just previously drawn
+    measurement vertices, so a take-off traces the real linework instead of
+    eyeballing it. A square cue marks a snap to the drawing; toggle it off in the
+    Measure menu. Snapping to existing vertices and **Shift** for orthogonal/45°
+    lines still apply.
+  - **Feet-inches** — a Measure-menu toggle renders imperial lengths as
+    architectural `24'-6"` instead of decimal feet; the setting persists and
+    applies to labels, panel totals, CSV, and the flattened PDF.
+  - **Per-segment breakdown** — select a length/perimeter/area and each leg's
+    length is labelled at its midpoint on the drawing and listed in the panel
+    (pipe/conduit/wall runs read per-segment, not just the total).
   - **Add Scale Region** — a viewport with its own scale, so one sheet can carry
     multiple scales (measurements inside it use the region's scale).
   - **Measurements List** — a side panel of every measurement with per-type
-    totals and **Export CSV**.
+    totals and **Export CSV** (with a formatted **Display** column).
   - **Reposition after placing** — with no measure tool armed, click a
     measurement (or markup) to select it, then **drag to move** it (or use the
     arrow keys; **Shift** locks to an axis). Handy for fixing a misplaced item.

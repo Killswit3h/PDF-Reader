@@ -1543,6 +1543,40 @@ function createWindow() {
         }, 1500);
         return;
       }
+      // SMOKE_MSNAP: the take-off precision features — snap-to-drawing geometry,
+      // feet-inches display, and per-segment breakdown. sample.pdf carries a
+      // border-box rectangle whose corners the content-snap index must find.
+      if (process.env.SMOKE_MSNAP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 40 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 400));
+              const A = App.state;
+              // (6) content snapping: harvest page 1 and snap near the box corner.
+              App.Snap.ensure(1);
+              for (let i = 0; i < 60 && !App.Snap._pages[1]; i++) await new Promise(r => setTimeout(r, 50));
+              const store = App.Snap._pages[1];
+              const snapPoints = store ? store.count : 0;
+              const s = App.Snap.query(1, { vx: 75, vy: 95 }, 12);
+              const snapHit = s ? { vx: Math.round(s.vx), vy: Math.round(s.vy) } : null;
+              // (5) feet-inches + (7) per-segment lengths.
+              A.scales[1] = { factor: 1, unit: 'ft', ratioLabel: '1pt=1ft' };
+              A.measurements.push({ id: 1, page: 1, type: 'length', pts: [{vx:100,vy:100},{vx:130,vy:100}] });
+              A.measurements.push({ id: 2, page: 1, type: 'perimeter', pts: [{vx:0,vy:0},{vx:40,vy:0},{vx:40,vy:30}] });
+              App.Measure.recomputeAll();
+              const decimal = A.measurements[0].label;
+              App.Measure.setFeetInches(true);
+              const ftin = A.measurements[0].label;
+              const segs = App.segmentLengths('perimeter', A.measurements[1].pts, A.scales[1]);
+              return JSON.stringify({ snapPoints, snapHit, decimal, ftin, segs });
+            })()`, true);
+            console.log('[msnap]', r);
+          } catch (e) { console.log('[msnap] error', e && e.message); }
+          app.quit();
+        }, 1500);
+        return;
+      }
       if (process.env.SMOKE_DRIVE) {
         setTimeout(async () => {
           try {
