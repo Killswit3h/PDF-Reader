@@ -73,12 +73,9 @@ contextBridge.exposeInMainWorld('api', {
   tileSideBySide: () => ipcRenderer.invoke('window:tile'),
 
   // Print the finished document. `bytes` is the exported PDF (Uint8Array); the
-  // main process renders it offscreen and opens the OS print dialog.
+  // main process writes it to a temp file and opens it in the OS default PDF app,
+  // which provides a real print preview + printer picker.
   print: (bytes) => ipcRenderer.invoke('app:print', bytes),
-  // Print pre-rendered page images wrapped in HTML — more reliable than handing
-  // a PDF to Chromium's offscreen built-in viewer (which could print blank),
-  // since images always paint. The renderer rasterizes each page with PDF.js.
-  printHtml: (html) => ipcRenderer.invoke('app:printHtml', html),
 
   // ---- Updates ----
   getVersion: () => ipcRenderer.invoke('app:version'),

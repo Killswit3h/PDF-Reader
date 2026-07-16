@@ -263,9 +263,11 @@ focus is outside the page (on macOS the Edit menu also restores the standard
 `Cmd+C/V/X/A` in text fields). **File → Open Recent** lists the last documents
 you opened (also surfaced in the Windows Jump List and the macOS Dock), the
 window **remembers its size, position and maximized state** between launches,
-and **File → Print** (`Ctrl/Cmd+P`) renders the finished document — every
-placement, markup and measurement baked in — to the system print dialog (which
-can also save-as-PDF). Android exposes Print through its system print sheet.
+and **File → Print** (`Ctrl/Cmd+P`) shows an in-app preview of the finished
+document — every placement, markup and measurement baked in — where you can pick
+a page range, then opens it in your system PDF viewer (Edge/Adobe on Windows,
+Preview on macOS) for a native print preview and printer picker (which can also
+save-as-PDF). Android exposes Print through its system print sheet.
 
 ---
 

@@ -156,56 +156,22 @@
         return;
       }
     }
-    App.toast('Preparing print…', 'info', 2500);
     try {
-      // Desktop: rasterize the pages here and print them as images — reliable
-      // (images always paint) vs handing the PDF to Chromium's offscreen viewer,
-      // which was printing blank. Web/Android keep the open-in-viewer path.
-      if (window.api.printHtml) {
-        const html = await buildPrintHtml(printBytes);
-        await window.api.printHtml(html);
-      } else {
-        await window.api.print(printBytes);
+      // Every platform opens the finished PDF in a real viewer — the OS default
+      // PDF app on desktop (Edge/Adobe/Preview), the system print or a new tab on
+      // Android/web. Each provides its own working print preview + printer picker,
+      // unlike Electron's offscreen print (Windows' native dialog can't preview
+      // app content and was prone to blank output).
+      const res = await window.api.print(printBytes);
+      if (res && res.ok === false) {
+        App.toast('Could not print: ' + (res.error || 'unknown error'), 'error');
+        return;
       }
+      App.toast('Opened in your PDF viewer — print from there.', 'info', 3000);
     } catch (e) {
       App.toast('Could not print: ' + (e && e.message ? e.message : e), 'error');
     }
   }
-
-  // Rasterize every page of `bytes` (the exported PDF) with PDF.js and wrap them
-  // in a print-ready HTML document — one image per sheet, fit to the page. Used
-  // by the desktop print path (see doPrint). Resolution targets ~180 DPI, capped
-  // so very large sheets don't produce enormous images.
-  async function buildPrintHtml(bytes) {
-    const pdfjsLib = window.pdfjsLib;
-    const data = new Uint8Array(bytes.byteLength || bytes.length);
-    data.set(bytes);
-    const doc = await pdfjsLib.getDocument({ data }).promise;
-    const imgs = [];
-    for (let n = 1; n <= doc.numPages; n++) {
-      const page = await doc.getPage(n);
-      const vp1 = page.getViewport({ scale: 1 });
-      const scale = Math.max(1, Math.min(2.5, 3000 / Math.max(vp1.width, vp1.height)));
-      const vp = page.getViewport({ scale });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.ceil(vp.width);
-      canvas.height = Math.ceil(vp.height);
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-      const landscape = vp.width > vp.height;
-      imgs.push({ url: canvas.toDataURL('image/png'), landscape });
-      canvas.width = canvas.height = 0; // release
-    }
-    try { doc.destroy(); } catch (_) { /* ignore */ }
-    const body = imgs.map((im) => `<div class="pg${im.landscape ? ' ls' : ''}"><img src="${im.url}"></div>`).join('');
-    return '<!doctype html><html><head><meta charset="utf-8"><style>'
-      + '@page{size:auto;margin:0}html,body{margin:0;padding:0;background:#fff}'
-      + '.pg{width:100%;height:100vh;display:flex;align-items:center;justify-content:center;'
-      + 'overflow:hidden;page-break-after:always;break-after:page}'
-      + '.pg:last-child{page-break-after:auto;break-after:auto}'
-      + '.pg img{max-width:100%;max-height:100%;display:block}'
-      + '</style></head><body>' + body + '</body></html>';
-  }
-  App.buildPrintHtml = buildPrintHtml; // exposed for the print e2e/harness
 
   // ---------- Open a PDF ----------
   // Multi-select: each chosen PDF opens as its own tab, in the order the dialog
