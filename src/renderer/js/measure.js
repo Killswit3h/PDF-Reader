@@ -15,14 +15,16 @@
 (function () {
   const SVGNS = 'http://www.w3.org/2000/svg';
   const COLORS = {
-    length: '#2f6fed', perimeter: '#7b61ff', area: '#21a366',
+    length: '#2f6fed', continuous: '#0891b2', perimeter: '#7b61ff', area: '#21a366',
     angle: '#d1348c', count: '#e5a300'
   };
-  const NEEDS_SCALE = { length: true, perimeter: true, area: true };
+  const NEEDS_SCALE = { length: true, continuous: true, perimeter: true, area: true };
+  // Types measured as a running length over an open polyline (sum of every leg).
+  const LINEAR = { length: true, continuous: true, perimeter: true };
   const SNAP_PX = 10;
 
   const M = {
-    _tool: null, // 'calibrate'|'length'|'perimeter'|'area'|'angle'|'count'|'viewport'
+    _tool: null, // 'calibrate'|'length'|'continuous'|'perimeter'|'area'|'angle'|'count'|'viewport'
     _active: null, // { tool, page, pts:[{vx,vy}], hover:{vx,vy,snap} }
     _calib: null, // { page, pdfLen }  pending calibration line
     _scaleTarget: null, // { kind:'page', page } | { kind:'viewport', page, rect }
@@ -347,7 +349,7 @@
     layer.appendChild(hit);
 
     // Per-segment leg lengths for the selected shape (pipe/conduit/wall runs).
-    if (selected && (m.type === 'length' || m.type === 'perimeter' || m.type === 'area')) {
+    if (selected && (LINEAR[m.type] || m.type === 'area')) {
       drawSegmentLabels(layer, m, z);
     }
 
@@ -540,7 +542,7 @@
         list.appendChild(row);
         // Selected length/perimeter/area: list each leg's length underneath.
         if (m.id === App.state.measureSelectedId &&
-            (m.type === 'length' || m.type === 'perimeter' || m.type === 'area')) {
+            (LINEAR[m.type] || m.type === 'area')) {
           const sc = scaleFor(m.page, m.pts);
           const segs = App.segmentLengths(m.type, m.pts, sc);
           if (segs && segs.length >= 2) {
@@ -558,7 +560,7 @@
     all.forEach((m) => {
       if (m.value == null) return;
       const key = m.type === 'area' ? `area ${m.unit}²` : m.type === 'count' ? 'count' :
-        (m.type === 'length' || m.type === 'perimeter') ? `length ${m.unit}` : null;
+        LINEAR[m.type] ? `length ${m.unit}` : null;
       if (!key) return;
       tot[key] = (tot[key] || 0) + m.value;
     });

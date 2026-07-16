@@ -107,6 +107,14 @@ describe('computeValue', () => {
     const line = [P(0, 0), P(10, 0), P(10, 10)];
     expect(computeValue('length', line, { factor: 0.5, unit: 'in' })).toEqual({ value: 10, unit: 'in' });
   });
+  it('sums a continuous run as the total of every leg', () => {
+    // continuous is an open polyline like length/perimeter — sum of all legs
+    const run = [P(0, 0), P(10, 0), P(10, 10), P(0, 10)]; // legs 10+10+10 = 30
+    expect(computeValue('continuous', run, { factor: 0.5, unit: 'ft' })).toEqual({ value: 15, unit: 'ft' });
+  });
+  it('formats a continuous total like a length', () => {
+    expect(fmtMeasure('continuous', 15, 'ft')).toBe('15.00 ft');
+  });
 });
 
 describe('ratioToFactor', () => {
