@@ -282,11 +282,12 @@
           P.forEach((c) => page.drawCircle({ x: c[0], y: c[1], size: 5, color, opacity: 0.85 }));
         } else {
           const seq = m.type === 'area' ? P.concat([P[0]]) : P; // close polygons
+          const thickness = Math.max(0.5, m.width || 1.4); // honor the line's thickness
           for (let i = 0; i < seq.length - 1; i++) {
             page.drawLine({
               start: { x: seq[i][0], y: seq[i][1] },
               end: { x: seq[i + 1][0], y: seq[i + 1][1] },
-              thickness: 1.4, color
+              thickness, color
             });
           }
         }

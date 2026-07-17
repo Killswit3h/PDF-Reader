@@ -477,6 +477,20 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'measure resize — endpoint handles extend/shorten a line; color + thickness editable',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MRESIZE: '1' }, [SAMPLE]), 'mresize');
+      check(j.hasHandles === true, 'selected measurement did not expose vertex handles');
+      check(j.resized === true, 'dragging an endpoint handle did not extend the line');
+      check(j.col === '#ff0000', `editing did not recolor the line: ${j.col}`);
+      check(j.wid === 5, `editing did not change the line thickness: ${j.wid}`);
+      check(j.stroke === '#ff0000', `rendered stroke ignored the edited color: ${j.stroke}`);
+      // Selected shapes render a touch heavier (width + 0.8), so 5 -> 5.8px.
+      check(parseFloat(j.sw) >= 5, `rendered stroke-width ignored the edited thickness: ${j.sw}`);
+      check(j.exportOk === true, 'export threw after resize + restyle');
+    }
+  },
+  {
     name: 'tabs — open two PDFs, switch, each keeps isolated state',
     run: () => {
       const j = tagJson(runApp({ SMOKE_TABS: BIG }, [SAMPLE]), 'tabs');
