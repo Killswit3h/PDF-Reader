@@ -65,9 +65,22 @@ npm run verify:web # build www/ + drive it in headless Chromium (Android WebView
 
 ## Releases
 
-Bump `version` in `package.json`, then push a tag `vX.Y.Z` (or run the
-**Build & Release** workflow via `workflow_dispatch`). The workflow gates on the
-tests, then builds and publishes the Windows `.exe`, macOS `.dmg`/`.zip`, and
-Android `.apk` to a single GitHub Release. The README download buttons and the
-in-app update check point at the latest release automatically.
+Bump `version` in `package.json` and commit that to `main`, then kick the
+**Build & Release** workflow. It gates on the tests, then builds and publishes
+the Windows `.exe`, macOS `.dmg`/`.zip`, and Android `.apk` to a single GitHub
+Release. The README download buttons and the in-app update check point at the
+latest release automatically.
+
+Two ways to start the build:
+
+- **Preferred (works everywhere, incl. Claude Code web sessions):** run the
+  workflow via `workflow_dispatch` (Actions tab → *Build & Release* → *Run
+  workflow* on `main`, or `gh workflow run release.yml --ref main`). With no tag,
+  the publish step derives `vX.Y.Z` from `package.json` and **creates the tag
+  itself** with the runner's `GITHUB_TOKEN` (pinned to the release commit via
+  `target_commitish`).
+- **Push a tag `vX.Y.Z`** — fine locally, but **note:** in the Claude Code remote
+  environment the session git remote is a scoped broker that allows branch pushes
+  but **rejects tag pushes with a 403**. From those sessions, always use
+  `workflow_dispatch` above — don't try to `git push` a tag.
 </content>

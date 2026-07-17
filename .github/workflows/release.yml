@@ -179,6 +179,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
+          # On a workflow_dispatch run the tag doesn't exist yet; action-gh-release
+          # creates it with GITHUB_TOKEN (server-side, so the session git broker's
+          # tag-push block never applies). Pin it to the exact commit we built.
+          target_commitish: ${{ github.sha }}
           name: FieldMark ${{ steps.tag.outputs.tag }}
           draft: false
           prerelease: false
