@@ -898,6 +898,62 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TFONT: a text box exposes font-family + size controls that update
+      // the on-screen box AND survive export — the flatten path embeds the
+      // matching StandardFont, the live-annotation path writes the mapped DA font.
+      if (process.env.SMOKE_TFONT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const layer=document.querySelector('.page .markup-layer');
+              const rc=layer.getBoundingClientRect();
+              // Font controls are hidden until a text context is active.
+              const famEl=document.querySelector('#mk-font-family'), sizeEl=document.querySelector('#mk-font-size');
+              const hiddenBefore=famEl.closest('.mk-font-only').classList.contains('hidden');
+              App.Markup.startTool('text');
+              App.Markup.handleClick(1,layer,{clientX:rc.left+120,clientY:rc.top+120,shiftKey:false});
+              const div=document.querySelector('.markup-svg .anno-text[contenteditable="true"]');
+              if(div){div.textContent='Hi';div.dispatchEvent(new Event('blur'));}
+              const an=App.state.annotations.filter(a=>a.type==='text').pop();
+              App.Markup.select(an.id);
+              const shownWhenSelected=!famEl.closest('.mk-font-only').classList.contains('hidden');
+              // Change family + size through the real UI controls.
+              famEl.value='Times'; famEl.dispatchEvent(new Event('change',{bubbles:true}));
+              sizeEl.value='28'; sizeEl.dispatchEvent(new Event('input',{bubbles:true}));
+              const styFam=an.style.fontFamily, stySize=an.style.fontSize;
+              const fo=document.querySelector('.markup-svg foreignObject[data-anno-id="'+an.id+'"] .anno-text');
+              const cssFam=fo?getComputedStyle(fo).fontFamily:'';
+              // Export both ways and confirm the font choice made it into the bytes.
+              // (Read the FreeText DA back through pdf-lib — the raw bytes are
+              // object-stream compressed, so a byte-scan can't see it.)
+              App.state.saveAnnots=true;
+              const asBytes=await App.Save.buildBytes();
+              const {PDFDocument,PDFName}=window.PDFLib;
+              const rt=await PDFDocument.load(asBytes.slice(0));
+              let da='';
+              const annots=rt.getPage(0).node.Annots();
+              if(annots)for(let i=0;i<annots.size();i++){
+                const dict=rt.context.lookup(annots.get(i));
+                const st=dict&&dict.get(PDFName.of('Subtype'));
+                if(st&&st.asString&&st.asString()==='/FreeText'){const d=dict.get(PDFName.of('DA'));if(d&&d.asString)da=d.asString();}
+              }
+              const daHasFont=/TiRo\\s+28\\s+Tf/.test(da);
+              App.state.saveAnnots=false;
+              const flatBytes=await App.Save.buildBytes();
+              const flatOk=flatBytes&&flatBytes.length>1000;
+              // Restore the shared default style so later suite runs aren't poisoned.
+              App.state.annoStyle={stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14,fontFamily:'Helvetica'};
+              if(App.Prefs)App.Prefs.set('annoStyle',App.state.annoStyle);
+              return JSON.stringify({hiddenBefore,shownWhenSelected,styFam,stySize,cssFam,daHasFont,flatOk});
+            })()`, true);
+            console.log('[tfont] ' + r);
+          } catch (e) { console.log('[tfont] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_FORM: typing into a prefilled AcroForm field persists on save.
       if (process.env.SMOKE_FORM) {
         setTimeout(async () => {
