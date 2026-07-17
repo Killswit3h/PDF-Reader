@@ -5,6 +5,7 @@ dist/
 .DS_Store
 Thumbs.db
 www/
+dist-pwa/
 android/
 .gradle/
 

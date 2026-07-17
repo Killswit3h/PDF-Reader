@@ -34,6 +34,18 @@ The app **checks GitHub for a newer release on launch** (and via the version
 badge in the top bar); when one exists it offers a one-tap **Download** of the
 new APK to sideload over the top.
 
+### iPhone / iPad / any device — install the web app (free, no App Store)
+
+FieldMark also ships as an installable **web app (PWA)** — the same renderer,
+running in the browser. On **iPhone/iPad**, open the hosted URL in **Safari** →
+**Share → Add to Home Screen**; it launches full-screen and works **offline**. No
+Apple Developer account, no App Store, no fee. Android Chrome and desktop
+Chrome/Edge show an **Install** button. This is the free route onto iOS/iPadOS.
+
+See **[docs/pwa-hosting.md](docs/pwa-hosting.md)** for hosting (a one-click GitHub
+Pages workflow is included) and per-device install steps. Build locally with
+`npm run build:pwa` → `dist-pwa/`.
+
 **macOS:** grab the `.dmg` from the [latest release](https://github.com/Killswit3h/PDF-Reader/releases/latest)
 (universal, Intel + Apple Silicon). The app is **ad-hoc signed but not notarized**
 (notarization needs a paid Apple Developer account), so macOS quarantines the

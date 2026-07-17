@@ -18,6 +18,8 @@
     "fixtures": "node test/fixtures/make-fixtures.js",
     "build:web": "node scripts/build-web.js",
     "verify:web": "npm run build:web && node scripts/verify-web.js",
+    "build:pwa": "node scripts/build-pwa.js",
+    "verify:pwa": "npm run build:pwa && node scripts/verify-pwa.js",
     "verify:rotate": "npm run build:web && node scripts/verify-rotate.js",
     "android:icons": "node build/make-android-icons.js android/app/src/main/res",
     "android:add": "npm run build:web && cap add android && npm run android:icons",

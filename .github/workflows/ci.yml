@@ -23,6 +23,20 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  pwa:
+    name: PWA bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Assemble dist-pwa/ (manifest + offline service worker + icons) and assert
+      # it's a valid, installable PWA. No browser/Electron needed — fast.
+      - run: npm run verify:pwa
+
   e2e:
     name: E2E smoke (headless)
     runs-on: ubuntu-latest
