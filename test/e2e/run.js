@@ -396,6 +396,16 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'text rotation — a flattened text box follows a rotated page instead of going vertical',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TROT: '1' }, [SAMPLE]), 'trot');
+      check(j.plain && Math.abs(j.plain.b) < 0.5 && Math.abs(j.plain.c) < 0.5,
+        `text on an unrotated page should be axis-aligned: ${JSON.stringify(j.plain)}`);
+      check(j.rot && (Math.abs(j.rot.b) > 0.5 || Math.abs(j.rot.c) > 0.5),
+        `text on a rotated page should rotate to stay horizontal on screen, not draw vertical: ${JSON.stringify(j.rot)}`);
+    }
+  },
+  {
     name: 'rotate — the Rotate button turns the view and overlays follow the canvas',
     run: () => {
       const j = tagJson(runApp({ SMOKE_ROTATE: '1' }, [SAMPLE]), 'rotate');
