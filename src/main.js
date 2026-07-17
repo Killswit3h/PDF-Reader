@@ -524,7 +524,14 @@ function createWindow() {
               const modalOpen=!document.querySelector('#compare-modal').classList.contains('hidden');
               const changed=parseInt((document.querySelector('#cmp-changed').textContent.match(/[\\d,]+/)||['0'])[0].replace(/,/g,''),10);
               const noDiff=/No differences/.test(document.querySelector('#cmp-changed').textContent);
-              return JSON.stringify({modalOpen,canvasW:cv?cv.width:0,canvasH:cv?cv.height:0,changed,noDiff});
+              // Fit control: fit sizes the page to the window; zoom in enlarges it.
+              document.querySelector('#cmp-fit').click();
+              const fitW=parseFloat(cv.style.width)||0;
+              const fitActive=document.querySelector('#cmp-fit').classList.contains('active');
+              document.querySelector('#cmp-zoom-in').click();
+              const zoomW=parseFloat(cv.style.width)||0;
+              const fitInactive=document.querySelector('#cmp-fit').classList.contains('active');
+              return JSON.stringify({modalOpen,canvasW:cv?cv.width:0,canvasH:cv?cv.height:0,changed,noDiff,fitW,zoomW,fitActive,fitInactive});
             })()`, true);
             console.log('[compare] ' + r);
           } catch (e) { console.log('[compare] error', e && e.message); }

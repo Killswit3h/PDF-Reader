@@ -274,6 +274,8 @@ const SCENARIOS = [
       check(j.modalOpen === true, 'compare modal did not open');
       check(j.canvasW > 0 && j.canvasH > 0, `diff canvas not rendered ${j.canvasW}x${j.canvasH}`);
       check(j.changed === 0 && j.noDiff === true, `identical docs reported a diff (${j.changed})`);
+      check(j.fitW > 0 && j.fitActive === true, `fit did not size the diff page (${j.fitW}, active=${j.fitActive})`);
+      check(j.zoomW > j.fitW && j.fitInactive === false, `zoom in did not enlarge past fit (${j.zoomW} !> ${j.fitW})`);
     }
   },
   {
