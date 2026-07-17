@@ -157,11 +157,12 @@
       }
     }
     try {
-      // Every platform opens the finished PDF in a real viewer — the OS default
-      // PDF app on desktop (Edge/Adobe/Preview), the system print or a new tab on
-      // Android/web. Each provides its own working print preview + printer picker,
-      // unlike Electron's offscreen print (Windows' native dialog can't preview
-      // app content and was prone to blank output).
+      // Hand the finished PDF to the platform's printer: the native system print
+      // dialog on macOS, the OS default PDF app on Windows (Edge/Adobe), the
+      // system print or a new tab on Android/web. Each provides a working print
+      // preview + printer picker. (Windows delegates because Electron's own
+      // offscreen print goes through a native dialog that can't preview app
+      // content and was prone to blank output.)
       const res = await window.api.print(printBytes);
       if (res && res.ok === false) {
         App.toast('Could not print: ' + (res.error || 'unknown error'), 'error');
