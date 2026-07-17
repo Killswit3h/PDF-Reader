@@ -25,6 +25,17 @@
   const FREEHAND = { ink: 1, highlight: 1 };
   const DEF_TEXT_W = 150, DEF_TEXT_H = 44;
 
+  // Text-box fonts. Limited to the three PDF standard-font families so a saved
+  // box renders identically whether we flatten it (save.js embeds the matching
+  // StandardFont) or write it as a live FreeText annotation (the `da` name goes
+  // into the annotation's DA string). `css` is the on-screen font stack.
+  const FONTS = [
+    { id: 'Helvetica', css: 'Helvetica, Arial, sans-serif', pdf: 'Helvetica', da: 'Helv' },
+    { id: 'Times', css: '"Times New Roman", Times, serif', pdf: 'TimesRoman', da: 'TiRo' },
+    { id: 'Courier', css: '"Courier New", Courier, monospace', pdf: 'Courier', da: 'Cour' }
+  ];
+  function fontById(id) { return FONTS.find((f) => f.id === id) || FONTS[0]; }
+
   // Apple-Pencil-style "hold to snap straight": while freehand drawing, if the
   // pen stays put for this long the stroke collapses to a clean straight line
   // from its first point to where the pen is resting. STILL_TOL is the jitter
@@ -62,7 +73,7 @@
     if (App.state.annoStyle) return App.state.annoStyle;
     const saved = App.Prefs ? App.Prefs.get('annoStyle', null) : null;
     return (App.state.annoStyle = saved ||
-      { stroke: '#e5484d', fill: 'none', width: 2, opacity: 1, fontSize: 14 });
+      { stroke: '#e5484d', fill: 'none', width: 2, opacity: 1, fontSize: 14, fontFamily: 'Helvetica' });
   }
   // Undo/redo is now unified across all layers (see js/history.js). markup
   // keeps calling snapshot() before each mutation; the stack is shared.
@@ -82,6 +93,7 @@
       : FREEHAND[type] ? 'Press and drag to draw. Hold still 3s to snap it straight.'
       : 'Click start then end.';
     App.toast(`Markup: ${type}. ${hint}`, 'info', 3500);
+    syncPropBar();
   };
   K.isFreehand = (t) => !!FREEHAND[t];
   K.stop = function () {
@@ -511,6 +523,7 @@
     const div = document.createElement('div');
     div.className = 'anno-text';
     div.style.color = s.stroke;
+    div.style.fontFamily = fontById(s.fontFamily).css;
     div.style.fontSize = (s.fontSize * z) + 'px';
     div.style.border = `1px solid ${s.stroke}`;
     div.textContent = an.text || '';
@@ -619,10 +632,18 @@
     App.$('#mk-fill-on') && (App.$('#mk-fill-on').checked = !!(s.fill && s.fill !== 'none'));
     set('#mk-width', s.width);
     set('#mk-opacity', Math.round(s.opacity * 100));
+    set('#mk-font-family', fontById(s.fontFamily).id);
+    set('#mk-font-size', s.fontSize || 14);
+    // Font controls are only meaningful for text boxes / callouts — show them
+    // when such a box is selected or when the text/callout tool is armed.
+    const textCtx = an ? (an.type === 'text' || an.type === 'callout')
+      : (K.tool === 'text' || K.tool === 'callout');
+    App.$$('.mk-font-only').forEach((el) => el.classList.toggle('hidden', !textCtx));
     // highlight the preset swatch matching the current line color (if any)
     const cur = String(s.stroke || '').toLowerCase();
     App.$$('#mk-stroke-presets .mk-sw').forEach((b) => b.classList.toggle('active', b.dataset.color.toLowerCase() === cur));
   }
+  K.syncProps = syncPropBar;
   function applyStyle(patch) {
     const an = annoById(App.state.annoSelectedId);
     if (an) { snapshot(); Object.assign(an.style, patch); K.repositionAll(); }
@@ -649,6 +670,8 @@
     wire('#mk-fill-on', 'change', (e) => applyStyle({ fill: e.target.checked ? App.$('#mk-fill').value : 'none' }));
     wire('#mk-width', 'input', (e) => applyStyle({ width: parseFloat(e.target.value) }));
     wire('#mk-opacity', 'input', (e) => applyStyle({ opacity: App.clamp(parseInt(e.target.value, 10) / 100, 0.1, 1) }));
+    wire('#mk-font-family', 'change', (e) => applyStyle({ fontFamily: fontById(e.target.value).id }));
+    wire('#mk-font-size', 'input', (e) => applyStyle({ fontSize: App.clamp(parseInt(e.target.value, 10) || 14, 6, 120) }));
     // Snap toggle — persisted; drives snapEnabled().
     const snap = App.$('#mk-snap');
     if (snap) {
@@ -863,6 +886,8 @@
 
   K.highlightWidth = highlightWidth; // save.js reuses this so on-screen == exported
   K.smoothStroke = smoothStroke;     // save.js reuses this so the exported curve matches the screen
+  K.FONTS = FONTS;                   // save.js reuses this so the exported font matches the screen
+  K.fontById = fontById;
   K._straighten = straightenActive;  // exposed for the e2e harness (deterministic, no 3s wait)
   App.Markup = K;
 })();

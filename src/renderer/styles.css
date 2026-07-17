@@ -299,6 +299,8 @@ body.tool-active .markup-svg .handle { pointer-events: none; }
 .mk-prop { display: flex; align-items: center; gap: 6px; }
 .mk-prop input[type="color"] { width: 30px; height: 24px; border: none; background: none; cursor: pointer; padding: 0; }
 .mk-prop input[type="range"] { width: 90px; }
+.mk-prop input[type="number"] { width: 54px; }
+.mk-prop select { max-width: 110px; }
 /* Line-color quick presets + a "color wheel" (native picker) for custom colors. */
 .mk-color-group { gap: 8px; }
 .mk-presets { display: flex; align-items: center; gap: 4px; }

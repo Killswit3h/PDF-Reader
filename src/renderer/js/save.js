@@ -114,7 +114,8 @@
       case 'text': case 'callout': {
         set('Subtype', PDFName.of('FreeText'));
         const size = s.fontSize || 14;
-        set('DA', PDFString.of(`/Helv ${size} Tf ${col[0].toFixed(3)} ${col[1].toFixed(3)} ${col[2].toFixed(3)} rg`));
+        const da = (App.Markup && App.Markup.fontById) ? App.Markup.fontById(s.fontFamily).da : 'Helv';
+        set('DA', PDFString.of(`/${da} ${size} Tf ${col[0].toFixed(3)} ${col[1].toFixed(3)} ${col[2].toFixed(3)} rg`));
         set('Contents', PDFString.of(an.text || ''));
         if (an.type === 'callout' && P[2]) {
           set('IT', PDFName.of('FreeTextCallout'));
@@ -195,6 +196,20 @@
       // so we fill the fields directly instead.)
       await applyFormEdits(pdfDoc);
       const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      // Text boxes can pick one of the three PDF standard-font families; embed
+      // each lazily and map the annotation's fontFamily to the matching font so
+      // a flattened box looks like it did on screen.
+      const STD_FONT = {
+        Helvetica: StandardFonts.Helvetica,
+        TimesRoman: StandardFonts.TimesRoman,
+        Courier: StandardFonts.Courier
+      };
+      const fontCache = { Helvetica: helv };
+      const fontFor = async (fontFamily) => {
+        const pdfName = (App.Markup && App.Markup.fontById) ? App.Markup.fontById(fontFamily).pdf : 'Helvetica';
+        if (!fontCache[pdfName]) fontCache[pdfName] = await pdfDoc.embedFont(STD_FONT[pdfName] || StandardFonts.Helvetica);
+        return fontCache[pdfName];
+      };
 
       // Under virtualized rendering a page with items may never have been
       // rasterized, so its scale-1 viewport isn't cached yet. Fetch on demand.
@@ -383,8 +398,9 @@
           }
           const bx = Math.min(P[0][0], P[1][0]) + 2;
           const topY = Math.max(P[0][1], P[1][1]);
+          const font = await fontFor(s.fontFamily);
           const lines = String(an.text || '').split('\n');
-          lines.forEach((ln, i) => page.drawText(ln, { x: bx, y: topY - size * (i + 1), size, font: helv, color: col }));
+          lines.forEach((ln, i) => page.drawText(ln, { x: bx, y: topY - size * (i + 1), size, font, color: col }));
         }
       }
 

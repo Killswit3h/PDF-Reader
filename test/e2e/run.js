@@ -381,6 +381,19 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'text font — a text box exposes font family + size that update the box and survive export',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TFONT: '1' }, [SAMPLE]), 'tfont');
+      check(j.hiddenBefore === true, 'font controls should be hidden with no text context');
+      check(j.shownWhenSelected === true, 'font controls should appear for a selected text box');
+      check(j.styFam === 'Times', `font family did not apply to the annotation: ${JSON.stringify(j.styFam)}`);
+      check(j.stySize === 28, `font size did not apply to the annotation: ${JSON.stringify(j.stySize)}`);
+      check(/times/i.test(j.cssFam), `on-screen box did not switch font: ${JSON.stringify(j.cssFam)}`);
+      check(j.daHasFont === true, 'exported FreeText annotation lost the chosen font/size in its DA');
+      check(j.flatOk === true, 'flattened export produced no bytes');
+    }
+  },
+  {
     name: 'rotate — the Rotate button turns the view and overlays follow the canvas',
     run: () => {
       const j = tagJson(runApp({ SMOKE_ROTATE: '1' }, [SAMPLE]), 'rotate');

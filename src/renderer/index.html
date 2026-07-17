@@ -203,6 +203,16 @@
     <label class="mk-prop"><input id="mk-fill-on" type="checkbox" /> Fill <input id="mk-fill" type="color" value="#ffcc00" /></label>
     <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" /></label>
     <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" /></label>
+    <label class="mk-prop mk-font-only" title="Text font">Font
+      <select id="mk-font-family">
+        <option value="Helvetica">Helvetica</option>
+        <option value="Times">Times</option>
+        <option value="Courier">Courier</option>
+      </select>
+    </label>
+    <label class="mk-prop mk-font-only" title="Text size (points)">Size
+      <input id="mk-font-size" type="number" min="6" max="120" step="1" value="14" />
+    </label>
     <label class="mk-prop" title="Snap to nearby vertices while dragging"><input id="mk-snap" type="checkbox" checked /> Snap</label>
     <span class="mk-spacer"></span>
     <button id="mk-undo" class="tb-btn" title="Undo (Ctrl+Z)">↶ Undo</button>
