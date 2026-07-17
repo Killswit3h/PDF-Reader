@@ -20,6 +20,36 @@
   const TARGET_W = 900;
 
   let docA = null, docB = null, pageNum = 1, maxPages = 1, busy = false;
+  // Zoom state for the diff view. `fitMode` scales the whole page to fit the
+  // window (the default); zoom in/out switches to a fixed scale. `zoom` is the
+  // display scale relative to the rendered diff canvas (1 = its native pixels).
+  let curCanvas = null, zoom = 1, fitMode = true;
+  const MIN_ZOOM = 0.1, MAX_ZOOM = 8, ZOOM_STEP = 1.2;
+
+  // Scale that makes the whole diff canvas fit inside the scroll host.
+  function fitScale(cv) {
+    const host = $('#cmp-view');
+    if (!host || !cv || !cv.width || !cv.height) return 1;
+    const cs = getComputedStyle(host);
+    const availW = host.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const availH = host.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    if (availW <= 0 || availH <= 0) return 1;
+    return Math.min(availW / cv.width, availH / cv.height);
+  }
+
+  function applyZoom() {
+    const cv = curCanvas;
+    if (!cv) return;
+    if (fitMode) zoom = fitScale(cv);
+    zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+    cv.style.maxWidth = 'none';
+    cv.style.width = Math.round(cv.width * zoom) + 'px';
+    cv.style.height = 'auto';
+    const lbl = $('#cmp-zoom'); if (lbl) lbl.textContent = Math.round(zoom * 100) + '%';
+    const fitBtn = $('#cmp-fit'); if (fitBtn) fitBtn.classList.toggle('active', fitMode);
+  }
+
+  function setZoom(next) { fitMode = false; zoom = next; applyZoom(); }
 
   async function renderPage(doc, n) {
     if (!doc || n < 1 || n > doc.numPages) return null;
@@ -78,6 +108,8 @@
       if (!ca) host.appendChild(note(`Document A has no page ${pageNum}.`));
       if (!cb) host.appendChild(note(`Document B has no page ${pageNum}.`));
       host.appendChild(canvas);
+      curCanvas = canvas;
+      applyZoom();
       $('#cmp-page').textContent = `Page ${pageNum} of ${maxPages}`;
       $('#cmp-changed').textContent = changed ? `${changed.toLocaleString()} pixels differ` : 'No differences on this page';
       $('#cmp-prev').disabled = pageNum <= 1;
@@ -104,6 +136,7 @@
     docB = await pdfjs().getDocument({ data: new Uint8Array(data) }).promise;
     maxPages = Math.max(docA.numPages, docB.numPages);
     pageNum = 1;
+    fitMode = true; zoom = 1; curCanvas = null;
     $('#cmp-names').textContent = `A: ${App.state.fileName || 'current'}  ·  B: ${name || 'chosen file'}`;
     $('#compare-modal').classList.remove('hidden');
     await renderCurrent();
@@ -134,6 +167,11 @@
     wire('#cmp-done', C.close);
     wire('#cmp-prev', () => { if (pageNum > 1) { pageNum--; renderCurrent(); } });
     wire('#cmp-next', () => { if (pageNum < maxPages) { pageNum++; renderCurrent(); } });
+    wire('#cmp-fit', () => { fitMode = true; applyZoom(); });
+    wire('#cmp-zoom-in', () => setZoom(zoom * ZOOM_STEP));
+    wire('#cmp-zoom-out', () => setZoom(zoom / ZOOM_STEP));
+    // Keep the page fitted as the modal/window resizes.
+    window.addEventListener('resize', () => { if (fitMode) applyZoom(); });
   };
 
   App.Compare = C;
