@@ -1,0 +1,53 @@
+name: Deploy PWA to GitHub Pages
+
+# Publishes the installable web app (dist-pwa/) to GitHub Pages, giving the app a
+# free HTTPS URL that iOS/iPadOS Safari and Android/desktop Chrome can install via
+# "Add to Home Screen" — no App Store, no developer account. See docs/pwa-hosting.md.
+#
+# One-time setup by the repo owner: Settings -> Pages -> Source: "GitHub Actions".
+# After that, every push to main republishes; you can also run it on demand.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least-privilege token scopes required by the Pages deploy action.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two publishes at once; a newer push supersedes an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build PWA bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # Assemble dist-pwa/ and assert it's a valid installable PWA before publish.
+      - run: npm run verify:pwa
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-pwa
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
