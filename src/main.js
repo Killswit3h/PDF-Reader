@@ -961,6 +961,48 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TROT: a flattened text box stays horizontal-on-screen on a rotated
+      // page. When the export viewport carries a rotation (as a plan sheet with an
+      // intrinsic /Rotate does), the on-screen writing direction maps to a
+      // non-horizontal PDF-space vector, so the flatten path must rotate the glyphs
+      // to follow it — otherwise the saved text reads vertically. We flatten once
+      // through a rotated viewport and once through the plain one and read the
+      // drawn text matrix back with PDF.js: rotated => off-diagonal terms, plain
+      // => axis-aligned.
+      if (process.env.SMOKE_TROT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!document.querySelector('.page .markup-layer');i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const layer=document.querySelector('.page .markup-layer');
+              const rc=layer.getBoundingClientRect();
+              App.Markup.startTool('text');
+              App.Markup.handleClick(1,layer,{clientX:rc.left+120,clientY:rc.top+120,shiftKey:false});
+              const div=document.querySelector('.markup-svg .anno-text[contenteditable="true"]');
+              if(div){div.textContent='ROT';div.dispatchEvent(new Event('blur'));}
+              const pg=await App.state.pdfDoc.getPage(1);
+              const flat=async(vp)=>{App.state.baseViewports[0]=vp;App.state.saveAnnots=false;return await App.Save.buildBytes();};
+              const readMatrix=async(bytes)=>{
+                const doc=await window.pdfjsLib.getDocument({data:bytes.slice(0)}).promise;
+                const page=await doc.getPage(1);
+                const tc=await page.getTextContent();
+                const it=tc.items.find(x=>(x.str||'').includes('ROT'));
+                if(!it)return null;
+                const t=it.transform;
+                return {b:+t[1].toFixed(3),c:+t[2].toFixed(3)};
+              };
+              const rot=await readMatrix(await flat(pg.getViewport({scale:1,rotation:90})));
+              const plain=await readMatrix(await flat(pg.getViewport({scale:1})));
+              App.state.saveAnnots=false;
+              return JSON.stringify({rot,plain});
+            })()`, true);
+            console.log('[trot] ' + r);
+          } catch (e) { console.log('[trot] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_FORM: typing into a prefilled AcroForm field persists on save.
       if (process.env.SMOKE_FORM) {
         setTimeout(async () => {

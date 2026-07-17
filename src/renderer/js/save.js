@@ -396,11 +396,23 @@
             page.drawLine({ start: { x: from[0], y: from[1] }, end: { x: P[2][0], y: P[2][1] }, thickness: w, color: col });
             drawArrowPdf(page, from, P[2], col, w);
           }
-          const bx = Math.min(P[0][0], P[1][0]) + 2;
-          const topY = Math.max(P[0][1], P[1][1]);
           const font = await fontFor(s.fontFamily);
           const lines = String(an.text || '').split('\n');
-          lines.forEach((ln, i) => page.drawText(ln, { x: bx, y: topY - size * (i + 1), size, font, color: col }));
+          // Lay each line out along the page's on-screen horizontal so the text
+          // stays horizontal even on a rotated page. Work in scale-1 viewport
+          // space (top-left origin, y-down) from the box's top-left corner, then
+          // map the baseline anchor and a +1px direction point through
+          // convertToPdfPoint and rotate the glyphs to match — the same
+          // rotation-safe technique the placement text path uses. Drawing without
+          // this rotation makes text on a /Rotate page save out vertical.
+          const vLeft = Math.min(an.pts[0].vx, an.pts[1].vx) + 2;
+          const vTop = Math.min(an.pts[0].vy, an.pts[1].vy);
+          lines.forEach((ln, i) => {
+            const baseY = vTop + size * (i + 1);
+            const anchor = vp.convertToPdfPoint(vLeft, baseY);
+            const dir = vp.convertToPdfPoint(vLeft + 1, baseY);
+            page.drawText(ln, { x: anchor[0], y: anchor[1], size, font, color: col, rotate: degrees(angleDeg(anchor, dir)) });
+          });
         }
       }
 
