@@ -1173,6 +1173,7 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 }
 .pp-opt { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; }
 .pp-opt input { cursor: pointer; }
+.pp-current-n { color: var(--text-dim); }
 .pp-range {
   flex: 0 1 200px; height: 32px; padding: 0 10px;
   background: var(--panel-2, var(--bg-input)); color: var(--text);

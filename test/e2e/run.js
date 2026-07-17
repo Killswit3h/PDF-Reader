@@ -422,7 +422,7 @@ const SCENARIOS = [
     }
   },
   {
-    name: 'print preview — thumbnails render, a page range prints a subset, cancel closes it',
+    name: 'print preview — thumbnails render, a page range / current page prints a subset, cancel closes it',
     run: () => {
       const j = tagJson(runApp({ SMOKE_PRINTPREVIEW: '1' }, [SAMPLE]), 'printpreview');
       // pass 1: modal + thumbnails + cancel
@@ -438,6 +438,12 @@ const SCENARIOS = [
       check(j.printDisabled === false, 'Print should be enabled for a valid range');
       check(j.excluded === j.numPages - 1, `expected ${j.numPages - 1} excluded thumbnails, got ${j.excluded}`);
       check(j.subPages === 1, `subset PDF should have 1 page, got ${j.subPages}`);
+      // pass 3: "Current page" selects only the page that was being viewed
+      const cur = j.numPages >= 2 ? 2 : 1;
+      check(j.curLabel === `(${cur})`, `current-page radio should be labelled "(${cur})", got "${j.curLabel}"`);
+      check(Array.isArray(j.curSelPages) && j.curSelPages.length === 1 && j.curSelPages[0] === cur,
+        `current-page mode should select page ${cur} only, got ${JSON.stringify(j.curSelPages)}`);
+      check(j.curExcluded === j.numPages - 1, `current-page mode should exclude ${j.numPages - 1} thumbnails, got ${j.curExcluded}`);
     }
   },
   {
