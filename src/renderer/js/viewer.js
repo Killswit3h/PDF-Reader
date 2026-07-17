@@ -441,8 +441,12 @@
   Viewer.pointFromEvent = function (layer, e) {
     const rect = layer.getBoundingClientRect();
     const z = App.state.zoom || 1;
-    const lw = parseFloat(layer.style.width) || layer.offsetWidth || rect.width;
-    const lh = parseFloat(layer.style.height) || layer.offsetHeight || rect.height;
+    // The layer's UNROTATED CSS box. A real element always has `.style`; guard
+    // it anyway so a minimal stand-in overlay can't hard-throw (and at rotation
+    // 0 the dimensions are unused, so the fallbacks are harmless there).
+    const style = layer.style || {};
+    const lw = parseFloat(style.width) || layer.offsetWidth || rect.width || 0;
+    const lh = parseFloat(style.height) || layer.offsetHeight || rect.height || 0;
     return App.Geom.unrotatePoint(
       e.clientX - rect.left, e.clientY - rect.top, lw, lh, Viewer.rotation(), z);
   };
