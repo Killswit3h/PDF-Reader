@@ -189,17 +189,61 @@
     // surface reports "unsupported" so callers can show a friendly message.
     tileSideBySide: () => Promise.resolve({ ok: false, reason: 'Separate windows aren’t available on this platform.' }),
 
-    // Print the finished document. Open the exported PDF so the WebView/browser
-    // print (Android's system print → save-as-PDF or a networked printer) acts
-    // on the complete document rather than the app chrome.
+    // Print the finished document (exported bytes, all edits baked in).
+    //
+    // Browser/desktop-web: load the PDF into an off-screen iframe and drive its
+    // own print(), so the OS print dialog + printer picker pops up straight away
+    // instead of dumping the user into a new tab they'd have to print by hand.
+    // Native (Android/iOS WebView): hand the PDF to the system viewer via a
+    // '_system' open — the platform's own print / save-as-PDF flow is more
+    // reliable there than an in-WebView iframe, and it also covers "save to PDF".
     print: (bytes) => {
-      try {
-        const blob = new Blob([bytes], { type: 'application/pdf' });
-        const url = URL.createObjectURL(blob);
-        window.open(url, isNative ? '_system' : '_blank');
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+
+      if (isNative) {
+        try { window.open(url, '_system'); } catch (_) { /* ignore */ }
         setTimeout(() => URL.revokeObjectURL(url), 60000);
-      } catch (_) { /* ignore */ }
-      return Promise.resolve({ ok: true });
+        return Promise.resolve({ ok: true });
+      }
+
+      // Fallback used if the iframe print can't run (blocked, PDF viewer absent):
+      // still get the document in front of the user in a new tab.
+      const openTab = () => { try { window.open(url, '_blank'); } catch (_) { /* ignore */ } };
+
+      return new Promise((resolve) => {
+        let settled = false;
+        const done = (res) => { if (!settled) { settled = true; resolve(res); } };
+        try {
+          const frame = document.createElement('iframe');
+          frame.setAttribute('aria-hidden', 'true');
+          frame.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;';
+          frame.onload = () => {
+            // The embedded PDF viewer finishes painting slightly after load; a
+            // short beat avoids printing a not-yet-rendered document.
+            setTimeout(() => {
+              try {
+                frame.contentWindow.focus();
+                frame.contentWindow.print();
+                done({ ok: true, dialog: true });
+              } catch (_) {
+                openTab();
+                done({ ok: true });
+              }
+            }, 250);
+          };
+          frame.onerror = () => { openTab(); done({ ok: true }); };
+          frame.src = url;
+          document.body.appendChild(frame);
+          // Tidy up well after any print dialog has been dealt with. Removing the
+          // frame too early would cancel an open dialog, so keep it around a while.
+          setTimeout(() => { try { frame.remove(); } catch (_) { /* ignore */ } URL.revokeObjectURL(url); }, 120000);
+        } catch (_) {
+          openTab();
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+          done({ ok: true });
+        }
+      });
     },
 
     openPdfDialog: () => pickPdf(),

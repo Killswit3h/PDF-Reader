@@ -1005,8 +1005,19 @@ function createWindow() {
               const jsdoc=await window.pdfjsLib.getDocument({data:new Uint8Array(sub)}).promise;
               const subPages=jsdoc.numPages; try{jsdoc.destroy();}catch(_){}
 
+              // --- pass 3: "Current page" prints only the page being viewed ---
+              const cur = N>=2 ? 2 : 1;                 // pretend we were on page `cur`
+              pending=App.Print.preview(bytes, cur);
+              for(let i=0;i<40 && !grid.querySelector('.pp-thumb');i++) await new Promise(r=>setTimeout(r,50));
+              const curLabel=(document.getElementById('pp-current-n')||{}).textContent||'';
+              const rc=document.getElementById('pp-mode-current'); rc.checked=true; fire(rc,'change');
+              const curExcluded=[...grid.querySelectorAll('.pp-tile.excluded')].length;
+              App.Print.confirm();
+              const curSel=await pending;
+
               return JSON.stringify({numPages:N,thumbs,drawn,open,closed,proceed,darkPx,
-                selPages:sel&&sel.pages,excluded,printDisabled,subPages});
+                selPages:sel&&sel.pages,excluded,printDisabled,subPages,
+                curLabel,curExcluded,curSelPages:curSel&&curSel.pages});
             })()`, true);
             console.log('[printpreview] ' + r);
           } catch (e) { console.log('[printpreview] error', e && e.message); }

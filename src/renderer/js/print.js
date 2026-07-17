@@ -20,12 +20,14 @@
  * print: the originals when every page is selected, else a fresh PDF containing
  * just `pages` (in order) via pdf-lib copyPages.
  *
- * Selection model — two explicit modes (mirrors a browser print dialog):
- *   'all'   : every page prints (the text field is disabled).
- *   'range' : `selected` (a Set of 1-based page numbers) prints. Typing edits
- *             the Set; clicking a thumbnail toggles one page and rewrites the
- *             field to the normalised range. Print is disabled when the range
- *             resolves to zero valid pages.
+ * Selection model — three explicit modes (mirrors a browser print dialog):
+ *   'all'     : every page prints (the text field is disabled).
+ *   'current' : just the page the user was viewing when they hit Print — handy
+ *               when you want one specific sheet but don't know its number.
+ *   'range'   : `selected` (a Set of 1-based page numbers) prints. Typing edits
+ *               the Set; clicking a thumbnail toggles one page and rewrites the
+ *               field to the normalised range. Print is disabled when the range
+ *               resolves to zero valid pages.
  */
 (function () {
   const P = {};
@@ -34,8 +36,9 @@
   let resolveFn = null;     // resolver for the in-flight preview() promise
   let renderDoc = null;     // pdf.js proxy for the previewed bytes
   let numPages = 0;
-  let mode = 'all';         // 'all' | 'range'
+  let mode = 'all';         // 'all' | 'current' | 'range'
   let selected = new Set(); // 1-based page numbers (meaningful in 'range' mode)
+  let currentPage = 1;      // the page the user was viewing (1-based, clamped)
 
   function modal() { return App.$('#printprev-modal'); }
   function isOpen() { return modal() && !modal().classList.contains('hidden'); }
@@ -75,6 +78,7 @@
   // The pages that will actually print, ascending (1-based).
   function effectivePages() {
     if (mode === 'all') return Array.from({ length: numPages }, (_, i) => i + 1);
+    if (mode === 'current') return numPages ? [currentPage] : [];
     return [...selected].sort((a, b) => a - b);
   }
 
@@ -106,8 +110,10 @@
   function refresh() {
     const input = App.$('#pp-range');
     const rAll = App.$('#pp-mode-all');
+    const rCurrent = App.$('#pp-mode-current');
     const rRange = App.$('#pp-mode-range');
     if (rAll) rAll.checked = mode === 'all';
+    if (rCurrent) rCurrent.checked = mode === 'current';
     if (rRange) rRange.checked = mode === 'range';
     if (input) input.disabled = mode !== 'range';
 
@@ -120,6 +126,7 @@
     const count = App.$('#pp-count');
     if (count) {
       count.textContent = k === 0 ? 'No pages selected'
+        : mode === 'current' ? `Page ${currentPage} of ${numPages}`
         : (mode === 'all' || k === numPages)
           ? (numPages === 1 ? '1 page' : numPages + ' pages')
           : `${k} of ${numPages} pages`;
@@ -145,6 +152,12 @@
     data.set(bytes);
     renderDoc = await pdfjsLib.getDocument({ data }).promise;
     numPages = renderDoc.numPages;
+
+    // Clamp the caller-supplied current page into range and label the radio with
+    // it, so the user can pick "Current page (7)" without knowing the number.
+    currentPage = Math.min(Math.max(1, currentPage || 1), numPages);
+    const curN = App.$('#pp-current-n');
+    if (curN) curN.textContent = `(${currentPage})`;
 
     // Reset selection to "all pages" for each fresh preview.
     mode = 'all';
@@ -206,9 +219,12 @@
     settle({ pages, total: numPages });
   }
 
-  // Open the preview for `bytes`; resolves { pages, total } or null.
-  P.preview = async function (bytes) {
+  // Open the preview for `bytes`; resolves { pages, total } or null. `current`
+  // is the 1-based page the user was viewing (defaults to 1) — it seeds the
+  // "Current page" option.
+  P.preview = async function (bytes, current) {
     if (resolveFn) settle(null); // never leave a prior preview dangling
+    currentPage = current || 1;
     modal().classList.remove('hidden');
     const promise = new Promise((res) => { resolveFn = res; });
     try {
@@ -246,6 +262,7 @@
     modal().addEventListener('mousedown', (e) => { if (e.target === modal()) settle(null); });
 
     App.$('#pp-mode-all').addEventListener('change', () => { mode = 'all'; refresh(); });
+    App.$('#pp-mode-current').addEventListener('change', () => { mode = 'current'; refresh(); });
     App.$('#pp-mode-range').addEventListener('change', () => {
       mode = 'range';
       const input = App.$('#pp-range');

@@ -146,7 +146,7 @@
     // anything to the printer.
     let printBytes = bytes;
     if (App.Print && App.Print.preview) {
-      const sel = await App.Print.preview(bytes);
+      const sel = await App.Print.preview(bytes, App.state.currentPage);
       if (!sel) return;
       // Narrow to just the chosen pages (a no-op when all pages are selected).
       try {
@@ -167,7 +167,11 @@
         App.toast('Could not print: ' + (res.error || 'unknown error'), 'error');
         return;
       }
-      App.toast('Opened in your PDF viewer — print from there.', 'info', 3000);
+      // The browser path opens the print dialog directly; the desktop / native
+      // path hands off to the system PDF viewer to print from there.
+      App.toast(res && res.dialog
+        ? 'Opening the print dialog…'
+        : 'Opened in your PDF viewer — print from there.', 'info', 3000);
     } catch (e) {
       App.toast('Could not print: ' + (e && e.message ? e.message : e), 'error');
     }
