@@ -1006,7 +1006,7 @@ function createWindow() {
               const subPages=jsdoc.numPages; try{jsdoc.destroy();}catch(_){}
 
               // --- pass 3: "Current page" prints only the page being viewed ---
-              const cur = N>=2 ? 2 : 1;                 // pretend we were on page `cur`
+              const cur = N>=2 ? 2 : 1;                 // pretend we were viewing this page
               pending=App.Print.preview(bytes, cur);
               for(let i=0;i<40 && !grid.querySelector('.pp-thumb');i++) await new Promise(r=>setTimeout(r,50));
               const curLabel=(document.getElementById('pp-current-n')||{}).textContent||'';
