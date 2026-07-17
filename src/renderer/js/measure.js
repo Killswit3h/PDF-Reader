@@ -210,9 +210,9 @@
 
   /* ---------------- snapping ---------------- */
   function pointFromEvent(page, overlay, e) {
-    const rect = overlay.getBoundingClientRect();
     const z = App.state.zoom;
-    const raw = { vx: (e.clientX - rect.left) / z, vy: (e.clientY - rect.top) / z };
+    // Unrotate so snap/measure points land under the pointer on rotated pages.
+    const raw = App.Viewer.pointFromEvent(overlay, e);
     const thr = SNAP_PX / z;
 
     // 1) snap to the nearest of: an existing measurement vertex, or the drawing's

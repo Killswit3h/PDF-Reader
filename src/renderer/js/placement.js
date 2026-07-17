@@ -43,10 +43,10 @@
   // ---------- Overlay click => create placement ----------
   P.handleOverlayClick = function (page, overlay, e) {
     if (!P.pending) return;
-    const rect = overlay.getBoundingClientRect();
-    const z = App.state.zoom;
-    const cx = (e.clientX - rect.left) / z; // click in viewport points
-    const cy = (e.clientY - rect.top) / z;
+    // Unrotate the click so placements land under the pointer on rotated pages.
+    const clickPt = App.Viewer.pointFromEvent(overlay, e);
+    const cx = clickPt.vx; // click in viewport points
+    const cy = clickPt.vy;
 
     const vpHeight = App.state.baseViewports[page - 1].height;
     const vpWidth = App.state.baseViewports[page - 1].width;

@@ -130,9 +130,10 @@
 
   /* ---------------- interaction (from app.js delegation) ---------------- */
   function ptFromEvent(layer, e) {
-    const rect = layer.getBoundingClientRect();
-    const z = App.state.zoom;
-    let p = { vx: (e.clientX - rect.left) / z, vy: (e.clientY - rect.top) / z };
+    // Map through the shared inverse-rotation helper so clicks land under the pen
+    // even when the page is rotated 90/180/270° (the layer is rigid-rotated by
+    // CSS; a raw getBoundingClientRect offset only works at 0°).
+    let p = App.Viewer.pointFromEvent(layer, e);
     // ortho on Shift, relative to the last placed point
     if (K.active && K.active.pts.length && e.shiftKey) {
       p = App.Geom.ortho(K.active.pts[K.active.pts.length - 1], p);

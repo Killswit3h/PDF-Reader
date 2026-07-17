@@ -430,6 +430,26 @@
     if (!pdfViewer) return;
     pdfViewer.pagesRotation = (((pdfViewer.pagesRotation || 0) + delta) % 360 + 360) % 360;
   };
+  // Current view rotation, normalized to 0/90/180/270.
+  Viewer.rotation = () => (pdfViewer ? (((pdfViewer.pagesRotation || 0) % 360) + 360) % 360 : 0);
+
+  // Map a pointer event to an unrotated scale-1 viewport point {vx, vy} on the
+  // given markup layer. This is the single place that inverts the layer's rigid
+  // rotation (see syncPageEls + App.Geom.unrotatePoint), so every click/drag tool
+  // — markup, measure, placement, signatures — lands under the pointer at any
+  // orientation instead of only at 0°.
+  Viewer.pointFromEvent = function (layer, e) {
+    const rect = layer.getBoundingClientRect();
+    const z = App.state.zoom || 1;
+    // The layer's UNROTATED CSS box. A real element always has `.style`; guard
+    // it anyway so a minimal stand-in overlay can't hard-throw (and at rotation
+    // 0 the dimensions are unused, so the fallbacks are harmless there).
+    const style = layer.style || {};
+    const lw = parseFloat(style.width) || layer.offsetWidth || rect.width || 0;
+    const lh = parseFloat(style.height) || layer.offsetHeight || rect.height || 0;
+    return App.Geom.unrotatePoint(
+      e.clientX - rect.left, e.clientY - rect.top, lw, lh, Viewer.rotation(), z);
+  };
   // Reset to 100% (actual size) — bound to the "0" shortcut.
   Viewer.resetZoom = () => { if (pdfViewer) pdfViewer.currentScale = 1.0; };
 

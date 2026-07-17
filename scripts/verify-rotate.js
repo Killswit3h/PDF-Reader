@@ -2,10 +2,15 @@
 
 /*
  * Headless check that the "Rotate view" button keeps overlays pinned to the
- * page. We place a tiny markup at a known unrotated scale-1 viewport point,
- * rotate through 0/90/180/270, and compare the marker's on-screen position to
- * PDF.js's own ground truth (the same rotated viewport it renders the canvas
- * with). If the overlay counter-rotation is right, they coincide at every step.
+ * page — in BOTH directions:
+ *   1. Render: a tiny markup placed at a known unrotated scale-1 viewport point
+ *      lands where PDF.js's own rotated viewport says it should.
+ *   2. Input: a pointer synthesised at that same on-screen spot maps back —
+ *      through App.Viewer.pointFromEvent — to the original unrotated point. This
+ *      is the path every click/drag tool (highlighter, measure, placement, sign)
+ *      uses, and the direction that was silently broken on rotated pages: the
+ *      mark rendered correctly but the pen landed far from the cursor.
+ * We rotate through 0/90/180/270 and check both at every step.
  *
  * Reuses the www/ bundle + Chromium harness from verify-web.js.
  */
@@ -108,10 +113,18 @@ function serve(dir) {
         const mx = mr ? (mr.left + mr.width / 2 - pr.left) : NaN;   // marker centre, page-relative
         const my = mr ? (mr.top + mr.height / 2 - pr.top) : NaN;
         // Layer must also cover the canvas exactly (sizing/translate sanity).
-        const lr = pageDiv().querySelector('.markup-layer').getBoundingClientRect();
+        const layer = pageDiv().querySelector('.markup-layer');
+        const lr = layer.getBoundingClientRect();
         const boxErr = Math.max(Math.abs(lr.left - cr.left), Math.abs(lr.top - cr.top),
           Math.abs(lr.width - cr.width), Math.abs(lr.height - cr.height));
-        return { rot, dx: +(mx - gt[0]).toFixed(2), dy: +(my - gt[1]).toFixed(2), boxErr: +boxErr.toFixed(2) };
+        // Input round-trip: put a pointer at the marker's on-screen centre (page
+        // ground truth gt, page-relative → client coords) and confirm the tool
+        // input mapper recovers the original unrotated point MID.
+        const evt = { clientX: pr.left + gt[0], clientY: pr.top + gt[1] };
+        const back = App.Viewer.pointFromEvent(layer, evt);
+        const inErr = Math.max(Math.abs(back.vx - MID.vx), Math.abs(back.vy - MID.vy));
+        return { rot, dx: +(mx - gt[0]).toFixed(2), dy: +(my - gt[1]).toFixed(2),
+          boxErr: +boxErr.toFixed(2), inErr: +inErr.toFixed(2) };
       }
 
       const steps = [];
@@ -133,9 +146,10 @@ function serve(dir) {
     server.close();
   }
 
-  const TOL = 2.5; // CSS px
+  const TOL = 2.5; // CSS px (viewport points at scale 1 here)
   const steps = result.steps || [];
-  const bad = steps.filter((s) => !(Math.abs(s.dx) <= TOL && Math.abs(s.dy) <= TOL && s.boxErr <= TOL));
+  const bad = steps.filter((s) => !(Math.abs(s.dx) <= TOL && Math.abs(s.dy) <= TOL
+    && s.boxErr <= TOL && Math.abs(s.inErr) <= TOL));
   const ok = !errors.length && steps.length === 4 && !bad.length;
   console.log('[verify-rotate] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-rotate] page errors:\n' + errors.join('\n'));
