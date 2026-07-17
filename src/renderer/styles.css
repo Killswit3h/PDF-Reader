@@ -631,6 +631,17 @@ body.has-banner.has-props #markup-panel { top: calc(var(--toolbar-h) + 74px); }
   color: var(--text); background: var(--panel-2); border-radius: 4px;
   font-size: 10px; line-height: 15px;
 }
+/* Selected-measurement line properties (color + thickness) — shown in the panel
+   only while a measurement is selected. */
+.mp-props {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px;
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+}
+.mp-props-title { font-size: 12px; font-weight: 600; color: var(--text-dim); flex: 0 0 100%; }
+.mp-prop { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); }
+.mp-prop input[type="color"] { width: 28px; height: 22px; border: none; background: none; cursor: pointer; padding: 0; }
+.mp-prop input[type="range"] { width: 96px; cursor: pointer; }
+.mp-width-val { font-variant-numeric: tabular-nums; min-width: 32px; color: var(--text); }
 .mp-totals { border-top: 1px solid var(--border); padding: 10px 14px; font-size: 12px; color: var(--text-dim); }
 .mp-totals b { color: var(--text); }
 .mp-foot { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
@@ -654,6 +665,13 @@ body.has-banner.has-props #markup-panel { top: calc(var(--toolbar-h) + 74px); }
    Disabled while a measure tool is armed so clicks draw new measurements. */
 .measure-layer .m-hit { pointer-events: all; cursor: move; fill: transparent; stroke: transparent; stroke-width: 14px; touch-action: none; }
 body.tool-active .measure-layer .m-hit { pointer-events: none; }
+/* Endpoint / vertex grab-handles on the selected measurement — drag to extend,
+   shorten or reshape the line after it's drawn. Suppressed while a measure tool
+   is armed (like .m-hit) so clicks keep drawing new measurements. */
+.measure-layer .m-handle { pointer-events: all; cursor: grab; fill: #fff; stroke-width: 2; touch-action: none; }
+.measure-layer .m-handle:hover { fill: #eef4ff; }
+.measure-layer .m-handle:active { cursor: grabbing; }
+body.tool-active .measure-layer .m-handle { pointer-events: none; }
 .page-holder.measuring .page-overlay { cursor: crosshair; }
 .m-snap-dot { fill: #ffb000; stroke: #7a5200; stroke-width: 1; }
 /* CAD-style square cue shown when the cursor snaps to the drawing's own geometry

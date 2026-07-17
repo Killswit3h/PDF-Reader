@@ -1159,6 +1159,53 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_MRESIZE: a placed measurement exposes per-vertex grab handles on
+      // selection; dragging an endpoint handle extends/shortens the line (and
+      // recomputes its value), and the selected line's color + thickness can be
+      // edited after the fact. Drives the real handle + panel-editor paths.
+      if (process.env.SMOKE_MRESIZE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.pageEls.length;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const M=App.Measure;
+              App.state.scales[1]={factor:1,unit:'ft',ratioLabel:'t'};
+              App.state.measureSeq++;
+              const id=App.state.measureSeq;
+              App.state.measurements.push({id,page:1,type:'length',pts:[{vx:100,vy:100},{vx:200,vy:100}],value:100,unit:'ft',width:2,color:'#2f6fed',label:'100 ft'});
+              M.select(id);
+              await new Promise(r=>setTimeout(r,80));
+              // grab the endpoint handle (second vertex) and stretch it +80px
+              const handles=Array.from(document.querySelectorAll('.measure-layer .m-handle'));
+              const hasHandles=handles.length===2;
+              const beforeLen=App.state.measurements[0].value;
+              let resized=false;
+              if(handles.length){
+                const h=handles[handles.length-1], b=h.getBoundingClientRect();
+                h.dispatchEvent(new PointerEvent('pointerdown',{clientX:b.left+b.width/2,clientY:b.top+b.height/2,bubbles:true,cancelable:true}));
+                window.dispatchEvent(new PointerEvent('pointermove',{clientX:b.left+b.width/2+80,clientY:b.top+b.height/2,bubbles:true}));
+                window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+                resized=App.state.measurements[0].pts[1].vx>200 && App.state.measurements[0].value>beforeLen;
+              }
+              // edit the selected line's color + thickness via the panel API
+              M.setSelectedColor('#ff0000'); M.endEdit();
+              M.setSelectedWidth(5); M.endEdit();
+              const col=App.state.measurements[0].color, wid=App.state.measurements[0].width;
+              M.repositionAll();
+              await new Promise(r=>setTimeout(r,60));
+              const line=document.querySelector('.page[data-page-number="1"] .measure-layer polyline.m-shape');
+              const stroke=line&&line.getAttribute('stroke');
+              const sw=line&&line.style.strokeWidth;
+              let exportOk=false; try{ await App.Save.buildBytes(); exportOk=true; }catch(e){}
+              return JSON.stringify({hasHandles,resized,col,wid,stroke,sw,exportOk});
+            })()`, true);
+            console.log('[mresize] ' + r);
+          } catch (e) { console.log('[mresize] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_ZOOM: verify trackpad/ctrl-wheel zoom changes the scale.
       if (process.env.SMOKE_ZOOM) {
         setTimeout(async () => {

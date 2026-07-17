@@ -22,6 +22,7 @@
   // Types measured as a running length over an open polyline (sum of every leg).
   const LINEAR = { length: true, continuous: true, perimeter: true };
   const SNAP_PX = 10;
+  const DEFAULT_WIDTH = 2; // stroke width (px) for measurements with no stored width
 
   const M = {
     _tool: null, // 'calibrate'|'length'|'continuous'|'perimeter'|'area'|'angle'|'count'|'viewport'
@@ -36,6 +37,8 @@
   // Effective draw color for a measurement: its own stored color, else the
   // per-type default. Older measurements (or loaded state) have no color field.
   function colorOf(m) { return m.color || COLORS[m.type] || '#2f6fed'; }
+  // Effective stroke width for a measurement (loaded/old state has no width).
+  function widthOf(m) { return m.width || DEFAULT_WIDTH; }
 
   // Active display options for value formatting (feet-inches vs decimal feet).
   function fmtOpts() { return { feetInches: M._fiOn, denom: M._fiDenom }; }
@@ -148,6 +151,7 @@
       pts,
       value, unit,
       color: M._color || COLORS[a.tool], // freeze the color at creation time
+      width: DEFAULT_WIDTH,              // per-measurement line thickness (editable)
       label: fmtVal(a.tool, value, unit)
     };
     App.state.measurements.push(m);
@@ -297,6 +301,17 @@
     c.setAttribute('r', 3); c.setAttribute('fill', color);
     layer.appendChild(c);
   }
+  // A grab-handle over one vertex of a selected measurement. Dragging it edits
+  // that single point (see startVertexDrag) so an endpoint can be pulled longer
+  // or shorter without redrawing the whole measurement.
+  function vhandle(layer, m, idx, z, color) {
+    const c = ns('circle');
+    c.setAttribute('class', 'm-handle');
+    c.setAttribute('cx', m.pts[idx].vx * z); c.setAttribute('cy', m.pts[idx].vy * z);
+    c.setAttribute('r', 6); c.setAttribute('stroke', color);
+    c.addEventListener('pointerdown', (e) => startVertexDrag(m, idx, e));
+    layer.appendChild(c);
+  }
 
   function drawMeasurement(layer, m, z, selected) {
     const color = colorOf(m);
@@ -325,12 +340,14 @@
       return;
     }
 
+    const w = widthOf(m);
     const closed = m.type === 'area';
     if (closed) {
       const poly = ns('polygon');
       poly.setAttribute('class', 'm-shape m-fill' + (selected ? ' selected' : ''));
       poly.setAttribute('points', m.pts.map((p) => P(p, z)).join(' '));
       poly.setAttribute('fill', color); poly.setAttribute('stroke', color);
+      poly.style.strokeWidth = w + 'px';
       layer.appendChild(poly);
     }
     const line = ns('polyline');
@@ -338,8 +355,11 @@
     const pts = closed ? m.pts.concat([m.pts[0]]) : m.pts;
     line.setAttribute('points', pts.map((p) => P(p, z)).join(' '));
     line.setAttribute('stroke', color);
+    // A selected shape draws a touch heavier so the handles read against it.
+    line.style.strokeWidth = (w + (selected ? 0.8 : 0)) + 'px';
     layer.appendChild(line);
-    m.pts.forEach((pt) => vdot(layer, pt, z, color));
+    // Small dots mark each vertex; when selected we draw grab-handles instead.
+    if (!selected) m.pts.forEach((pt) => vdot(layer, pt, z, color));
 
     // Invisible wide hit line over the shape so it can be grabbed + dragged.
     const hit = ns('polyline');
@@ -347,6 +367,11 @@
     hit.setAttribute('points', pts.map((p) => P(p, z)).join(' '));
     hit.addEventListener('pointerdown', (e) => startMeasureDrag(m, e));
     layer.appendChild(hit);
+
+    // Draggable endpoint/vertex handles for the selected shape: grab an end to
+    // extend or shorten the line (or any interior vertex to reshape a run) after
+    // it has been drawn. Drawn last so they sit on top of the wide hit line.
+    if (selected) m.pts.forEach((pt, idx) => vhandle(layer, m, idx, z, color));
 
     // Per-segment leg lengths for the selected shape (pipe/conduit/wall runs).
     if (selected && (LINEAR[m.type] || m.type === 'area')) {
@@ -389,6 +414,7 @@
       line.setAttribute('class', 'm-shape m-preview');
       line.setAttribute('points', live.map((p) => P(p, z)).join(' '));
       line.setAttribute('stroke', color);
+      line.style.strokeWidth = DEFAULT_WIDTH + 'px';
       layer.appendChild(line);
     }
     live.forEach((pt) => vdot(layer, pt, z, color));
@@ -574,6 +600,7 @@
       return `${k}: <b>${tot[k].toFixed(2)}</b>`; // area <unit>²
     });
     totEl.innerHTML = parts.length ? parts.join('<br>') : '';
+    M.syncProps();
   };
 
   M.select = function (id) {
@@ -622,6 +649,104 @@
     window.addEventListener('pointercancel', up);
   }
   M._startDrag = startMeasureDrag;
+
+  // Recompute one measurement's cached value/unit/label in place (after its
+  // geometry changed under an interactive edit).
+  function liveRecompute(m) {
+    const { value, unit } = computeValue(m.type, m.page, m.pts);
+    m.value = value; m.unit = unit;
+    m.label = fmtVal(m.type, value, unit);
+  }
+
+  // Snap a dragged vertex to a nearby point: another measurement's vertex, this
+  // measurement's OTHER vertices, or the drawing's own geometry (when snap is on).
+  // The vertex being dragged is excluded so it never snaps onto itself.
+  function snapDragPoint(m, idx, raw) {
+    const thr = SNAP_PX / App.state.zoom;
+    let best = null, bd = thr;
+    const cands = [];
+    App.state.measurements.forEach((mm) => {
+      if (mm.page !== m.page) return;
+      mm.pts.forEach((pt, i) => { if (mm.id === m.id && i === idx) return; cands.push(pt); });
+    });
+    const v = App.Geom.nearestVertex(cands, raw, thr);
+    if (v) { best = v; bd = App.Geom.dist(v, raw); }
+    if (App.Snap && App.Snap.enabled) {
+      const c = App.Snap.query(m.page, raw, thr);
+      if (c) { const d = App.Geom.dist(c, raw); if (d < bd) best = c; }
+    }
+    return best ? { vx: best.vx, vy: best.vy } : raw;
+  }
+
+  // Drag a single vertex of a placed measurement (mouse/touch). Wired to the
+  // per-vertex "m-handle" shown on the selected shape; only active when no
+  // measure tool is armed (so drawing a new measurement still works). Holding
+  // Shift ortho-locks the moving leg relative to its neighbour vertex.
+  function startVertexDrag(m, idx, e) {
+    e.preventDefault(); e.stopPropagation();
+    M.select(m.id);
+    const z = App.state.zoom, sx = e.clientX, sy = e.clientY;
+    const orig = { vx: m.pts[idx].vx, vy: m.pts[idx].vy };
+    App.History.snapshot();
+    if (App.Snap) App.Snap.ensure(m.page);
+    function move(ev) {
+      let vx = orig.vx + (ev.clientX - sx) / z;
+      let vy = orig.vy + (ev.clientY - sy) / z;
+      if (ev.shiftKey && m.pts.length > 1) {
+        const nbr = m.pts[idx > 0 ? idx - 1 : 1];
+        const o = App.Geom.ortho(nbr, { vx, vy });
+        vx = o.vx; vy = o.vy;
+      }
+      const p = snapDragPoint(m, idx, { vx, vy });
+      m.pts[idx] = { vx: p.vx, vy: p.vy };
+      liveRecompute(m);
+      M.scheduleReposition(m.page);
+    }
+    function up() {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
+      M.repositionAll();
+      M.renderPanel();
+    }
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+  M._startVertexDrag = startVertexDrag;
+
+  // ---------- Edit the selected measurement's line color / thickness ----------
+  // A property edit spans a whole input gesture (a color pick, a slider drag), so
+  // one history snapshot is taken at the start of the gesture and cleared when it
+  // commits — giving a single, clean undo per edit rather than one per tick.
+  let _editing = false;
+  function editSelected(patch) {
+    const m = M.getSelected();
+    if (!m) return;
+    if (!_editing) { App.History.snapshot(); _editing = true; }
+    Object.assign(m, patch);
+    liveRecompute(m);
+    M.repositionAll(m.page);
+    App.$('#btn-save').disabled = false;
+  }
+  M.setSelectedColor = function (hex) { if (hex) editSelected({ color: hex }); };
+  M.setSelectedWidth = function (w) { const n = +w; if (n > 0) editSelected({ width: n }); };
+  // End the current edit gesture: the next change starts a fresh undo step.
+  M.endEdit = function () { _editing = false; M.renderPanel(); };
+
+  // Reflect the selected measurement into the panel's line-property controls
+  // (color + thickness). Hidden when nothing is selected.
+  M.syncProps = function () {
+    const box = App.$('#mp-props');
+    if (!box) return;
+    const m = M.getSelected();
+    box.classList.toggle('hidden', !m);
+    if (!m) return;
+    const col = App.$('#mp-color'); if (col) col.value = colorOf(m);
+    const w = widthOf(m);
+    const wr = App.$('#mp-width'); if (wr) wr.value = w;
+    const wl = App.$('#mp-width-val'); if (wl) wl.textContent = String(w).replace(/\.0$/, '') + ' px';
+  };
 
   // ---------- Copy / duplicate ----------
   M.getSelected = function () {
@@ -762,6 +887,23 @@
     App.$('#mp-clear').addEventListener('click', M.clearAll);
     const filt = App.$('#mp-filter');
     if (filt) filt.addEventListener('input', M.renderPanel);
+
+    // Selected-measurement line properties: recolor / re-thickness an existing
+    // measurement. 'input' updates live; 'change' closes the undo step.
+    const mpColor = App.$('#mp-color');
+    if (mpColor) {
+      mpColor.addEventListener('input', () => M.setSelectedColor(mpColor.value));
+      mpColor.addEventListener('change', () => M.endEdit());
+    }
+    const mpWidth = App.$('#mp-width');
+    if (mpWidth) {
+      mpWidth.addEventListener('input', () => {
+        M.setSelectedWidth(mpWidth.value);
+        const wl = App.$('#mp-width-val');
+        if (wl) wl.textContent = String(mpWidth.value).replace(/\.0$/, '') + ' px';
+      });
+      mpWidth.addEventListener('change', () => M.endEdit());
+    }
   };
 
   App.Measure = M;
