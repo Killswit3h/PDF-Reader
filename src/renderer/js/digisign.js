@@ -411,9 +411,9 @@
       e.preventDefault(); e.stopPropagation();
       const page = parseInt(pageDiv.dataset.pageNumber, 10);
       const layer = pageDiv.querySelector('.markup-layer') || pageDiv;
-      const r = layer.getBoundingClientRect();
-      const z = App.state.zoom || 1;
-      const vx = (e.clientX - r.left) / z, vy = (e.clientY - r.top) / z;
+      // Unrotate the click so the signature lands under the pointer on rotated pages.
+      const sp = App.Viewer.pointFromEvent(layer, e);
+      const vx = sp.vx, vy = sp.vy;
       const vp = App.state.baseViewports[page - 1];
       if (!vp) { cleanup(); reopenForRetry(); return; }
       const tl = vp.convertToPdfPoint(vx, vy); // click point in PDF space (block top-left)

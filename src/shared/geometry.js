@@ -178,6 +178,27 @@
     return out;
   }
 
+  // Map a pointer's on-screen offset within a page's markup layer back into the
+  // layer's UNROTATED scale-1 viewport point {vx, vy}. Overlays are drawn in
+  // unrotated page space and the whole layer is then rigid-rotated by `rot`
+  // (0/90/180/270) with a CSS transform to sit on the rotated canvas (see
+  // viewer.js syncPageEls). getBoundingClientRect() returns the axis-aligned box
+  // of that *rotated* layer, so the naive `(dx, dy) / zoom` only lands correctly
+  // at rot 0 — for 90/180/270 the axes are swapped and/or flipped, which is what
+  // makes a click land far from the pen on a rotated page. `dx, dy` are the
+  // offset from that bounding box's top-left; `lw, lh` are the layer's UNROTATED
+  // CSS size (its layout box, e.g. offsetWidth/offsetHeight). Inverse of the
+  // rigid rotation, so on-screen click == on-page point at every orientation.
+  function unrotatePoint(dx, dy, lw, lh, rot, z) {
+    const r = (((rot || 0) % 360) + 360) % 360;
+    let lx, ly;
+    if (r === 90)       { lx = dy;      ly = lh - dx; }
+    else if (r === 180) { lx = lw - dx; ly = lh - dy; }
+    else if (r === 270) { lx = lw - dy; ly = dx; }
+    else                { lx = dx;      ly = dy; }
+    return { vx: lx / z, vy: ly / z };
+  }
+
   // The two wing points of an arrow head pointing from `from` to `to`.
   // `width` widens the head with the stroke. Returns [{vx,vy},{vx,vy}].
   function arrowHeadPoints(from, to, width) {
@@ -194,7 +215,7 @@
   return {
     Geom: {
       dist, polyLen, shoelace, angleAt, centroid, bbox,
-      rectFrom, ortho, nearestVertex, arrowHeadPoints,
+      rectFrom, ortho, nearestVertex, arrowHeadPoints, unrotatePoint,
       simplify, smoothStroke,
       matMul, matApply, constructPathVertices
     }

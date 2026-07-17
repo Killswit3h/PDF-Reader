@@ -188,3 +188,44 @@ describe('Geom.arrowHeadPoints', () => {
     expect(Math.abs(thick[0].vy)).toBeGreaterThan(Math.abs(thin[0].vy));
   });
 });
+
+describe('Geom.unrotatePoint', () => {
+  // A page is 100x200 (unrotated, scale-1); the layer is drawn at that size and
+  // then rigid-rotated by CSS. lw/lh are the layer's UNROTATED size, and the
+  // (dx, dy) passed in are the offset within the rotated bounding box on screen.
+  const lw = 100, lh = 200, z = 1;
+
+  it('is a plain offset/zoom at 0°', () => {
+    expect(Geom.unrotatePoint(30, 40, lw, lh, 0, z)).toEqual({ vx: 30, vy: 40 });
+  });
+  it('scales by zoom at 0°', () => {
+    expect(Geom.unrotatePoint(60, 80, lw, lh, 0, 2)).toEqual({ vx: 30, vy: 40 });
+  });
+
+  // At each rotation, the four unrotated corners map to their known on-screen
+  // bounding-box offsets; unrotatePoint must invert that back to the corner.
+  it('maps the corners back at 90°', () => {
+    // (lx,ly) -> screen (lh-ly, lx)
+    expect(Geom.unrotatePoint(lh, 0, lw, lh, 90, z)).toEqual({ vx: 0, vy: 0 });
+    expect(Geom.unrotatePoint(lh, lw, lw, lh, 90, z)).toEqual({ vx: lw, vy: 0 });
+    expect(Geom.unrotatePoint(0, 0, lw, lh, 90, z)).toEqual({ vx: 0, vy: lh });
+    expect(Geom.unrotatePoint(0, lw, lw, lh, 90, z)).toEqual({ vx: lw, vy: lh });
+  });
+  it('maps the corners back at 180°', () => {
+    // (lx,ly) -> screen (lw-lx, lh-ly)
+    expect(Geom.unrotatePoint(lw, lh, lw, lh, 180, z)).toEqual({ vx: 0, vy: 0 });
+    expect(Geom.unrotatePoint(0, 0, lw, lh, 180, z)).toEqual({ vx: lw, vy: lh });
+  });
+  it('maps the corners back at 270°', () => {
+    // (lx,ly) -> screen (ly, lw-lx)
+    expect(Geom.unrotatePoint(0, lw, lw, lh, 270, z)).toEqual({ vx: 0, vy: 0 });
+    expect(Geom.unrotatePoint(lh, lw, lw, lh, 270, z)).toEqual({ vx: 0, vy: lh });
+    expect(Geom.unrotatePoint(0, 0, lw, lh, 270, z)).toEqual({ vx: lw, vy: 0 });
+  });
+  it('normalizes negative/overspun rotations', () => {
+    expect(Geom.unrotatePoint(30, 40, lw, lh, -270, z))
+      .toEqual(Geom.unrotatePoint(30, 40, lw, lh, 90, z));
+    expect(Geom.unrotatePoint(30, 40, lw, lh, 450, z))
+      .toEqual(Geom.unrotatePoint(30, 40, lw, lh, 90, z));
+  });
+});
