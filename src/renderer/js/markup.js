@@ -29,7 +29,10 @@
   // pen stays put for this long the stroke collapses to a clean straight line
   // from its first point to where the pen is resting. STILL_TOL is the jitter
   // radius (scale-1 viewport points) within which the pen counts as "held".
-  const STRAIGHTEN_HOLD_MS = 3000, STILL_TOL = 4;
+  // Highlighting is a quicker, coarser gesture than inking, so the highlighter
+  // snaps sooner (1.5s) than the pen (3s).
+  const STRAIGHTEN_HOLD_MS = 3000, HIGHLIGHT_STRAIGHTEN_HOLD_MS = 1500, STILL_TOL = 4;
+  const holdMsFor = (tool) => tool === 'highlight' ? HIGHLIGHT_STRAIGHTEN_HOLD_MS : STRAIGHTEN_HOLD_MS;
 
   // A highlighter lays down a much wider band than a pen so text shows through
   // it. Derived from the shared style width so the width slider still tunes it.
@@ -79,7 +82,7 @@
     const hint = type === 'text' ? 'Click to place a text box, then type. Click away to finish.'
       : type === 'callout' ? 'Click the target, then where the note goes.'
       : N_POINT[type] ? 'Click points, Enter/double-click to finish.'
-      : FREEHAND[type] ? 'Press and drag to draw. Hold still 3s to snap it straight.'
+      : FREEHAND[type] ? `Press and drag to draw. Hold still ${holdMsFor(type) / 1000}s to snap it straight.`
       : 'Click start then end.';
     App.toast(`Markup: ${type}. ${hint}`, 'info', 3500);
   };
@@ -196,7 +199,8 @@
   // fires once the pen has rested (within STILL_TOL) for STRAIGHTEN_HOLD_MS.
   function armHold(page) {
     clearHold();
-    _holdTimer = setTimeout(() => { _holdTimer = 0; straightenActive(page); }, STRAIGHTEN_HOLD_MS);
+    const holdMs = holdMsFor(K.active ? K.active.type : K.tool);
+    _holdTimer = setTimeout(() => { _holdTimer = 0; straightenActive(page); }, holdMs);
   }
   // Collapse the freehand scribble to one clean straight segment: first point →
   // where the pen is now resting. Locks `straight` so the rest of the drag just
