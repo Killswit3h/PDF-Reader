@@ -73,8 +73,9 @@ contextBridge.exposeInMainWorld('api', {
   tileSideBySide: () => ipcRenderer.invoke('window:tile'),
 
   // Print the finished document. `bytes` is the exported PDF (Uint8Array); the
-  // main process writes it to a temp file and hands it to the OS printer — the
-  // native system print dialog on macOS, the default PDF app on Windows.
+  // main process writes it to a temp file and prints it from a hidden window so
+  // the native OS print dialog (preview + printer picker) pops up on every
+  // desktop platform.
   print: (bytes) => ipcRenderer.invoke('app:print', bytes),
 
   // ---- Updates ----
