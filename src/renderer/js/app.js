@@ -32,6 +32,8 @@
     App.$('#btn-date').classList.toggle('armed', mode === 'date');
     App.$('#btn-measure').classList.toggle('armed', mode === 'measure');
     App.$('#btn-markup').classList.toggle('armed', mode === 'markup');
+    // Keep the right-hand markup rail's per-tool highlight in step.
+    if (App.MarkupRail) App.MarkupRail.sync();
 
     // remove any previously injected "new" link
     const existing = document.getElementById('mode-new');
@@ -540,6 +542,65 @@
     App.$('#mk-redo').addEventListener('click', () => App.Markup.redo());
   }
 
+  // Right-hand markup rail (Bluebeam-style): a compact, always-visible strip of
+  // one-click drawing tools. Each icon runs the same App.Markup entry points as
+  // the left-rail dropdown, so behaviour is identical — this is a faster surface,
+  // not a second implementation. Exposed as App.MarkupRail so setMode() and the
+  // e2e harness can keep the armed highlight in sync with the active tool.
+  function setupMarkupRail() {
+    const rail = App.$('#markup-rail');
+    const reopen = App.$('#mr-reopen');
+    if (!rail) return;
+    const PREF = 'markupRailOff';
+
+    const applyVisible = (off) => {
+      document.body.classList.toggle('markup-rail-off', off);
+      const t = App.$('#mr-toggle');
+      if (t) { t.title = 'Hide markup toolbar'; t.setAttribute('aria-expanded', String(!off)); }
+    };
+    applyVisible(App.Prefs && App.Prefs.get(PREF, false) === true);
+
+    const setOff = (off) => { applyVisible(off); if (App.Prefs) App.Prefs.set(PREF, off); };
+    const tgl = App.$('#mr-toggle');
+    if (tgl) tgl.addEventListener('click', () => setOff(true));
+    if (reopen) reopen.addEventListener('click', () => setOff(false));
+
+    rail.querySelectorAll('.mr-btn').forEach((b) => {
+      b.addEventListener('click', () => {
+        if (!App.state.pdfDoc) return;
+        const mr = b.dataset.mr, mk = b.dataset.mk;
+        if (mr === 'select') { App.setMode(null); }
+        else if (mr === 'undo') { App.Markup.undo(); }
+        else if (mr === 'redo') { App.Markup.redo(); }
+        else if (mr === 'list') { App.MarkupPanel.toggle(); }
+        else if (mk) {
+          if (App.Markup.isTextTool && App.Markup.isTextTool(mk)) App.Markup.startTextMarkup(mk);
+          else App.Markup.startTool(mk);
+        }
+        App.MarkupRail.sync();
+      });
+    });
+
+    App.MarkupRail = {
+      // Highlight whichever tool is currently armed (drawing tool, text-select
+      // markup, or the resting Select state). Called from setMode().
+      sync() {
+        const drawTool = App.Markup && App.Markup.tool;
+        const textTool = App.Markup && App.Markup.textTool;
+        const markupMode = App.state.mode === 'markup';
+        rail.querySelectorAll('.mr-btn').forEach((b) => {
+          const mk = b.dataset.mk, mr = b.dataset.mr;
+          let on = false;
+          if (mk && markupMode && drawTool) on = (mk === drawTool);
+          else if (mk && textTool) on = (mk === textTool);
+          else if (mr === 'select') on = !App.state.mode && !textTool;
+          b.classList.toggle('armed', on);
+        });
+      }
+    };
+    App.MarkupRail.sync();
+  }
+
   // Document tools live under one dropdown (Organize / Stamps / Tool Chest) so
   // the rail stays compact — especially on the mobile bottom bar.
   function setupDocumentMenu() {
@@ -561,6 +622,7 @@
         else if (d === 'chest') App.ToolChest.toggle();
         else if (d === 'digisign') App.DigiSign.open();
         else if (d === 'compare') App.Compare.open();
+        else if (d === 'overlay') App.Overlay.open();
         else if (d === 'split') App.SplitView.toggle();
       });
     });
@@ -884,6 +946,7 @@
     if (App.ToolChest) App.ToolChest.init();
     if (App.DigiSign) App.DigiSign.init();
     if (App.Compare) App.Compare.init();
+    if (App.Overlay) App.Overlay.init();
     if (App.SplitView) App.SplitView.init();
     if (App.TextCopy) App.TextCopy.init();
     loadRememberedSignatures();
@@ -894,6 +957,7 @@
     setupPlacementClicks();
     setupMeasureMenu();
     setupMarkupMenu();
+    setupMarkupRail();
     setupDocumentMenu();
     setupRailToggle();
     setupMobileOverflow();

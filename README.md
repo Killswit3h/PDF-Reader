@@ -130,6 +130,11 @@ at runtime. Handwriting fonts are bundled with the app.
   *"Save markups as editable PDF annotations"* in the Markups List — interoperable
   with other PDF tools. (Existing annotations from other apps are displayed and
   preserved on save; importing them for in-app editing is planned.)
+- **Right-hand markup toolbar** (Bluebeam-style) — a compact, icon-only strip
+  docked to the right edge of the page gives **one-click access** to every drawing
+  tool (no menu dive), with the active tool highlighted, Undo/Redo, and the Markups
+  List button. A small handle collapses it to a slim reopen tab; the choice is
+  remembered. It rides along when a side panel opens and hides in Side-by-Side.
 - **Marks stay editable after saving** — a saved file embeds an editable copy of
   your measurements, markups, and text placements (plus a pristine copy of the base
   PDF). Reopen it in FieldMark and every mark comes back as a **live, movable /
@@ -205,6 +210,13 @@ at runtime. Handwriting fonts are bundled with the app.
   pixels that differ — a fast way to spot revisions between two versions of the
   same drawing. Renderer-only (PDF.js canvas + pixel diff), so it runs on all three
   platforms.
+- **Overlay Documents** (Document ▾ → Overlay Documents) — superimpose two PDFs
+  **one on top of the other** (not side-by-side). Each document is tinted its own
+  color and multiply-blended, so shared linework reads dark and each revision's
+  unique content shows in its own color — ideal for checking that two versions of a
+  drawing line up. Per-layer **color, opacity, and show/hide**, plus **Swap A/B**,
+  page navigation, and fit/zoom. Renderer-only (PDF.js canvas), so it ships to all
+  three platforms.
 
 ## Digital signatures (PKI / PAdES)
 
@@ -537,6 +549,7 @@ PDF Reader/
 │        ├─ viewer.js      # PDF.js render, zoom, fit, navigation
 │        ├─ measure.js     # scale calibration, measurement tools, viewports, CSV
 │        ├─ markup.js      # Bluebeam-style markup engine + Markups List panel
+│        ├─ overlay.js     # Overlay Documents: tinted multiply-blend of two PDFs
 │        ├─ organize.js    # Page Organizer: reorder/rotate/delete/insert/merge/extract
 │        ├─ docstamp.js    # Bates numbering, header/footer, watermark (preview + export)
 │        ├─ toolchest.js   # saved markup tools + reusable image stamps (Prefs-backed)

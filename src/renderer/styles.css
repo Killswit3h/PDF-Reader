@@ -773,6 +773,86 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
   body.rail-collapsed #tool-rail .rail-ico { font-size: 18px; }
 }
 
+/* ===================== Right-hand markup rail =====================
+   A compact, icon-only markup toolbar docked to the viewer's right edge
+   (Bluebeam-style). It's a child of #viewer-wrap, so when a side panel opens
+   and shifts the viewer's right edge inward, the rail rides along with it.
+   Hidden until a document is open (body.doc-open) and can be collapsed to a
+   slim reopen tab; both states persist via prefs. */
+#markup-rail {
+  position: absolute;
+  top: var(--sp-2); right: var(--sp-2); bottom: var(--sp-2);
+  width: 42px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--sp-1);
+  padding: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+  z-index: 16;
+}
+#markup-rail.hidden { display: none; }
+/* Only surface the rail once a document is loaded and the user hasn't hidden it. */
+body:not(.doc-open) #markup-rail,
+body.markup-rail-off #markup-rail { display: none; }
+body:not(.doc-open) .mr-reopen,
+body:not(.markup-rail-off) .mr-reopen { display: none; }
+
+.mr-scroll {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-1);
+  overflow-y: auto; overflow-x: hidden;
+  width: 100%; flex: 1; padding-top: 2px;
+  scrollbar-width: thin;
+}
+.mr-btn {
+  width: 32px; height: 32px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--text);
+  border: 1px solid transparent; border-radius: var(--r-md);
+  font-size: 16px; line-height: 1; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.mr-btn:hover { background: var(--bg-hover); }
+.mr-btn:active { transform: translateY(0.5px); }
+.mr-btn.armed {
+  background: var(--accent); color: #fff; border-color: var(--accent-hover);
+  box-shadow: 0 0 0 2px var(--accent-quiet);
+}
+.mr-sep { width: 22px; height: 1px; background: var(--border); flex: 0 0 auto; margin: 2px 0; }
+
+.mr-toggle {
+  width: 26px; height: 20px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--text-faint);
+  border: none; border-radius: var(--r-sm);
+  font-size: 14px; line-height: 1; cursor: pointer;
+}
+.mr-toggle:hover { background: var(--bg-hover); color: var(--text); }
+
+/* Slim edge tab that reopens the rail after it's hidden. */
+.mr-reopen {
+  position: absolute; top: 50%; right: 0; transform: translateY(-50%);
+  width: 18px; height: 60px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-surface); color: var(--text-dim);
+  border: 1px solid var(--border); border-right: none;
+  border-radius: var(--r-md) 0 0 var(--r-md);
+  box-shadow: var(--shadow-1);
+  font-size: 13px; cursor: pointer; z-index: 16;
+}
+.mr-reopen:hover { color: var(--text); background: var(--bg-hover); }
+.mr-reopen.hidden { display: none; }
+
+/* On the mobile bottom-bar layout the floating rail would collide with the
+   thumb zone; the existing dropdown markup menu covers touch, so hide it. */
+@media (max-width: 820px) {
+  #markup-rail, .mr-reopen { display: none !important; }
+}
+/* Side-by-side split view fills the viewer's right half with a reference pane;
+   the floating rail would sit on top of it, so step aside while split is on. */
+body.has-split #markup-rail, body.has-split .mr-reopen { display: none !important; }
+
 /* Mobile-only top-bar overflow ("⋯"): hidden on desktop, where every control
    fits inline. Shown + populated by app.js under a narrow viewport. */
 .g-more { display: none; }
@@ -1375,3 +1455,22 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 .cmp-nav { display: flex; align-items: center; gap: 10px; }
 .cmp-page { font-size: 12px; color: var(--text-dim); min-width: 110px; text-align: center; }
 .cmp-changed { font-size: 12px; color: var(--text-dim); flex: 1; text-align: center; }
+
+/* ============ Document overlay ============
+   Reuses the compare modal's view/footer chrome; adds a per-layer control bar
+   (visibility, tint color, opacity) for the two superimposed documents. */
+.ovl-modal { width: 980px; max-width: 96vw; height: 90vh; }
+.ovl-bar {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 10px 20px; border-bottom: 1px solid var(--border);
+}
+.ovl-layer { display: flex; align-items: center; gap: 10px; }
+.ovl-toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); cursor: pointer; }
+.ovl-toggle input[type="checkbox"] { cursor: pointer; }
+.ovl-toggle input[type="color"] {
+  width: 24px; height: 24px; padding: 0; border: 1px solid var(--border);
+  border-radius: var(--r-sm); background: none; cursor: pointer;
+}
+.ovl-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ovl-layer input[type="range"] { width: 90px; }
+.ovl-spacer { flex: 1; }

@@ -172,6 +172,7 @@
           <button data-doc="chest">🧰 Tool Chest</button>
           <button data-doc="digisign">🔏 Digital Signature…</button>
           <button data-doc="compare">🔍 Compare Documents…</button>
+          <button data-doc="overlay">⧉ Overlay Documents…</button>
           <div class="tb-menu-sep"></div>
           <button data-doc="split">◫ Side by Side<span class="mk-key">\</span></button>
         </div>
@@ -255,6 +256,43 @@
     <div id="viewerContainer">
       <div id="viewer" class="pdfViewer"></div>
     </div>
+
+    <!-- Right-hand markup toolbar (Bluebeam-style). A compact, icon-only strip
+         docked to the viewer's right edge for one-click access to every drawing
+         tool. Lives inside #viewer-wrap so it rides along when a side panel opens
+         (which shifts the viewer's right edge). Shown once a document is open;
+         a small handle collapses it, and the choice is remembered. -->
+    <aside id="markup-rail" aria-label="Markup tools">
+      <button id="mr-toggle" class="mr-toggle" title="Hide markup toolbar" aria-label="Hide markup toolbar" aria-expanded="true">›</button>
+      <div class="mr-scroll">
+        <button class="mr-btn" data-mr="select" title="Select (Esc) — move, resize or delete a markup" aria-label="Select">↖</button>
+        <div class="mr-sep"></div>
+        <button class="mr-btn" data-mk="arrow" title="Arrow (A)" aria-label="Arrow">➷</button>
+        <button class="mr-btn" data-mk="line" title="Line (L)" aria-label="Line">╱</button>
+        <button class="mr-btn" data-mk="rect" title="Rectangle (B)" aria-label="Rectangle">▭</button>
+        <button class="mr-btn" data-mk="ellipse" title="Ellipse (O)" aria-label="Ellipse">◯</button>
+        <button class="mr-btn" data-mk="polyline" title="Polyline" aria-label="Polyline">〰️</button>
+        <button class="mr-btn" data-mk="polygon" title="Polygon" aria-label="Polygon">⬠</button>
+        <button class="mr-btn" data-mk="cloud" title="Cloud" aria-label="Cloud">☁️</button>
+        <button class="mr-btn" data-mk="ink" title="Freehand (P)" aria-label="Freehand">✒️</button>
+        <div class="mr-sep"></div>
+        <button class="mr-btn" data-mk="text" title="Text (T)" aria-label="Text">🅃</button>
+        <button class="mr-btn" data-mk="callout" title="Callout (C)" aria-label="Callout">💬</button>
+        <button class="mr-btn" data-mk="highlight" title="Highlight (H)" aria-label="Highlight">🖍️</button>
+        <div class="mr-sep"></div>
+        <button class="mr-btn" data-mk="texthighlight" title="Highlight text" aria-label="Highlight text">🅗</button>
+        <button class="mr-btn" data-mk="underline" title="Underline text" aria-label="Underline text">U̲</button>
+        <button class="mr-btn" data-mk="strikeout" title="Strikeout text" aria-label="Strikeout text">S̶</button>
+        <div class="mr-sep"></div>
+        <button class="mr-btn" data-mr="undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+        <button class="mr-btn" data-mr="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
+        <button class="mr-btn" data-mr="list" title="Markups list" aria-label="Markups list">📋</button>
+      </div>
+    </aside>
+
+    <!-- Collapsed-rail reopen tab: a slim edge handle that brings the markup
+         toolbar back after it's hidden. -->
+    <button id="mr-reopen" class="mr-reopen" title="Show markup toolbar" aria-label="Show markup toolbar">‹</button>
 
     <!-- Side-by-side reference pane (read-only MiniViewer). Shown when Split
          View is on; the left viewer shrinks to make room. -->
@@ -741,6 +779,55 @@
     </div>
   </div>
 
+  <!-- ============ Document overlay modal ============
+       Superimposes two PDFs one on top of the other (not side-by-side): each
+       document is tinted its own color and multiply-blended, so shared lines
+       read dark and each revision's unique content shows in its own color. -->
+  <div id="overlay-modal" class="modal-backdrop hidden">
+    <div class="modal ovl-modal">
+      <div class="modal-head">
+        <h2>Overlay Documents</h2>
+        <button id="ovl-close" class="modal-x" title="Close">✕</button>
+      </div>
+      <div class="ovl-bar">
+        <div class="ovl-layer">
+          <label class="ovl-toggle" title="Show / hide this layer">
+            <input id="ovl-a-on" type="checkbox" checked />
+            <input id="ovl-a-color" type="color" value="#e5484d" title="Color for document A" aria-label="Document A color" />
+            <span id="ovl-a-name" class="ovl-name">A</span>
+          </label>
+          <input id="ovl-a-opacity" type="range" min="10" max="100" step="5" value="100" title="Document A opacity" aria-label="Document A opacity" />
+        </div>
+        <div class="ovl-layer">
+          <label class="ovl-toggle" title="Show / hide this layer">
+            <input id="ovl-b-on" type="checkbox" checked />
+            <input id="ovl-b-color" type="color" value="#2f6fed" title="Color for document B" aria-label="Document B color" />
+            <span id="ovl-b-name" class="ovl-name">B</span>
+          </label>
+          <input id="ovl-b-opacity" type="range" min="10" max="100" step="5" value="100" title="Document B opacity" aria-label="Document B opacity" />
+        </div>
+        <span class="ovl-spacer"></span>
+        <div class="cmp-zoom-ctrl">
+          <button id="ovl-swap" class="tb-btn" title="Swap which document is A and which is B">⇄ Swap</button>
+          <button id="ovl-fit" class="tb-btn" title="Fit page to window">Fit</button>
+          <button id="ovl-zoom-out" class="tb-btn cmp-zbtn" title="Zoom out">−</button>
+          <span id="ovl-zoom" class="cmp-zoom">100%</span>
+          <button id="ovl-zoom-in" class="tb-btn cmp-zbtn" title="Zoom in">+</button>
+        </div>
+      </div>
+      <div id="ovl-view" class="cmp-view"></div>
+      <div class="modal-foot cmp-foot">
+        <div class="cmp-nav">
+          <button id="ovl-prev" class="tb-btn">◀ Prev</button>
+          <span id="ovl-page" class="cmp-page"></span>
+          <button id="ovl-next" class="tb-btn">Next ▶</button>
+        </div>
+        <span id="ovl-hint" class="cmp-changed"></span>
+        <button id="ovl-done" class="tb-btn primary">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ======= Vendored, offline libraries (UMD builds) ======= -->
   <script src="../../node_modules/pdfjs-dist/build/pdf.min.js"></script>
   <script src="../../node_modules/pdfjs-dist/web/pdf_viewer.js"></script>
@@ -775,6 +862,7 @@
   <script src="js/digisign.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/compare.js"></script>
+  <script src="js/overlay.js"></script>
   <script src="js/miniviewer.js"></script>
   <script src="js/splitview.js"></script>
   <script src="js/textcopy.js"></script>
