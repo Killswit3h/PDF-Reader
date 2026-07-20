@@ -2048,21 +2048,18 @@ const printTempFiles = [];
 
 // Print the finished document (all pages, with every placement/markup/measure
 // baked in). The renderer hands us the same bytes `Save` would write; we write
-// them to a temp PDF and hand it to the OS.
+// them to a temp PDF and drive the OS print dialog for it.
 //
-// Two platform paths:
-//  - Windows: open the temp PDF in the OS default PDF application (Edge/Adobe),
-//    which provides a real print preview + printer picker. Electron's own
-//    offscreen print goes through the Windows native dialog, whose preview pane
-//    can't render app content ("This app doesn't support print preview") and was
-//    prone to blank output — so we delegate.
-//  - macOS: drive the native system print dialog directly by printing the PDF
-//    from a hidden window. `shell.openPath` can't be trusted here — when *this*
-//    app is the default PDF handler (common once you've opened PDFs with it), the
-//    temp file just reopens as another FieldMark window, giving the user a second
-//    copy of the document and never a printer picker. macOS renders offscreen
-//    print content correctly (the blank-preview problem is Windows-only), so we
-//    print it ourselves and the native print panel appears.
+// On every desktop platform we print the PDF ourselves from a hidden window
+// (Chromium's PDF plugin) so the native system print dialog — with preview and
+// printer picker — pops up straight away. We deliberately no longer hand the
+// file to `shell.openPath`: when *this* app is the OS default PDF handler
+// (common once you've opened PDFs with it), openPath just reopens the temp file
+// as another FieldMark window — the user gets a second copy of the document and
+// never a printer picker, which reads as "I clicked Print and nothing happened".
+// macOS was already fixed this way; Windows/Linux had the same latent bug.
+// If the offscreen print can't get going, we fall back to the default viewer so
+// the user still has a way to print.
 ipcMain.handle('app:print', async (_e, bytes) => {
   if (!bytes) return { ok: false, error: 'Nothing to print' };
   try {
@@ -2072,21 +2069,18 @@ ipcMain.handle('app:print', async (_e, bytes) => {
     // The e2e smoke harness exercises the pipeline without launching an external
     // app or a print dialog (there's no PDF handler / printer on headless CI).
     if (process.env.SMOKE_NO_PRINT_OPEN) return { ok: true, file: tmpFile };
-    if (process.platform === 'darwin') return await printViaSystemDialog(tmpFile);
-    const err = await shell.openPath(tmpFile);
-    if (err) return { ok: false, error: err, file: tmpFile };
-    return { ok: true, file: tmpFile };
+    return await printViaSystemDialog(tmpFile);
   } catch (err) {
     return { ok: false, error: err.message };
   }
 });
 
-// macOS print path: load the temp PDF into a hidden window (Chromium's built-in
+// Desktop print path: load the temp PDF into a hidden window (Chromium's built-in
 // PDF viewer) and call webContents.print(), which raises the native system print
 // dialog with a live preview and printer picker. Resolves { ok, dialog:true } once
 // the dialog closes (whether the user prints or cancels — cancel isn't an error).
 // If the offscreen print can't get going at all, fall back to opening the file in
-// Preview so the user still has a way to print.
+// the OS default viewer so the user still has a way to print.
 function printViaSystemDialog(tmpFile) {
   return new Promise((resolve) => {
     let win = new BrowserWindow({
@@ -2101,20 +2095,29 @@ function printViaSystemDialog(tmpFile) {
       win = null;
       resolve(result);
     };
-    // If we can't render/print the PDF ourselves, open it in Preview (an app that
-    // isn't us) so the user isn't left with no way to print at all.
-    const fallbackToPreview = (why) => {
+    // If we can't render/print the PDF ourselves, open it in a viewer so the user
+    // isn't left with no way to print at all. On macOS force Preview (an app that
+    // isn't us, so we don't just reopen the file in FieldMark); on Windows/Linux
+    // hand it to the OS default PDF handler.
+    const fallbackToViewer = (why) => {
       try {
-        const r = spawn('open', ['-a', 'Preview', tmpFile], { detached: true, stdio: 'ignore' });
-        r.on('error', () => {});
-        r.unref();
-        finish({ ok: true, file: tmpFile });
+        if (process.platform === 'darwin') {
+          const r = spawn('open', ['-a', 'Preview', tmpFile], { detached: true, stdio: 'ignore' });
+          r.on('error', () => {});
+          r.unref();
+          finish({ ok: true, file: tmpFile });
+        } else {
+          shell.openPath(tmpFile).then(
+            (err) => finish(err ? { ok: false, error: err, file: tmpFile } : { ok: true, file: tmpFile }),
+            () => finish({ ok: false, error: why || 'Could not open the print dialog', file: tmpFile })
+          );
+        }
       } catch (_) {
         finish({ ok: false, error: why || 'Could not open the print dialog', file: tmpFile });
       }
     };
 
-    win.webContents.once('did-fail-load', (_e2, code, desc) => fallbackToPreview(desc || ('load failed ' + code)));
+    win.webContents.once('did-fail-load', (_e2, code, desc) => fallbackToViewer(desc || ('load failed ' + code)));
     win.webContents.once('did-finish-load', () => {
       // Let the PDF plugin paint before we invoke print, or the job can come out blank.
       setTimeout(() => {
@@ -2126,11 +2129,11 @@ function printViaSystemDialog(tmpFile) {
             void reason;
           });
         } catch (e) {
-          fallbackToPreview(e && e.message);
+          fallbackToViewer(e && e.message);
         }
       }, 400);
     });
-    win.loadFile(tmpFile).catch((e) => fallbackToPreview(e && e.message));
+    win.loadFile(tmpFile).catch((e) => fallbackToViewer(e && e.message));
   });
 }
 
