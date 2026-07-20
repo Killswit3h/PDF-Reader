@@ -540,11 +540,12 @@ function createWindow() {
         }, 1200);
         return;
       }
-      // SMOKE_OVERLAY: the overlay view superimposes two docs one on top of the
-      // other. It must render a composited canvas, and toggling a layer off (or
-      // changing its tint) must recomposite to different pixels — proving both
-      // documents actually contribute to the blend.
-      if (process.env.SMOKE_OVERLAY) {
+      // SMOKE_DOCOVERLAY: the document overlay view superimposes two docs one on
+      // top of the other. It must render a composited canvas, and toggling a
+      // layer off (or changing its tint) must recomposite to different pixels —
+      // proving both documents actually contribute to the blend. (Distinct from
+      // SMOKE_OVERLAY below, which exercises the on-page annotation layer.)
+      if (process.env.SMOKE_DOCOVERLAY) {
         setTimeout(async () => {
           try {
             const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
@@ -574,8 +575,8 @@ function createWindow() {
               const pageTxt=document.querySelector('#ovl-page').textContent;
               return JSON.stringify({modalOpen,canvasW:cv?cv.width:0,canvasH:cv?cv.height:0,both,aOnly,changed:both!==aOnly,fitW,fitActive,zoomW,pageTxt});
             })()`, true);
-            console.log('[overlay] ' + r);
-          } catch (e) { console.log('[overlay] error', e && e.message); }
+            console.log('[docoverlay] ' + r);
+          } catch (e) { console.log('[docoverlay] error', e && e.message); }
           app.quit();
         }, 1200);
         return;

@@ -279,9 +279,9 @@ const SCENARIOS = [
     }
   },
   {
-    name: 'overlay — superimposes two docs; toggling a layer recomposites',
+    name: 'document overlay — superimposes two docs; toggling a layer recomposites',
     run: () => {
-      const j = tagJson(runApp({ SMOKE_OVERLAY: '1' }, [SAMPLE]), 'overlay');
+      const j = tagJson(runApp({ SMOKE_DOCOVERLAY: '1' }, [SAMPLE]), 'docoverlay');
       check(j.modalOpen === true, 'overlay modal did not open');
       check(j.canvasW > 0 && j.canvasH > 0, `overlay canvas not rendered ${j.canvasW}x${j.canvasH}`);
       check(j.changed === true, `toggling layer B off did not change the blend (${j.both} == ${j.aOnly})`);
