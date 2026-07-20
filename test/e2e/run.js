@@ -279,6 +279,30 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'overlay — superimposes two docs; toggling a layer recomposites',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_OVERLAY: '1' }, [SAMPLE]), 'overlay');
+      check(j.modalOpen === true, 'overlay modal did not open');
+      check(j.canvasW > 0 && j.canvasH > 0, `overlay canvas not rendered ${j.canvasW}x${j.canvasH}`);
+      check(j.changed === true, `toggling layer B off did not change the blend (${j.both} == ${j.aOnly})`);
+      check(j.fitW > 0 && j.fitActive === true, `fit did not size the overlay page (${j.fitW}, active=${j.fitActive})`);
+      check(j.zoomW > j.fitW, `zoom in did not enlarge past fit (${j.zoomW} !> ${j.fitW})`);
+      check(/Page 1 of/.test(j.pageTxt), `page readout missing (${j.pageTxt})`);
+    }
+  },
+  {
+    name: 'markup rail — right-hand tool strip arms tools, collapses, persists',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MRAIL: '1' }, [SAMPLE]), 'mrail');
+      check(j.docOpenShown === true, 'markup rail not shown with a document open');
+      check(j.rectArmed === true && j.toolIsRect === true, 'clicking Rectangle did not arm the rectangle tool');
+      check(j.selArmed === true && j.rectDisarmed === true, 'Select did not become the armed tool');
+      check(j.hiddenAfter === true && j.pref === true, 'collapse handle did not hide the rail / persist the choice');
+      check(j.reopenShown === true, 'reopen tab not shown while rail is collapsed');
+      check(j.shownAgain === true, 'reopen tab did not restore the rail');
+    }
+  },
+  {
     name: 'rail collapse — tool rail shrinks to icons, persists, expands back',
     run: () => {
       const j = tagJson(runApp({ SMOKE_RAIL: '1' }, [SAMPLE]), 'rail');

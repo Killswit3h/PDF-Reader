@@ -540,6 +540,85 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_OVERLAY: the overlay view superimposes two docs one on top of the
+      // other. It must render a composited canvas, and toggling a layer off (or
+      // changing its tint) must recomposite to different pixels — proving both
+      // documents actually contribute to the blend.
+      if (process.env.SMOKE_OVERLAY) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const bytes=App.state.pdfBytes.slice();
+              await App.Overlay.overlayData(bytes,'copy.pdf');
+              let cv=null;
+              for(let i=0;i<100;i++){cv=document.querySelector('#ovl-view canvas');if(cv&&cv.width>0)break;await new Promise(r=>setTimeout(r,100));}
+              const modalOpen=!document.querySelector('#overlay-modal').classList.contains('hidden');
+              const px=(c)=>{const t=document.createElement('canvas');t.width=c.width;t.height=c.height;const x=t.getContext('2d');x.drawImage(c,0,0);return x.getImageData(0,0,c.width,c.height).data;};
+              const sum=(d)=>{let s=0;for(let i=0;i<d.length;i+=4)s+=d[i]+d[i+1]+d[i+2];return s;};
+              const both=sum(px(cv));
+              // Toggle layer B off → only A tints → pixel sum changes.
+              document.querySelector('#ovl-b-on').click();
+              document.querySelector('#ovl-b-on').dispatchEvent(new Event('input',{bubbles:true}));
+              await new Promise(r=>setTimeout(r,200));
+              const cv2=document.querySelector('#ovl-view canvas');
+              const aOnly=sum(px(cv2));
+              // Fit control sizes the page to the window; zoom-in enlarges it.
+              document.querySelector('#ovl-fit').click();
+              const fitW=parseFloat(cv2.style.width)||0;
+              const fitActive=document.querySelector('#ovl-fit').classList.contains('active');
+              document.querySelector('#ovl-zoom-in').click();
+              const zoomW=parseFloat(cv2.style.width)||0;
+              // Page nav.
+              const pageTxt=document.querySelector('#ovl-page').textContent;
+              return JSON.stringify({modalOpen,canvasW:cv?cv.width:0,canvasH:cv?cv.height:0,both,aOnly,changed:both!==aOnly,fitW,fitActive,zoomW,pageTxt});
+            })()`, true);
+            console.log('[overlay] ' + r);
+          } catch (e) { console.log('[overlay] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_MRAIL: the right-hand markup rail appears once a document is open,
+      // clicking a tool button arms that tool (and highlights it), Select
+      // disarms, and the collapse handle hides the rail + persists the choice.
+      if (process.env.SMOKE_MRAIL) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const rail=document.querySelector('#markup-rail');
+              const shown=()=>getComputedStyle(rail).display!=='none';
+              const docOpenShown=shown();
+              const rectBtn=rail.querySelector('.mr-btn[data-mk="rect"]');
+              rectBtn.click();
+              await new Promise(r=>setTimeout(r,100));
+              const rectArmed=rectBtn.classList.contains('armed');
+              const toolIsRect=App.Markup.tool==='rect';
+              const selBtn=rail.querySelector('.mr-btn[data-mr="select"]');
+              selBtn.click();
+              await new Promise(r=>setTimeout(r,100));
+              const selArmed=selBtn.classList.contains('armed');
+              const rectDisarmed=!rectBtn.classList.contains('armed');
+              // Collapse: hide handle removes the rail, sets the pref, reopen tab shows.
+              document.querySelector('#mr-toggle').click();
+              await new Promise(r=>setTimeout(r,100));
+              const hiddenAfter=!shown();
+              const pref=App.Prefs.get('markupRailOff',false);
+              const reopenShown=getComputedStyle(document.querySelector('#mr-reopen')).display!=='none';
+              document.querySelector('#mr-reopen').click();
+              await new Promise(r=>setTimeout(r,100));
+              const shownAgain=shown();
+              return JSON.stringify({docOpenShown,rectArmed,toolIsRect,selArmed,rectDisarmed,hiddenAfter,pref,reopenShown,shownAgain});
+            })()`, true);
+            console.log('[mrail] ' + r);
+          } catch (e) { console.log('[mrail] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_SHARP: zooming a page past the OLD 2^24 canvas cap must still
       // render the page canvas at full resolution (pixel buffer ≈ CSS box × dpr)
       // rather than downscaling it — the fix for blurry zoomed vector plans.

@@ -585,6 +585,9 @@
     // open and no drawing tool is armed. setMode() keeps it in sync afterwards.
     const sel = App.$('#btn-select');
     if (sel) sel.classList.toggle('armed', !!enabled && !App.state.mode);
+    // Reveal the right-hand markup rail only once a document is loaded.
+    document.body.classList.toggle('doc-open', !!enabled);
+    if (App.MarkupRail) App.MarkupRail.sync();
   };
 
   App.Viewer = Viewer;
