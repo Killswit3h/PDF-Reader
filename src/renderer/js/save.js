@@ -519,7 +519,7 @@
         if (res && res.ok) { App.toast(`Saved: ${res.path}`, 'success', 4000); saved = true; }
         else if (res && res.error) App.toast(`Could not save: ${res.error}`, 'error', 6000);
       } else {
-        const res = await window.api.savePdfDialog(`${base}-signed.pdf`, bytes);
+        const res = await window.api.savePdfDialog(`${base}.pdf`, bytes);
         if (res && res.ok) {
           App.toast(`Saved: ${res.path}`, 'success', 5000);
           // Remember the new location so later Saves overwrite it too.
