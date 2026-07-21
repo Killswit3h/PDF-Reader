@@ -6,7 +6,7 @@ const path = require('path');
 const https = require('https');
 const { spawn } = require('child_process');
 const pkg = require('../package.json');
-const { repoSlug, semverCmp, fileFromArgv, canInstallInApp } = require('./shared/update-utils');
+const { repoSlug, semverCmp, fileFromArgv, filesFromArgv, canInstallInApp } = require('./shared/update-utils');
 
 // electron-updater drives in-app download + install of a new release. Loaded
 // defensively: if the module is ever missing/unloadable, the updater simply
@@ -63,7 +63,11 @@ let mainWindow = null;
 // (a "black screen"). To avoid that race we buffer the initial file and only
 // deliver it after the renderer signals it is ready.
 let rendererReady = false;
-let pendingFile = null;
+// Files that arrived before the renderer was ready, buffered in arrival order.
+// It's a list, not a single slot, so opening several PDFs at once (multi-select
+// "Open with", or a batch of macOS 'open-file' events) doesn't drop all but the
+// last — every one is flushed as a tab once the renderer signals ready.
+let pendingFiles = [];
 
 // Torn-off child windows + their pending initial documents (keyed by the new
 // window's webContents id; delivered on that window's 'renderer-ready').
@@ -145,15 +149,21 @@ function openInRenderer(filePath) {
   if (rendererReady && mainWindow && mainWindow.webContents) {
     mainWindow.webContents.send('open-file-path', filePath);
   } else {
-    pendingFile = filePath;
+    pendingFiles.push(filePath);
     // macOS keeps the app running after its window is closed. If a file arrives
     // then (e.g. opening an Outlook attachment), there is no window to receive
     // it — create one now so it opens immediately instead of hanging until the
     // user clicks the Dock icon. On a cold start the app isn't ready yet;
     // whenReady() creates the first window and the 'renderer-ready' handler
-    // flushes pendingFile, so don't double-create in that case.
+    // flushes pendingFiles, so don't double-create in that case.
     if (!mainWindow && app.isReady()) createWindow();
   }
+}
+
+// Open several paths at once. Each becomes its own tab; the renderer opens them
+// sequentially in this order (see App.Viewer.load).
+function openManyInRenderer(filePaths) {
+  (filePaths || []).forEach(openInRenderer);
 }
 
 // macOS "Open with" delivers files via the 'open-file' event (not argv), and it
@@ -342,6 +352,30 @@ function createWindow() {
             })()`, true);
             console.log('[launch] ' + r);
           } catch (e) { console.log('[launch] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_MULTI: launch with TWO PDFs in argv (a multi-select "Open with")
+      // and verify BOTH open as their own tabs — the whole batch is delivered,
+      // not just the first file.
+      if (process.env.SMOKE_MULTI) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 120; i++) {
+                await new Promise(r => setTimeout(r, 100));
+                if (App.Tabs && App.Tabs.count() >= 2 && App.state.numPages) break;
+              }
+              await new Promise(r => setTimeout(r, 400));
+              return JSON.stringify({
+                count: App.Tabs ? App.Tabs.count() : 0,
+                tabEls: document.querySelectorAll('#tab-bar .tab').length,
+                names: (App.Tabs ? App.Tabs.list() : []).map((t) => t.name)
+              });
+            })()`, true);
+            console.log('[multi] ' + r);
+          } catch (e) { console.log('[multi] error', e && e.message); }
           app.quit();
         }, 1200);
         return;
@@ -1892,12 +1926,11 @@ function createWindow() {
     // If launched with a PDF argument (Windows/Linux), queue it. It is delivered
     // once the renderer reports it is ready (see the 'renderer-ready' handler),
     // which guarantees the renderer is already listening for the file path.
-    // Skip when a file is already buffered — this window may have been created
+    // Skip when files are already buffered — this window may have been created
     // to open a *new* file (e.g. a warm macOS re-open), and process.argv still
     // holds the original launch path, which would otherwise clobber it.
-    if (!pendingFile) {
-      const initialFile = fileFromArgv(process.argv);
-      if (initialFile) openInRenderer(initialFile);
+    if (!pendingFiles.length) {
+      openManyInRenderer(filesFromArgv(process.argv));
     }
   });
 
@@ -1921,7 +1954,9 @@ if (!gotLock) {
     }
     // Route through openInRenderer even with no window — it recreates one so a
     // second launch (or file open) while the app runs windowless still opens.
-    openInRenderer(fileFromArgv(argv));
+    // Windows can batch a multi-select "Open with" into one second-instance,
+    // so open every PDF the argv carries, not just the first.
+    openManyInRenderer(filesFromArgv(argv));
   });
 
   app.whenReady().then(createWindow);
@@ -1980,7 +2015,7 @@ ipcMain.handle('dialog:openPdfMulti', async () => {
 // Flush any file that arrived before the renderer was ready.
 ipcMain.on('renderer-ready', (e) => {
   // A torn-off window: hand it its buffered document and stop (it isn't the
-  // primary window, so it must not claim `pendingFile` or flip rendererReady).
+  // primary window, so it must not claim `pendingFiles` or flip rendererReady).
   const pend = pendingTearoffs.get(e.sender.id);
   if (pend) {
     pendingTearoffs.delete(e.sender.id);
@@ -1988,10 +2023,10 @@ ipcMain.on('renderer-ready', (e) => {
     return;
   }
   rendererReady = true;
-  if (pendingFile) {
-    const f = pendingFile;
-    pendingFile = null;
-    e.sender.send('open-file-path', f);
+  if (pendingFiles.length) {
+    const files = pendingFiles;
+    pendingFiles = [];
+    files.forEach((f) => e.sender.send('open-file-path', f));
   }
 });
 

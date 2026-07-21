@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { repoSlug, semverCmp, fileFromArgv, canInstallInApp } from '../../src/shared/update-utils.js';
+import { repoSlug, semverCmp, fileFromArgv, filesFromArgv, canInstallInApp } from '../../src/shared/update-utils.js';
 
 describe('canInstallInApp', () => {
   it('allows in-app install on packaged Windows', () => {
@@ -66,5 +66,29 @@ describe('fileFromArgv', () => {
   it('handles an empty argv', () => {
     expect(fileFromArgv([], existsAll)).toBeNull();
     expect(fileFromArgv(undefined, existsAll)).toBeNull();
+  });
+});
+
+describe('filesFromArgv', () => {
+  const existsAll = () => true;
+  const existsNone = () => false;
+  it('returns every existing .pdf argument in order', () => {
+    expect(filesFromArgv(['electron', '.', '/docs/a.pdf', '/docs/b.pdf'], existsAll))
+      .toEqual(['/docs/a.pdf', '/docs/b.pdf']);
+  });
+  it('is case-insensitive on the extension', () => {
+    expect(filesFromArgv(['x', '/docs/A.PDF', '/docs/c.pdf'], existsAll))
+      .toEqual(['/docs/A.PDF', '/docs/c.pdf']);
+  });
+  it('skips .pdf paths that do not exist', () => {
+    expect(filesFromArgv(['x', '/docs/ghost.pdf'], existsNone)).toEqual([]);
+  });
+  it('ignores non-pdf arguments', () => {
+    expect(filesFromArgv(['x', '--flag', 'file.txt', '/docs/a.pdf'], existsAll))
+      .toEqual(['/docs/a.pdf']);
+  });
+  it('handles an empty argv', () => {
+    expect(filesFromArgv([], existsAll)).toEqual([]);
+    expect(filesFromArgv(undefined, existsAll)).toEqual([]);
   });
 });

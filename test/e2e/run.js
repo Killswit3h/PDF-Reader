@@ -78,6 +78,16 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'multi — Open-with several PDFs opens every one as a tab',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MULTI: '1' }, [SAMPLE, BIG]), 'multi');
+      check(j.count === 2, `tab count ${j.count} != 2`);
+      check(j.tabEls === 2, `rendered tabs ${j.tabEls} != 2`);
+      check(j.names.includes('sample.pdf') && j.names.includes('big.pdf'),
+        `opened docs ${JSON.stringify(j.names)}`);
+    }
+  },
+  {
     name: 'warm — second file swaps the open document',
     run: () => {
       const out = runApp({ SMOKE_WARM: BIG }, [SAMPLE]);

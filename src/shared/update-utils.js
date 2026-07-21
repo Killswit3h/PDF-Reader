@@ -25,13 +25,20 @@ function semverCmp(a, b) {
   return 0;
 }
 
-// First existing "*.pdf" argument, or null. `existsFn` is injectable for tests.
-function fileFromArgv(argv, existsFn) {
+// Every existing "*.pdf" argument, in argv order. `existsFn` is injectable for
+// tests. Selecting several PDFs in Explorer/Finder and choosing "Open" can hand
+// the app all of them at once (via argv, or a batched second-instance), so the
+// launch path must be able to open more than one.
+function filesFromArgv(argv, existsFn) {
   const exists = existsFn || fs.existsSync;
-  const candidate = (argv || []).find(
+  return (argv || []).filter(
     (a) => a && a.toLowerCase().endsWith('.pdf') && exists(a)
   );
-  return candidate || null;
+}
+
+// First existing "*.pdf" argument, or null. `existsFn` is injectable for tests.
+function fileFromArgv(argv, existsFn) {
+  return filesFromArgv(argv, existsFn)[0] || null;
 }
 
 // Can this build install an update in-app (electron-updater downloadUpdate +
@@ -44,4 +51,4 @@ function canInstallInApp(platform, isPackaged) {
   return isPackaged === true && platform === 'win32';
 }
 
-module.exports = { repoSlug, semverCmp, fileFromArgv, canInstallInApp };
+module.exports = { repoSlug, semverCmp, fileFromArgv, filesFromArgv, canInstallInApp };
