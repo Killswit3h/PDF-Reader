@@ -14,6 +14,10 @@
   App.setMode = function (mode, kind) {
     const prev = App.state.mode;
     App.state.mode = mode;
+    // Arming any drawing/placement tool leaves marquee-zoom mode (they both want
+    // the left-drag). setMarquee(true) itself calls setMode(null), so only a
+    // truthy mode disarms it — no recursion.
+    if (mode && App.Viewer && App.Viewer.setMarquee) App.Viewer.setMarquee(false);
     document.body.classList.toggle('tool-active', !!mode);
     const banner = App.$('#mode-banner');
     const textEl = App.$('#mode-banner-text');
@@ -371,6 +375,7 @@
       if (e.key === 'Enter' && App.state.mode === 'measure') { e.preventDefault(); App.Measure.finishDrawing(); return; }
       if (e.key === 'Enter' && App.state.mode === 'markup') { e.preventDefault(); App.Markup.finishDrawing(); return; }
       if (e.key === 'Escape') {
+        if (App.Viewer && App.Viewer.isMarquee && App.Viewer.isMarquee()) { App.Viewer.setMarquee(false); return; }
         if (App.Markup && App.Markup.textTool) App.Markup.stopTextMarkup();
         else if (App.state.mode === 'measure' && App.Measure._active) App.Measure.cancelActive();
         else if (App.state.mode === 'markup' && App.Markup.active) App.Markup.cancelActive();
@@ -421,6 +426,7 @@
       if (e.key === '+' || e.key === '=') { App.Viewer.zoomIn(); }
       else if (e.key === '-' || e.key === '_') { App.Viewer.zoomOut(); }
       else if (e.key === '0') { App.Viewer.resetZoom(); }
+      else if (e.key === 'z' || e.key === 'Z') { App.Viewer.toggleMarquee(); }
       else if (e.key === 'r' || e.key === 'R') { App.Viewer.rotate(90); }
       else if (e.key === 'PageDown' || e.key === 'ArrowRight') { App.Viewer.next(); }
       else if (e.key === 'PageUp' || e.key === 'ArrowLeft') { App.Viewer.prev(); }
@@ -854,6 +860,8 @@
       { combos: [['mod', 'F']], label: 'Find' },
       { combos: [['+'], ['−'], ['0']], label: 'Zoom in / out / 100%' },
       { combos: [['mod', 'scroll']], label: 'Zoom to pointer' },
+      { combos: [['Z']], label: 'Marquee zoom (drag a box)' },
+      { combos: [['R']], label: 'Rotate view' },
       { combos: [['\\']], label: 'Side by side' }
     ] },
     { title: 'Navigation', rows: [
@@ -993,6 +1001,7 @@
     App.$('#btn-zoom-in').addEventListener('click', () => App.Viewer.zoomIn());
     App.$('#btn-zoom-out').addEventListener('click', () => App.Viewer.zoomOut());
     App.$('#btn-fit-width').addEventListener('click', () => App.Viewer.fitWidth());
+    App.$('#btn-marquee').addEventListener('click', () => App.Viewer.toggleMarquee());
     App.$('#btn-rotate').addEventListener('click', () => App.Viewer.rotate(90));
     App.$('#btn-prev').addEventListener('click', () => App.Viewer.prev());
     App.$('#btn-next').addEventListener('click', () => App.Viewer.next());

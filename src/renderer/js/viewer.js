@@ -136,6 +136,7 @@
     setupWheelZoom(container);
     setupTouchZoom(container);
     setupPanDrag(container);
+    setupMarquee(container);
   };
 
   // ---- Trackpad pinch + Ctrl/Cmd + scroll-wheel zoom ----
@@ -261,6 +262,63 @@
       if (moved) { e.preventDefault(); moved = false; }
     });
   }
+
+  // ---- Marquee zoom (drag a box → zoom to that region) ----
+  // A dedicated mode (toggled from the toolbar): while armed, a left-button drag
+  // rubber-bands a rectangle, and on release the viewer zooms so that region
+  // fills the viewport, centered — the fast way to jump into detail on a large
+  // D-size plan sheet. It's one-shot: the mode disarms after a zoom so normal
+  // reading/tools resume without getting "stuck".
+  function setupMarquee(container) {
+    let dragging = false, x0 = 0, y0 = 0;
+    const box = () => App.$('#marquee-box');
+
+    const paint = (x1, y1) => {
+      const b = box(); if (!b) return;
+      b.style.left = Math.min(x0, x1) + 'px';
+      b.style.top = Math.min(y0, y1) + 'px';
+      b.style.width = Math.abs(x1 - x0) + 'px';
+      b.style.height = Math.abs(y1 - y0) + 'px';
+    };
+
+    const onMove = (e) => { if (dragging) { paint(e.clientX, e.clientY); e.preventDefault(); } };
+
+    const onUp = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseup', onUp, true);
+      const b = box(); if (b) b.classList.add('hidden');
+      Viewer.zoomToRegion(x0, y0, e.clientX, e.clientY);
+      Viewer.setMarquee(false); // one-shot
+    };
+
+    container.addEventListener('mousedown', (e) => {
+      if (!App.state.marquee) return;
+      if (e.button !== 0) return;          // left button only
+      if (!App.state.pdfDoc) return;
+      dragging = true;
+      x0 = e.clientX; y0 = e.clientY;
+      const b = box();
+      if (b) { paint(x0, y0); b.classList.remove('hidden'); }
+      window.addEventListener('mousemove', onMove, true);
+      window.addEventListener('mouseup', onUp, true);
+      e.preventDefault();
+    });
+  }
+
+  // Arm/disarm the marquee-zoom mode. Arming clears any active drawing tool so
+  // the left-drag belongs to the marquee and not to markup/measure.
+  Viewer.isMarquee = () => !!App.state.marquee;
+  Viewer.setMarquee = function (on) {
+    on = !!on;
+    App.state.marquee = on;
+    if (on && App.setMode) App.setMode(null);
+    document.body.classList.toggle('marquee-active', on);
+    const btn = App.$('#btn-marquee');
+    if (btn) btn.classList.toggle('armed', on);
+  };
+  Viewer.toggleMarquee = () => Viewer.setMarquee(!App.state.marquee);
 
   function updateZoomLabel() {
     App.$('#zoom-label').textContent = `${Math.round(pdfViewer.currentScale * 100)}%`;
@@ -545,6 +603,31 @@
     Viewer.zoomToAt(pdfViewer.currentScale * factor, clientX, clientY);
   };
 
+  // Zoom so the given screen rectangle (client coords) fills the viewport and is
+  // centered. Powers marquee zoom. Tiny/accidental drags are ignored so a stray
+  // click in marquee mode doesn't fling the zoom.
+  Viewer.zoomToRegion = function (rx0, ry0, rx1, ry1) {
+    if (!pdfViewer) return;
+    const boxW = Math.abs(rx1 - rx0), boxH = Math.abs(ry1 - ry0);
+    if (boxW < 8 || boxH < 8) return;
+    const container = App.$('#viewerContainer');
+    const rect = container.getBoundingClientRect();
+    const cx = (rx0 + rx1) / 2, cy = (ry0 + ry1) / 2;
+    // Content-space coordinates of the region's center, pre-zoom.
+    const contentX = container.scrollLeft + (cx - rect.left);
+    const contentY = container.scrollTop + (cy - rect.top);
+    const before = pdfViewer.currentScale;
+    // Fit the smaller-constrained axis so the whole region is visible.
+    const fit = Math.min(container.clientWidth / boxW, container.clientHeight / boxH);
+    const target = App.clamp(before * fit, ZOOM_MIN, ZOOM_MAX);
+    pdfViewer.currentScale = target;
+    // Re-center the region: content grew by ratio; put its center at the viewport
+    // center.
+    const ratio = pdfViewer.currentScale / before;
+    container.scrollLeft = contentX * ratio - container.clientWidth / 2;
+    container.scrollTop = contentY * ratio - container.clientHeight / 2;
+  };
+
   // ---- Smooth (preview) zoom ----
   // Re-rasterizing every PDF page on every wheel/pinch tick is what makes zoom
   // stutter. Instead, during the gesture we apply a cheap GPU-composited CSS
@@ -638,9 +721,12 @@
   Viewer._updateControls = function (enabled) {
     ['#btn-select', '#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
      '#btn-document',
-     '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-rotate', '#btn-prev', '#btn-next',
+     '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-marquee', '#btn-rotate', '#btn-prev', '#btn-next',
      '#btn-save', '#btn-save-as', '#page-input']
       .forEach((s) => { const el = App.$(s); if (el) el.disabled = !enabled; });
+    // Marquee zoom is a transient mode — never carry it across a doc close or a
+    // tab switch (each tab restores its own state; the crosshair must not linger).
+    if (Viewer.setMarquee) Viewer.setMarquee(false);
     // Select is the resting/default tool: highlight it whenever a document is
     // open and no drawing tool is armed. setMode() keeps it in sync afterwards.
     const sel = App.$('#btn-select');
