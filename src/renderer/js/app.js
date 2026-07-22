@@ -226,19 +226,24 @@
       e.preventDefault();
       depth = 0;
       overlay.classList.add('hidden');
-      const file = e.dataTransfer.files && e.dataTransfer.files[0];
-      if (!file) return;
-      if (!/\.pdf$/i.test(file.name)) {
+      const dropped = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+      if (!dropped.length) return;
+      // Drop several PDFs at once → open every one as its own tab. Non-PDFs are
+      // skipped (and reported), so a mixed drop still opens the PDFs it contained.
+      const pdfs = dropped.filter((f) => /\.pdf$/i.test(f.name));
+      if (!pdfs.length) {
         App.toast('Please drop a .pdf file.', 'error');
         return;
       }
-      // Prefer the real path (lets us keep the original untouched); else read bytes.
-      if (file.path) {
-        openFromPath(file.path);
-      } else {
-        const buf = await file.arrayBuffer();
-        App.Viewer.load(buf, file.name, null);
+      // Sequential: App.Viewer.load snapshots/activates App.state per document,
+      // so awaiting each keeps tab order and per-tab state consistent.
+      for (const file of pdfs) {
+        // Prefer the real path (keeps the original untouched); else read bytes.
+        if (file.path) await openFromPath(file.path);
+        else await App.Viewer.load(await file.arrayBuffer(), file.name, null);
       }
+      const skipped = dropped.length - pdfs.length;
+      if (skipped) App.toast(`Skipped ${skipped} non-PDF file${skipped > 1 ? 's' : ''}.`, 'error');
     });
   }
 
