@@ -178,6 +178,18 @@ body.has-tabs #viewerContainer { top: var(--tab-h, 34px); }
    inner layers so the drag never starts a text selection or tool interaction. */
 #viewerContainer.panning { cursor: grabbing; }
 #viewerContainer.panning * { cursor: grabbing !important; pointer-events: none; }
+/* Marquee zoom: crosshair over the page, and mute inner pointer-events so the
+   drag rubber-bands cleanly instead of selecting text or hitting a tool. */
+body.marquee-active #viewerContainer,
+body.marquee-active #viewerContainer * { cursor: crosshair !important; }
+body.marquee-active #viewerContainer .page * { pointer-events: none; }
+#marquee-box {
+  position: fixed; z-index: 40; pointer-events: none;
+  border: 1px solid var(--accent, #2f6fed);
+  background: rgba(47, 111, 237, 0.12);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+#marquee-box.hidden { display: none; }
 /* ---- Side-by-side split view ---- */
 #split-pane {
   position: absolute; top: 0; right: 0; bottom: 0; left: 50%;

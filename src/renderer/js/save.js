@@ -292,18 +292,28 @@
           }
         }
 
-        // label near an anchor point
-        let ax, ay;
+        // Label near an anchor point. Anchor in SCALE-1 VIEWPORT space so we can
+        // derive the on-screen writing direction and rotate the glyphs to match
+        // the page — the same rotation-safe technique the placement/free-text
+        // paths use. Drawing without this rotation makes the label save/print out
+        // vertical on a /Rotate page (positioned right, oriented wrong).
+        let av;
         if (m.type === 'area') {
-          ax = P.reduce((s, p) => s + p[0], 0) / P.length;
-          ay = P.reduce((s, p) => s + p[1], 0) / P.length;
+          av = {
+            vx: m.pts.reduce((s, p) => s + p.vx, 0) / m.pts.length,
+            vy: m.pts.reduce((s, p) => s + p.vy, 0) / m.pts.length
+          };
         } else if (m.type === 'angle') {
-          ax = P[1][0]; ay = P[1][1];
+          av = { vx: m.pts[1].vx, vy: m.pts[1].vy };
         } else {
-          ax = P[0][0]; ay = P[0][1];
+          av = { vx: m.pts[0].vx, vy: m.pts[0].vy };
         }
+        // Nudge up-and-right of the anchor on screen (viewport +x / -y).
+        const anchor = vp.convertToPdfPoint(av.vx + 3, av.vy - 3);
+        const dir = vp.convertToPdfPoint(av.vx + 3 + 1, av.vy - 3);
         page.drawText(String(m.label), {
-          x: ax + 3, y: ay + 3, size: 9, font: helv, color
+          x: anchor[0], y: anchor[1], size: 9, font: helv, color,
+          rotate: degrees(angleDeg(anchor, dir))
         });
       }
 

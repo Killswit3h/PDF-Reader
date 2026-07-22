@@ -1421,6 +1421,103 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TEXTROT: on a page with a baked-in /Rotate, a measurement label
+      // must save/print out at the SAME on-screen orientation as flattened text
+      // (i.e. upright), not vertical. Build a real /Rotate-90 doc, drop a label +
+      // a reference text box, export, and compare their glyph angles.
+      if (process.env.SMOKE_TEXTROT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              const mk = async (rotDeg) => {
+                const { PDFDocument, degrees } = window.PDFLib;
+                const doc = await PDFDocument.create();
+                const pg = doc.addPage([612, 792]);
+                if (rotDeg) pg.setRotation(degrees(rotDeg));
+                const bytes = await doc.save();
+                const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+                await App.Viewer.load(ab, 'rot'+rotDeg+'.pdf', null);
+                for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+                await new Promise(r=>setTimeout(r,400));
+                App.state.measurements.length=0; App.state.placements.length=0; App.state.annotations.length=0;
+                App.state.measurements.push({ page:1, type:'distance', color:'#2f6fed', width:1.4, label:'12.3ft', pts:[{vx:100,vy:120},{vx:260,vy:120}] });
+                App.state.placements.push({ id:1, type:'text', page:1, vx:100, vy:200, vw:120, vh:20, fontPt:12, text:'REFTX' });
+                const out = await App.Save.buildBytes();
+                const doc2 = await pdfjsLib.getDocument({ data: out }).promise;
+                const p2 = await doc2.getPage(1);
+                const tc = await p2.getTextContent();
+                const items = tc.items.map(it => ({ s:(it.str||'').replace(/\\s/g,''), a: Math.round(Math.atan2(it.transform[1], it.transform[0])*180/Math.PI) }));
+                const find = (re) => { const hit = items.find(it => re.test(it.s)); return hit ? hit.a : null; };
+                return { pageRot: p2.rotate, labelAngle: find(/12\\.?3/), refAngle: find(/REFTX/) };
+              };
+              const rot = await mk(90);
+              const flat = await mk(0);
+              return JSON.stringify({
+                pageRot: rot.pageRot, labelAngle: rot.labelAngle, refAngle: rot.refAngle,
+                flatLabel: flat.labelAngle, flatRef: flat.refAngle,
+                // label matches the (correct) reference text on the rotated page,
+                labelMatchesRef: rot.labelAngle !== null && rot.labelAngle === rot.refAngle,
+                // that orientation is actually rotated (not the old vertical bug's 0),
+                labelRotated: rot.labelAngle !== null && Math.abs(rot.labelAngle) > 45,
+                // and an unrotated page keeps the label horizontal.
+                flatHorizontal: flat.labelAngle === 0 && flat.refAngle === 0
+              });
+            })()`, true);
+            console.log('[textrot] ' + r);
+          } catch (e) { console.log('[textrot] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_MARQUEE: the marquee-zoom tool zooms into a dragged region and is a
+      // one-shot mode that leaves other tools' left-drag alone when off.
+      if (process.env.SMOKE_MARQUEE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const V=App.Viewer._pdfViewer, C=App.$('#viewerContainer');
+              V.currentScaleValue='page-width'; await new Promise(r=>setTimeout(r,400));
+              const md=(x,y)=>C.dispatchEvent(new MouseEvent('mousedown',{button:0,buttons:1,clientX:x,clientY:y,bubbles:true,cancelable:true}));
+              const mm=(x,y)=>window.dispatchEvent(new MouseEvent('mousemove',{clientX:x,clientY:y,bubbles:true,cancelable:true}));
+              const mu=(x,y)=>window.dispatchEvent(new MouseEvent('mouseup',{button:0,clientX:x,clientY:y,bubbles:true,cancelable:true}));
+              // Marquee OFF: a left-drag must not zoom.
+              const s0=V.currentScale; md(300,250); mm(360,300); mu(420,360);
+              const noZoomWhenOff=Math.abs(V.currentScale-s0)<1e-6;
+              // Arm + drag a box -> zoom in, one-shot disarm, region centered.
+              App.Viewer.toggleMarquee();
+              const armed=App.Viewer.isMarquee() && document.body.classList.contains('marquee-active');
+              const before=V.currentScale;
+              const rect=C.getBoundingClientRect();
+              const bx0=rect.left+180, by0=rect.top+140, bx1=rect.left+340, by1=rect.top+260;
+              const boxCx=(bx0+bx1)/2, boxCy=(by0+by1)/2;
+              const cpx=C.scrollLeft+(boxCx-rect.left), cpy=C.scrollTop+(boxCy-rect.top);
+              md(bx0,by0); mm(boxCx,boxCy);
+              const boxShown=!App.$('#marquee-box').classList.contains('hidden');
+              mu(bx1,by1); await new Promise(r=>setTimeout(r,300));
+              const zoomedIn=V.currentScale>before;
+              const disarmed=!App.Viewer.isMarquee() && !document.body.classList.contains('marquee-active');
+              const ratio=V.currentScale/before;
+              const centerErr=Math.max(Math.abs(C.scrollLeft-(cpx*ratio-C.clientWidth/2)), Math.abs(C.scrollTop-(cpy*ratio-C.clientHeight/2)));
+              // Tiny accidental drag: ignored, still disarms.
+              App.Viewer.setMarquee(true); const s3=V.currentScale;
+              md(400,300); mm(402,301); mu(403,302);
+              const tinyIgnored=Math.abs(V.currentScale-s3)<1e-6 && !App.Viewer.isMarquee();
+              // Arming a tool disarms marquee; Esc exits it.
+              App.Viewer.setMarquee(true); App.setMode('markup');
+              const toolDisarms=!App.Viewer.isMarquee(); App.setMode(null);
+              App.Viewer.setMarquee(true);
+              window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+              const escExits=!App.Viewer.isMarquee();
+              return JSON.stringify({noZoomWhenOff, armed, boxShown, zoomedIn, disarmed, centerErr:+centerErr.toFixed(1), tinyIgnored, toolDisarms, escExits});
+            })()`, true);
+            console.log('[marquee] ' + r);
+          } catch (e) { console.log('[marquee] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_PDF) {
         setTimeout(() => mainWindow.webContents.send('open-file-path', process.env.SMOKE_PDF), 500);
       }

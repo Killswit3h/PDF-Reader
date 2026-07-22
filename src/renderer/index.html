@@ -43,6 +43,7 @@
       <span id="zoom-label" class="tb-readout">100%</span>
       <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in (+)">+</button>
       <button id="btn-fit-width" class="tb-btn" data-overflow disabled title="Fit to width">↔ Fit</button>
+      <button id="btn-marquee" class="tb-btn icon" data-overflow disabled title="Marquee zoom — drag a box to zoom into that area (Z)" aria-label="Marquee zoom">⤢</button>
       <button id="btn-rotate" class="tb-btn icon" data-overflow disabled title="Rotate view 90° (R)" aria-label="Rotate view">⟳</button>
     </div>
 
@@ -256,6 +257,9 @@
     <div id="viewerContainer">
       <div id="viewer" class="pdfViewer"></div>
     </div>
+    <!-- Rubber-band rectangle for marquee zoom. Fixed-position so it can use raw
+         client coordinates; hidden unless a marquee drag is in progress. -->
+    <div id="marquee-box" class="hidden" aria-hidden="true"></div>
 
     <!-- Right-hand markup toolbar (Bluebeam-style). A compact, icon-only strip
          docked to the viewer's right edge for one-click access to every drawing

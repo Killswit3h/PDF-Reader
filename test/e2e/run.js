@@ -126,6 +126,31 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'textrot — measurement label saves upright on a /Rotate page, not vertical',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TEXTROT: '1' }, [SAMPLE]), 'textrot');
+      check(j.pageRot === 90, `page rotation not applied (${j.pageRot})`);
+      check(j.labelMatchesRef, `label angle ${j.labelAngle} != reference text ${j.refAngle}`);
+      check(j.labelRotated, `label angle ${j.labelAngle} not compensating page rotation`);
+      check(j.flatHorizontal, `unrotated page: label ${j.flatLabel}, ref ${j.flatRef} — expected 0`);
+    }
+  },
+  {
+    name: 'marquee — drag-a-box zooms to that region, one-shot mode',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MARQUEE: '1' }, [BIG]), 'marquee');
+      check(j.noZoomWhenOff, 'left-drag zoomed while marquee was off');
+      check(j.armed, 'marquee did not arm');
+      check(j.boxShown, 'rubber-band box not shown during drag');
+      check(j.zoomedIn, 'marquee drag did not zoom in');
+      check(j.disarmed, 'marquee did not disarm after the zoom (one-shot)');
+      check(j.centerErr <= 2, `region not centered (err ${j.centerErr})`);
+      check(j.tinyIgnored, 'a tiny accidental drag wrongly zoomed');
+      check(j.toolDisarms, 'arming a markup tool did not disarm marquee');
+      check(j.escExits, 'Escape did not exit marquee mode');
+    }
+  },
+  {
     name: 'viewer — virtualized render + find on a 12-page doc',
     run: () => {
       const j = tagJson(runApp({ SMOKE_VIEWER: '1' }, [BIG]), 'viewer');
