@@ -115,6 +115,17 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'pan — right-click-and-hold drags the zoomed page, suppresses its menu',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_PAN: '1' }, [BIG]), 'pan');
+      check(j.scrollable, 'page did not overflow when zoomed (nothing to pan)');
+      check(j.panned, 'right-button drag did not pan the page');
+      check(j.menuSuppressed, 'context menu not suppressed after a pan drag');
+      check(j.menuKept, 'stationary right-click wrongly suppressed its menu');
+      check(j.leftIgnored, 'left-button drag wrongly panned');
+    }
+  },
+  {
     name: 'viewer — virtualized render + find on a 12-page doc',
     run: () => {
       const j = tagJson(runApp({ SMOKE_VIEWER: '1' }, [BIG]), 'viewer');
