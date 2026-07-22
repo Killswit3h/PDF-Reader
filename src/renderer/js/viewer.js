@@ -135,6 +135,7 @@
 
     setupWheelZoom(container);
     setupTouchZoom(container);
+    setupPanDrag(container);
   };
 
   // ---- Trackpad pinch + Ctrl/Cmd + scroll-wheel zoom ----
@@ -200,6 +201,65 @@
     };
     container.addEventListener('touchend', end, { passive: true });
     container.addEventListener('touchcancel', end, { passive: true });
+  }
+
+  // ---- Right-click-and-hold to pan (grab hand) ----
+  // Hold the RIGHT mouse button and drag to pan the page when zoomed in — the
+  // "grab hand" gesture familiar from other viewers. We drive #viewerContainer's
+  // scroll directly from pointer deltas and swallow the context menu the right-
+  // button press would otherwise open (but only once a drag actually happened,
+  // so a plain right-click still behaves normally). Left-button drags are left
+  // untouched so markup/measure tools and text selection keep working.
+  function setupPanDrag(container) {
+    let panning = false;
+    let moved = false;
+    let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+    const onMove = (e) => {
+      if (!panning) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > 3) moved = true;
+      // Drag content with the cursor: moving the mouse right reveals content to
+      // the left, so scrollLeft decreases as dx grows.
+      container.scrollLeft = startLeft - dx;
+      container.scrollTop = startTop - dy;
+      e.preventDefault();
+    };
+
+    const stop = () => {
+      if (!panning) return;
+      panning = false;
+      container.classList.remove('panning');
+      window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseup', onUp, true);
+    };
+
+    const onUp = (e) => { if (e.button === 2) stop(); };
+
+    container.addEventListener('mousedown', (e) => {
+      if (e.button !== 2) return;            // right button only
+      if (!App.state.pdfDoc) return;
+      // Only engage when there's actually somewhere to pan (zoomed in / overflow),
+      // otherwise leave the right-click alone so any context menu still opens.
+      const scrollable = container.scrollWidth > container.clientWidth + 1 ||
+                         container.scrollHeight > container.clientHeight + 1;
+      if (!scrollable) return;
+      panning = true;
+      moved = false;
+      startX = e.clientX; startY = e.clientY;
+      startLeft = container.scrollLeft; startTop = container.scrollTop;
+      container.classList.add('panning');
+      window.addEventListener('mousemove', onMove, true);
+      window.addEventListener('mouseup', onUp, true);
+      e.preventDefault();
+    });
+
+    // The contextmenu event fires after mouseup; suppress it only when we panned
+    // so a stationary right-click keeps its normal menu.
+    container.addEventListener('contextmenu', (e) => {
+      if (moved) { e.preventDefault(); moved = false; }
+    });
   }
 
   function updateZoomLabel() {

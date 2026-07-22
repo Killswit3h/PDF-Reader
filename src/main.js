@@ -1340,6 +1340,46 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_PAN: right-click-and-hold drags the page (grab hand) when zoomed
+      // in, and swallows the context menu that the right-button press opens.
+      if (process.env.SMOKE_PAN) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const V=App.Viewer._pdfViewer, C=App.$('#viewerContainer');
+              // Zoom in hard so the page overflows the container in both axes.
+              V.currentScale=3; await new Promise(r=>setTimeout(r,500));
+              C.scrollLeft=200; C.scrollTop=200; await new Promise(r=>setTimeout(r,50));
+              const scrollable = C.scrollWidth>C.clientWidth+1 || C.scrollHeight>C.clientHeight+1;
+              const md=(b,x,y)=>C.dispatchEvent(new MouseEvent('mousedown',{button:b,buttons:b===2?2:1,clientX:x,clientY:y,bubbles:true,cancelable:true}));
+              const mm=(x,y)=>window.dispatchEvent(new MouseEvent('mousemove',{clientX:x,clientY:y,bubbles:true,cancelable:true}));
+              const mu=(b)=>window.dispatchEvent(new MouseEvent('mouseup',{button:b,bubbles:true,cancelable:true}));
+              // Right-button drag: mouse moves down-right, so scroll should DECREASE.
+              const before={l:C.scrollLeft,t:C.scrollTop};
+              md(2,400,400); mm(460,470); mm(520,540); const during={l:C.scrollLeft,t:C.scrollTop}; mu(2);
+              const panned = during.l<before.l && during.t<before.t && C.classList.contains('panning')===false;
+              // Context menu after a real pan must be suppressed.
+              const cm=new MouseEvent('contextmenu',{bubbles:true,cancelable:true});
+              C.dispatchEvent(cm); const menuSuppressed=cm.defaultPrevented;
+              // A stationary right-click must NOT suppress its menu.
+              md(2,400,400); mu(2);
+              const cm2=new MouseEvent('contextmenu',{bubbles:true,cancelable:true});
+              C.dispatchEvent(cm2); const menuKept=!cm2.defaultPrevented;
+              // A LEFT-button drag must not pan.
+              C.scrollLeft=200; C.scrollTop=200; await new Promise(r=>setTimeout(r,20));
+              const lb={l:C.scrollLeft,t:C.scrollTop};
+              md(0,400,400); mm(460,470); mm(520,540); const la={l:C.scrollLeft,t:C.scrollTop}; mu(0);
+              const leftIgnored = la.l===lb.l && la.t===lb.t;
+              return JSON.stringify({scrollable, panned, menuSuppressed, menuKept, leftIgnored});
+            })()`, true);
+            console.log('[pan] ' + r);
+          } catch (e) { console.log('[pan] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_PDF) {
         setTimeout(() => mainWindow.webContents.send('open-file-path', process.env.SMOKE_PDF), 500);
       }
