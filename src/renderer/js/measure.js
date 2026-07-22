@@ -563,7 +563,7 @@
           `<button class="mp-del" title="Delete">✕</button>`;
         row.addEventListener('click', (e) => {
           if (e.target.classList.contains('mp-del')) { M.remove(m.id); return; }
-          M.select(m.id);
+          M.select(m.id, true); // panel pick: scroll the shape's page into view
         });
         list.appendChild(row);
         // Selected length/perimeter/area: list each leg's length underneath.
@@ -603,10 +603,15 @@
     M.syncProps();
   };
 
-  M.select = function (id) {
+  // Select a measurement. `reveal` scrolls its page into view — wanted when the
+  // pick comes from the panel (the shape may be off-screen), but NOT when the
+  // user is already touching the shape on the canvas: re-centering the page then
+  // would yank it out from under a drag (see startMeasureDrag/startVertexDrag).
+  M.select = function (id, reveal) {
     App.state.measureSelectedId = id;
     M.repositionAll();
     M.renderPanel();
+    if (!reveal) return;
     const m = App.state.measurements.find((x) => x.id === id);
     if (m) {
       const pe = App.state.pageEls[m.page - 1];
@@ -766,7 +771,7 @@
     m.label = fmtVal(m.type, value, unit);
     App.state.measurements.push(m);
     App.$('#btn-save').disabled = false;
-    M.select(m.id);
+    M.select(m.id, true); // reveal the freshly pasted copy
     M.renderPanel();
     return m.id;
   };

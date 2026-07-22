@@ -1294,12 +1294,19 @@ function createWindow() {
               const handles=Array.from(document.querySelectorAll('.measure-layer .m-handle'));
               const hasHandles=handles.length===2;
               const beforeLen=App.state.measurements[0].value;
-              let resized=false;
+              let resized=false, handleScrolled=true;
               if(handles.length){
+                // Grabbing an endpoint must NOT scroll the page (it used to re-center
+                // the page holder via select(), yanking the drag away). Spy on
+                // scrollIntoView across the pointerdown and assert it stays silent.
+                const origSIV=Element.prototype.scrollIntoView;
+                let sivCalls=0; Element.prototype.scrollIntoView=function(){ sivCalls++; };
                 const h=handles[handles.length-1], b=h.getBoundingClientRect();
                 h.dispatchEvent(new PointerEvent('pointerdown',{clientX:b.left+b.width/2,clientY:b.top+b.height/2,bubbles:true,cancelable:true}));
                 window.dispatchEvent(new PointerEvent('pointermove',{clientX:b.left+b.width/2+80,clientY:b.top+b.height/2,bubbles:true}));
                 window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+                Element.prototype.scrollIntoView=origSIV;
+                handleScrolled=sivCalls>0;
                 resized=App.state.measurements[0].pts[1].vx>200 && App.state.measurements[0].value>beforeLen;
               }
               // edit the selected line's color + thickness via the panel API
@@ -1312,7 +1319,7 @@ function createWindow() {
               const stroke=line&&line.getAttribute('stroke');
               const sw=line&&line.style.strokeWidth;
               let exportOk=false; try{ await App.Save.buildBytes(); exportOk=true; }catch(e){}
-              return JSON.stringify({hasHandles,resized,col,wid,stroke,sw,exportOk});
+              return JSON.stringify({hasHandles,resized,handleScrolled,col,wid,stroke,sw,exportOk});
             })()`, true);
             console.log('[mresize] ' + r);
           } catch (e) { console.log('[mresize] error', e && e.message); }

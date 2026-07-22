@@ -516,6 +516,7 @@ const SCENARIOS = [
       const j = tagJson(runApp({ SMOKE_MRESIZE: '1' }, [SAMPLE]), 'mresize');
       check(j.hasHandles === true, 'selected measurement did not expose vertex handles');
       check(j.resized === true, 'dragging an endpoint handle did not extend the line');
+      check(j.handleScrolled === false, 'grabbing an endpoint handle scrolled the page (regression)');
       check(j.col === '#ff0000', `editing did not recolor the line: ${j.col}`);
       check(j.wid === 5, `editing did not change the line thickness: ${j.wid}`);
       check(j.stroke === '#ff0000', `rendered stroke ignored the edited color: ${j.stroke}`);
