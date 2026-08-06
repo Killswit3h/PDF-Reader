@@ -309,6 +309,7 @@
           ['#sig-modal', '#sig-cancel'], ['#scale-modal', '#scale-cancel'],
           ['#update-modal', '#upd-close'], ['#confirm-modal', '#confirm-no'],
           ['#docstamp-modal', '#ds-cancel'], ['#shortcuts-modal', '#sc-close'],
+          ['#whatsnew-modal', '#wn-close'],
           ['#digisign-modal', '#dsig-close'], ['#compare-modal', '#cmp-close'],
           ['#printprev-modal', '#pp-cancel']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
@@ -972,6 +973,10 @@
   }
 
   function boot() {
+    // Snapshot BEFORE any setup writes a pref: an empty prefs blob means a fresh
+    // install (→ welcome tour); an existing user updating in already has settings
+    // (→ "what's new"). Passed to App.Tour.maybeAutoStart at the end of boot.
+    const freshInstall = !!(App.Prefs && Object.keys(App.Prefs.all()).length === 0);
     setupTheme();
     // Stamp today's date into the empty-state title block.
     const tbDate = App.$('#tb-date');
@@ -1053,9 +1058,10 @@
     // arrived before this listener existed).
     window.api.notifyReady();
 
-    // First launch: introduce the app with a short guided tour (once). No-op on
-    // return visits and under the e2e smoke harness.
-    if (App.Tour) App.Tour.maybeAutoStart();
+    // Onboarding: a guided tour for first-time users, or a short "what's new"
+    // note for returning users after an update (once each). No-op otherwise and
+    // under the e2e smoke harness.
+    if (App.Tour) App.Tour.maybeAutoStart(freshInstall);
   }
 
   if (document.readyState === 'loading') {

@@ -1,8 +1,9 @@
 'use strict';
 
 /*
- * Welcome tour — a friendly, interactive walkthrough for first-time users, plus
- * a Help menu that re-opens it (and the keyboard cheat-sheet) at any time.
+ * Onboarding — a friendly welcome tour for brand-new users, and a "What's new"
+ * note for returning users after an update. Plus a Help menu that re-opens the
+ * tour (and the keyboard cheat-sheet) at any time.
  *
  * Renderer-only (Tier A): pure DOM + App.Prefs (localStorage), so it ships
  * identically to Electron desktop and the Android WebView with no file-I/O
@@ -10,15 +11,39 @@
  * coach-mark card ("this button does X"), stepping through the app's main
  * capabilities — open, view, sign, measure, redline, organize, save, help.
  *
- * First-run behaviour: the very first time the app is opened (no `seenWelcome`
- * pref) it auto-starts once the UI is idle. Finishing or skipping records the
- * pref so it never nags again; the Help menu always offers it back.
+ * First-run policy (see `decide`):
+ *   - Fresh install (prefs blob empty, tour never seen) → the full welcome tour.
+ *   - Returning user on a build with unseen release notes → a "What's new" card,
+ *     NOT the tour (an update shouldn't restart onboarding).
+ *   - Otherwise → nothing.
+ * A fresh install is told apart from an existing user updating INTO this feature
+ * by whether ANY pref already exists: a returning user has settings (theme,
+ * saved signature, tool defaults…); a first launch has none. That snapshot is
+ * taken at the very top of boot, before anything can write a pref.
  *
- * Auto-start is suppressed under the e2e smoke harness (window.api.isSmokeTest)
- * so the full-screen overlay can't interfere with the other SMOKE_* scenarios.
+ * Both are recorded once (`seenWelcome`, `whatsNewRev`) so neither nags again;
+ * the Help menu always offers the tour back. Auto-start is suppressed under the
+ * e2e smoke harness (window.api.isSmokeTest) so the overlay can't interfere with
+ * the other SMOKE_* scenarios.
  */
 (function () {
   const PREF_SEEN = 'seenWelcome';
+  const PREF_NOTES_REV = 'whatsNewRev';
+
+  // Release notes shown to returning users. Bump `rev` (a monotonic integer)
+  // and refresh `items` whenever an update ships a change worth surfacing; every
+  // user who hasn't acknowledged that rev sees the card once, then never again.
+  const NOTES = {
+    rev: 1,
+    heading: 'What’s new',
+    sub: 'A couple of additions to help you get up to speed faster:',
+    items: [
+      { emoji: '🎓', title: 'Guided welcome tour',
+        body: 'New here? A quick, interactive walkthrough now points out the main tools. Replay it any time from the <b>Help (?)</b> menu.' },
+      { emoji: '⌨️', title: 'Keyboard shortcuts at a tap',
+        body: 'Press <kbd>?</kbd> (or <kbd>F1</kbd>) to toggle the full shortcut list — or open it from the new <b>Help (?)</b> menu in the top bar.' }
+    ]
+  };
 
   // Each step spotlights one real control (by selector) with a plain-language
   // blurb. `sel: null` renders a centred card (the welcome / sign-off screens).
@@ -255,11 +280,67 @@
     }
   }
 
-  const Tour = {
-    init() { /* DOM is built lazily on first start */ },
+  // ---------- What's new (returning users) ----------
+  function wn() { return App.$('#whatsnew-modal'); }
 
-    // Open the tour from the beginning (Help menu or first run).
+  function renderWhatsNew() {
+    const t = App.$('#wn-title'); if (t) t.textContent = NOTES.heading;
+    const sub = App.$('#wn-sub'); if (sub) sub.textContent = NOTES.sub || '';
+    const list = App.$('#wn-list');
+    if (!list) return;
+    list.innerHTML = '';
+    NOTES.items.forEach((it) => {
+      const li = document.createElement('li');
+      li.className = 'wn-item';
+      const em = document.createElement('span');
+      em.className = 'wn-emoji'; em.setAttribute('aria-hidden', 'true');
+      em.textContent = it.emoji || '•';
+      const txt = document.createElement('div');
+      txt.className = 'wn-text';
+      const h = document.createElement('div');
+      h.className = 'wn-item-title'; h.textContent = it.title;
+      const p = document.createElement('div');
+      p.className = 'wn-item-body'; p.innerHTML = localizeMods(it.body);
+      txt.appendChild(h); txt.appendChild(p);
+      li.appendChild(em); li.appendChild(txt);
+      list.appendChild(li);
+    });
+  }
+
+  function openWhatsNew() {
+    const m = wn(); if (!m) return;
+    renderWhatsNew();
+    m.classList.remove('hidden');
+    // Acknowledge on open: a returning user only needs to see each rev once,
+    // however they dismiss it.
+    try { if (App.Prefs) App.Prefs.set(PREF_NOTES_REV, NOTES.rev); } catch (_) { /* quota */ }
+    const ok = App.$('#wn-ok'); if (ok) ok.focus();
+  }
+  function closeWhatsNew() { const m = wn(); if (m) m.classList.add('hidden'); }
+
+  function setupWhatsNew() {
+    const close = () => closeWhatsNew();
+    const x = App.$('#wn-close'); if (x) x.addEventListener('click', close);
+    const ok = App.$('#wn-ok'); if (ok) ok.addEventListener('click', close);
+    const t = App.$('#wn-tour'); if (t) t.addEventListener('click', () => { closeWhatsNew(); Tour.start(); });
+  }
+
+  // Pure policy: given whether this looks like a fresh install, whether the tour
+  // was ever seen, and the last acknowledged notes rev, decide what (if anything)
+  // to auto-show. Exposed for tests. Returns 'tour' | 'whatsnew' | 'none'.
+  function decide(state) {
+    const s = state || {};
+    if (s.freshInstall && !s.seenWelcome) return 'tour';
+    if (NOTES && NOTES.rev > ((s.ackRev | 0))) return 'whatsnew';
+    return 'none';
+  }
+
+  const Tour = {
+    init() { setupWhatsNew(); /* the tour overlay itself is built lazily on start */ },
+
+    // Open the tour from the beginning (Help menu, first run, or What's-New).
     start() {
+      closeWhatsNew();
       build();
       idx = 0;
       active = true;
@@ -279,15 +360,37 @@
 
     isActive() { return active; },
 
-    // First-run auto-start: only when the pref is unset, and never under the
-    // smoke harness (its full-screen overlay must not intercept other scenarios).
-    maybeAutoStart() {
-      if (window.api && window.api.isSmokeTest) return false;
-      const seen = App.Prefs ? App.Prefs.get(PREF_SEEN, false) : true;
-      if (seen) return false;
-      // Wait for the UI to settle so anchors have real geometry.
-      setTimeout(() => { if (!active) Tour.start(); }, 700);
-      return true;
+    // What's-new (returning users after an update).
+    showWhatsNew() { openWhatsNew(); },
+    closeWhatsNew() { closeWhatsNew(); },
+    isWhatsNewOpen() { const m = wn(); return !!m && !m.classList.contains('hidden'); },
+
+    // Exposed for tests: the pure first-run policy and the current notes rev.
+    decideFirstRun(state) { return decide(state); },
+    notesRev() { return NOTES.rev; },
+
+    // Called once at the end of boot. `freshInstall` is the empty-prefs snapshot
+    // taken before any pref was written this session. Auto-shows the tour (fresh
+    // install) or the What's-new card (returning user with unseen notes); records
+    // the matching pref so neither recurs. Suppressed under the smoke harness so
+    // its overlay can't intercept the other SMOKE_* scenarios.
+    maybeAutoStart(freshInstall) {
+      if (window.api && window.api.isSmokeTest) return 'suppressed';
+      if (!App.Prefs) return 'none';
+      const seenWelcome = App.Prefs.get(PREF_SEEN, false);
+      const ackRev = App.Prefs.get(PREF_NOTES_REV, 0);
+      const d = decide({ freshInstall: !!freshInstall, seenWelcome, ackRev });
+      if (d === 'tour') {
+        // A brand-new user sees everything in the tour, so pre-acknowledge the
+        // current notes — no redundant "what's new" for the version they install.
+        try { App.Prefs.set(PREF_NOTES_REV, NOTES.rev); } catch (_) { /* quota */ }
+        setTimeout(() => { if (!active) Tour.start(); }, 700);   // let anchors settle
+      } else if (d === 'whatsnew') {
+        // An existing user updating in: never auto-nag the full tour again.
+        if (!seenWelcome) { try { App.Prefs.set(PREF_SEEN, true); } catch (_) { /* quota */ } }
+        setTimeout(() => { openWhatsNew(); }, 700);
+      }
+      return d;
     }
   };
 

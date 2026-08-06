@@ -661,6 +661,27 @@
     </div>
   </div>
 
+  <!-- ============ What's new (returning users, after an update) ============ -->
+  <!-- Shown once per release to people who already have the app — a short
+       "here's what changed" so an update doesn't restart the first-run tour.
+       The heading + highlights are filled in by tour.js from its NOTES data. -->
+  <div id="whatsnew-modal" class="modal-backdrop hidden">
+    <div class="modal" style="width:520px">
+      <div class="modal-head">
+        <h2 id="wn-title">What’s new</h2>
+        <button id="wn-close" class="modal-x" title="Close">✕</button>
+      </div>
+      <div class="wn-body">
+        <p id="wn-sub" class="wn-sub"></p>
+        <ul id="wn-list" class="wn-list"></ul>
+      </div>
+      <div class="modal-foot">
+        <button id="wn-tour" class="tb-btn">🎓 Take a quick tour</button>
+        <button id="wn-ok" class="tb-btn primary">Got it</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ Digital signature (PKI / PAdES) ============ -->
   <div id="digisign-modal" class="modal-backdrop hidden">
     <div class="modal" style="width:520px">

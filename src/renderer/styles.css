@@ -1003,6 +1003,29 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
   .tour-foot { flex-wrap: wrap; }
 }
 
+/* ---- What's new (returning users) ---- */
+.wn-body { padding: var(--sp-4) var(--sp-5) var(--sp-2); }
+.wn-sub { margin: 0 0 var(--sp-3); font-size: var(--fs-md); color: var(--text-dim); line-height: 1.5; }
+.wn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.wn-item { display: flex; gap: var(--sp-3); align-items: flex-start; }
+.wn-emoji {
+  flex: none; width: 34px; height: 34px; border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  background: var(--accent-quiet);
+}
+.wn-text { min-width: 0; }
+.wn-item-title { font-size: var(--fs-md); font-weight: 600; color: var(--text); }
+.wn-item-body { margin-top: 2px; font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.5; }
+.wn-item-body b { color: var(--text); }
+.wn-item-body kbd {
+  display: inline-block; min-width: 14px; padding: 1px 5px; text-align: center;
+  background: var(--bg-input); color: var(--text-dim);
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--r-sm);
+  font: 600 11px var(--font-mono);
+}
+/* Push the optional "Take a quick tour" button to the left; primary stays right. */
+#whatsnew-modal .modal-foot { justify-content: space-between; }
+
 /* ---- Digital signature modal ---- */
 .dsig-body { padding: var(--sp-4) var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3); }
 .dsig-intro { margin: 0 0 var(--sp-1); color: var(--text-dim); font-size: var(--fs-sm); line-height: 1.5; }

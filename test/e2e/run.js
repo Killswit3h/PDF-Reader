@@ -349,7 +349,7 @@ const SCENARIOS = [
     }
   },
   {
-    name: 'welcome tour — first-run onboarding steps, spotlights, records seen, replays; ? toggles shortcuts',
+    name: 'onboarding — first-run tour + returning-user what\'s-new policy, spotlights, replays; ? toggles shortcuts',
     run: () => {
       const j = tagJson(runApp({ SMOKE_TOUR: '1' }, [SAMPLE]), 'tour');
       check(j.smokeFlag === true, 'window.api.isSmokeTest not exposed under the harness');
@@ -366,6 +366,13 @@ const SCENARIOS = [
       check(j.helpMenuShown === true, 'Help menu did not open');
       check(j.replayed === true, 'Help → Take a quick tour did not replay the tour');
       check(j.scOpen === true && j.scClosed === true, '? did not toggle the keyboard-shortcuts sheet');
+      // First-run policy: fresh install vs. returning updater vs. caught-up.
+      check(j.decideFresh === 'tour', `fresh install should get the tour (got ${j.decideFresh})`);
+      check(j.decideReturningNew === 'whatsnew', `returning user with unseen notes should get what's-new (got ${j.decideReturningNew})`);
+      check(j.decideReturningSeen === 'none', `caught-up user should get nothing (got ${j.decideReturningSeen})`);
+      check(j.wnOpen === true && j.wnItems > 0, "what's-new card did not open with highlights");
+      check(j.wnAck === true, "what's-new did not record the acknowledged rev on open");
+      check(j.wnClosed === true, "what's-new card did not close");
     }
   },
   {

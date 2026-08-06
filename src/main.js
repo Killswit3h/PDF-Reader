@@ -715,8 +715,25 @@ function createWindow() {
               const fire=()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'?',bubbles:true}));
               fire(); await sleep(60); const scOpen=App.Shortcuts.isOpen();
               fire(); await sleep(60); const scClosed=!App.Shortcuts.isOpen();
+              // First-run policy: fresh install -> tour, returning w/ unseen
+              // notes -> what's-new, returning & caught-up -> nothing.
+              const rev=App.Tour.notesRev();
+              const decideFresh=App.Tour.decideFirstRun({freshInstall:true,seenWelcome:false,ackRev:0});
+              const decideReturningNew=App.Tour.decideFirstRun({freshInstall:false,seenWelcome:true,ackRev:rev-1});
+              const decideReturningSeen=App.Tour.decideFirstRun({freshInstall:true,seenWelcome:true,ackRev:rev});
+              // What's-new card renders items and acknowledges the rev on open.
+              App.Prefs.set('whatsNewRev',0);
+              App.Tour.showWhatsNew();
+              await sleep(120);
+              const wnOpen=App.Tour.isWhatsNewOpen();
+              const wnItems=document.querySelectorAll('#wn-list .wn-item').length;
+              const wnAck=App.Prefs.get('whatsNewRev',0)===rev;
+              document.querySelector('#wn-close').click();
+              await sleep(80);
+              const wnClosed=!App.Tour.isWhatsNewOpen();
               return JSON.stringify({autoSuppressed,smokeFlag,opened,dots,backHiddenFirst,firstTitle,
-                spotShown,anchored,backShownNow,doneLabel,closedAfter,seenPref,helpMenuShown,replayed,scOpen,scClosed});
+                spotShown,anchored,backShownNow,doneLabel,closedAfter,seenPref,helpMenuShown,replayed,scOpen,scClosed,
+                decideFresh,decideReturningNew,decideReturningSeen,wnOpen,wnItems,wnAck,wnClosed});
             })()`, true);
             console.log('[tour] ' + r);
           } catch (e) { console.log('[tour] error', e && e.message); }

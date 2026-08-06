@@ -267,7 +267,10 @@ and **Document ▾** (Organize Pages · Numbering & Stamps · Tool Chest).
 **First run.** The very first time you open FieldMark, a short **guided tour**
 introduces the main tools — open, zoom, sign, measure, redline, organize, save —
 by spotlighting each control with a one-line explanation. It shows once; replay
-it any time from the **Help (`?`)** menu in the top bar.
+it any time from the **Help (`?`)** menu in the top bar. If you already have the
+app and it **updates**, you get a brief **What's new** note highlighting the
+additions instead of the full tour — onboarding never restarts, but you stay
+informed.
 
 Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+P` print ·
 `Ctrl+F` find · `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `+ / − / 0` zoom (0 = 100%) ·
