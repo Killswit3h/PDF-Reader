@@ -369,8 +369,9 @@
         }
       }
 
-      // '?' (Shift+/) or F1 opens the keyboard-shortcuts help on any platform.
-      if (e.key === '?' || e.key === 'F1') { e.preventDefault(); App.Shortcuts.open(); return; }
+      // '?' (Shift+/) or F1 toggles the keyboard-shortcuts help on any platform —
+      // press once to show the cheat-sheet, again to dismiss it.
+      if (e.key === '?' || e.key === 'F1') { e.preventDefault(); App.Shortcuts.toggle(); return; }
 
       if (e.key === 'Enter' && App.state.mode === 'measure') { e.preventDefault(); App.Measure.finishDrawing(); return; }
       if (e.key === 'Enter' && App.state.mode === 'markup') { e.preventDefault(); App.Markup.finishDrawing(); return; }
@@ -633,6 +634,30 @@
         else if (d === 'compare') App.Compare.open();
         else if (d === 'overlay') App.Overlay.open();
         else if (d === 'split') App.SplitView.toggle();
+      });
+    });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
+  }
+
+  // Help menu: the always-available entry point to the welcome tour and the
+  // keyboard cheat-sheet. Unlike the tool menus this one is never disabled — a
+  // first-time user reaches it before any document is open.
+  function setupHelpMenu() {
+    const btn = App.$('#btn-help');
+    const menu = App.$('#help-menu');
+    if (!btn || !menu) return;
+    const close = () => { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = menu.classList.toggle('hidden');
+      btn.setAttribute('aria-expanded', String(!open));
+    });
+    menu.querySelectorAll('button[data-help]').forEach((b) => {
+      b.addEventListener('click', () => {
+        close();
+        const h = b.dataset.help;
+        if (h === 'tour' && App.Tour) App.Tour.start();
+        else if (h === 'shortcuts') App.Shortcuts.open();
       });
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
@@ -908,7 +933,9 @@
 
   App.Shortcuts = {
     open() { App.$('#shortcuts-modal').classList.remove('hidden'); },
-    close() { App.$('#shortcuts-modal').classList.add('hidden'); }
+    close() { App.$('#shortcuts-modal').classList.add('hidden'); },
+    isOpen() { return !App.$('#shortcuts-modal').classList.contains('hidden'); },
+    toggle() { if (this.isOpen()) this.close(); else this.open(); }
   };
 
   function setupShortcuts() {
@@ -960,9 +987,11 @@
     if (App.Overlay) App.Overlay.init();
     if (App.SplitView) App.SplitView.init();
     if (App.TextCopy) App.TextCopy.init();
+    if (App.Tour) App.Tour.init();
     loadRememberedSignatures();
     setupUpdates();
     setupShortcuts();
+    setupHelpMenu();
     setupDragDrop();
     setupKeys();
     setupPlacementClicks();
@@ -1023,6 +1052,10 @@
     // It will deliver any file the app was launched to open (which may have
     // arrived before this listener existed).
     window.api.notifyReady();
+
+    // First launch: introduce the app with a short guided tour (once). No-op on
+    // return visits and under the e2e smoke harness.
+    if (App.Tour) App.Tour.maybeAutoStart();
   }
 
   if (document.readyState === 'loading') {

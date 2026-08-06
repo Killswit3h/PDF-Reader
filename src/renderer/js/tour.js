@@ -1,0 +1,310 @@
+'use strict';
+
+/*
+ * Welcome tour — a friendly, interactive walkthrough for first-time users, plus
+ * a Help menu that re-opens it (and the keyboard cheat-sheet) at any time.
+ *
+ * Renderer-only (Tier A): pure DOM + App.Prefs (localStorage), so it ships
+ * identically to Electron desktop and the Android WebView with no file-I/O
+ * boundary work. The tour spotlights REAL toolbar/rail controls with a
+ * coach-mark card ("this button does X"), stepping through the app's main
+ * capabilities — open, view, sign, measure, redline, organize, save, help.
+ *
+ * First-run behaviour: the very first time the app is opened (no `seenWelcome`
+ * pref) it auto-starts once the UI is idle. Finishing or skipping records the
+ * pref so it never nags again; the Help menu always offers it back.
+ *
+ * Auto-start is suppressed under the e2e smoke harness (window.api.isSmokeTest)
+ * so the full-screen overlay can't interfere with the other SMOKE_* scenarios.
+ */
+(function () {
+  const PREF_SEEN = 'seenWelcome';
+
+  // Each step spotlights one real control (by selector) with a plain-language
+  // blurb. `sel: null` renders a centred card (the welcome / sign-off screens).
+  // `place` hints where the card sits relative to the anchor; it auto-flips if
+  // that would run off-screen. Anchors that happen to be hidden fall back to a
+  // centred card, so the tour never breaks on a narrow / mid-load layout.
+  const STEPS = [
+    {
+      sel: null, emoji: '👋',
+      title: 'Welcome to FieldMark',
+      body: 'Your offline PDF viewer for plans and drawings — view, measure, redline and sign, all on this device with nothing sent to the cloud. This quick tour points out the essentials. It takes about a minute.'
+    },
+    {
+      sel: '#btn-open', emoji: '📂', place: 'bottom',
+      title: 'Open a drawing',
+      body: 'Start here to open a PDF — or just drag a <b>.pdf</b> straight onto the window. Recent files reopen fast.'
+    },
+    {
+      sel: '#btn-fit-width', emoji: '🔍', place: 'bottom',
+      title: 'Zoom, fit &amp; rotate',
+      body: 'Zoom in and out, fit the sheet to the window, drag a box to zoom into detail, and rotate the view. Tip: hold <kbd>Ctrl</kbd> and scroll to zoom right where your pointer is.'
+    },
+    {
+      sel: '#btn-select', emoji: '↖', place: 'right',
+      title: 'Select &amp; edit anything',
+      body: 'The resting tool. Click any markup, measurement or stamp to move, resize, nudge with the arrow keys, or delete it.'
+    },
+    {
+      sel: '#btn-sign', emoji: '✒️', place: 'right',
+      title: 'Sign, initial &amp; date',
+      body: 'Drop a saved signature or initials anywhere on the page, or stamp today’s date. Draw a signature once and reuse it — it stays on this device.'
+    },
+    {
+      sel: '#btn-measure', emoji: '📐', place: 'right',
+      title: 'Measure &amp; take off',
+      body: 'Set the drawing’s scale once, then measure lengths, perimeters, areas, angles and counts — with snapping and running totals for quantity take-offs.'
+    },
+    {
+      sel: '#btn-markup', emoji: '✏️', place: 'right',
+      title: 'Redline &amp; mark up',
+      body: 'Arrows, boxes, clouds, freehand, text and callouts, plus highlight / underline / strikeout on real PDF text. Single keys arm each tool — press <kbd>B</kbd> for a box, <kbd>A</kbd> for an arrow.'
+    },
+    {
+      sel: '#btn-document', emoji: '📄', place: 'right',
+      title: 'Organize &amp; compare',
+      body: 'Reorder, rotate or delete pages, add page numbers and stamps, apply a digital signature, and compare or overlay two documents side by side.'
+    },
+    {
+      sel: '#btn-save', emoji: '💾', place: 'bottom',
+      title: 'Save your work',
+      body: 'Save writes your markups, measurements and signatures back into the PDF. Use <b>Save As…</b> to keep the original untouched.'
+    },
+    {
+      sel: '#btn-help', emoji: '🎓', place: 'bottom',
+      title: 'You’re all set!',
+      body: 'That’s the whole toolkit. Open this Help menu any time to replay the tour, and press <kbd>?</kbd> to pop the full list of keyboard shortcuts. Happy marking up!'
+    }
+  ];
+
+  let idx = 0;
+  let active = false;
+  let root = null; // { host, backdrop, spot, card } lazily built once
+  const relayout = () => { if (active) render(); };
+
+  function q(sel) { return document.querySelector(sel); }
+
+  function isMac() {
+    return /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
+  }
+
+  // Render ⌘ on macOS wherever a blurb writes the literal "Ctrl".
+  function localizeMods(html) {
+    return isMac() ? html.replace(/<kbd>Ctrl<\/kbd>/g, '<kbd>⌘</kbd>') : html;
+  }
+
+  function build() {
+    if (root) return root;
+    const host = document.createElement('div');
+    host.id = 'tour-root';
+    host.className = 'hidden';
+    host.setAttribute('role', 'dialog');
+    host.setAttribute('aria-modal', 'true');
+    host.setAttribute('aria-label', 'Welcome tour');
+    host.innerHTML = [
+      '<div class="tour-backdrop"></div>',
+      '<div class="tour-spot" aria-hidden="true"></div>',
+      '<div class="tour-card" role="document">',
+      '  <button class="tour-x" type="button" aria-label="Close tour" title="Close">✕</button>',
+      '  <div class="tour-emoji" aria-hidden="true"></div>',
+      '  <h2 class="tour-title"></h2>',
+      '  <p class="tour-body"></p>',
+      '  <div class="tour-foot">',
+      '    <div class="tour-dots" aria-hidden="true"></div>',
+      '    <div class="tour-btns">',
+      '      <button class="tour-skip link-btn" type="button">Skip</button>',
+      '      <button class="tour-back tb-btn" type="button">Back</button>',
+      '      <button class="tour-next tb-btn primary" type="button">Next</button>',
+      '    </div>',
+      '  </div>',
+      '</div>'
+    ].join('');
+    document.body.appendChild(host);
+
+    host.querySelector('.tour-x').addEventListener('click', () => finish(false));
+    host.querySelector('.tour-skip').addEventListener('click', () => finish(false));
+    host.querySelector('.tour-back').addEventListener('click', () => go(idx - 1));
+    host.querySelector('.tour-next').addEventListener('click', () => {
+      if (idx >= STEPS.length - 1) finish(true); else go(idx + 1);
+    });
+    // Clicking the dim area outside the card advances; the highlighted control
+    // stays visible but the tour owns the interaction until it's dismissed.
+    host.querySelector('.tour-backdrop').addEventListener('click', () => {
+      if (idx >= STEPS.length - 1) finish(true); else go(idx + 1);
+    });
+
+    root = {
+      host,
+      backdrop: host.querySelector('.tour-backdrop'),
+      spot: host.querySelector('.tour-spot'),
+      card: host.querySelector('.tour-card'),
+      emoji: host.querySelector('.tour-emoji'),
+      title: host.querySelector('.tour-title'),
+      body: host.querySelector('.tour-body'),
+      dots: host.querySelector('.tour-dots'),
+      back: host.querySelector('.tour-back'),
+      next: host.querySelector('.tour-next')
+    };
+    return root;
+  }
+
+  // Place the card near the anchor rect, preferring `place`, flipping / clamping
+  // to stay on screen. With no rect, centre it.
+  function placeCard(rect, place) {
+    const card = root.card;
+    card.classList.remove('centered');
+    // Measure the card after content is set.
+    const cw = card.offsetWidth || 340;
+    const ch = card.offsetHeight || 200;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const M = 12; // gap from the anchor / viewport edge
+
+    if (!rect) {
+      card.classList.add('centered');
+      card.style.left = Math.round((vw - cw) / 2) + 'px';
+      card.style.top = Math.round((vh - ch) / 2) + 'px';
+      return;
+    }
+
+    let top, left;
+    const order = place === 'right'
+      ? ['right', 'bottom', 'left', 'top']
+      : ['bottom', 'right', 'top', 'left'];
+    const fits = (p) => {
+      if (p === 'bottom') return rect.bottom + M + ch <= vh;
+      if (p === 'top') return rect.top - M - ch >= 0;
+      if (p === 'right') return rect.right + M + cw <= vw;
+      if (p === 'left') return rect.left - M - cw >= 0;
+      return false;
+    };
+    const chosen = order.find(fits) || order[0];
+    if (chosen === 'bottom' || chosen === 'top') {
+      top = chosen === 'bottom' ? rect.bottom + M : rect.top - M - ch;
+      left = rect.left + rect.width / 2 - cw / 2;
+    } else {
+      left = chosen === 'right' ? rect.right + M : rect.left - M - cw;
+      top = rect.top + rect.height / 2 - ch / 2;
+    }
+    left = Math.max(M, Math.min(left, vw - cw - M));
+    top = Math.max(M, Math.min(top, vh - ch - M));
+    card.style.left = Math.round(left) + 'px';
+    card.style.top = Math.round(top) + 'px';
+  }
+
+  function visibleRect(el) {
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return null;            // hidden / collapsed
+    if (r.bottom < 0 || r.right < 0 || r.top > window.innerHeight || r.left > window.innerWidth) return null;
+    return r;
+  }
+
+  function render() {
+    build();
+    const step = STEPS[idx];
+    root.emoji.textContent = step.emoji || '';
+    root.emoji.classList.toggle('hidden', !step.emoji);
+    root.title.innerHTML = step.title;
+    root.body.innerHTML = localizeMods(step.body);
+
+    // Progress dots.
+    root.dots.innerHTML = '';
+    STEPS.forEach((_, i) => {
+      const d = document.createElement('span');
+      d.className = 'tour-dot' + (i === idx ? ' on' : '');
+      root.dots.appendChild(d);
+    });
+
+    root.back.classList.toggle('hidden', idx === 0);
+    root.next.textContent = idx >= STEPS.length - 1 ? 'Done' : 'Next';
+
+    const anchor = step.sel ? q(step.sel) : null;
+    const rect = visibleRect(anchor);
+    if (rect) {
+      const pad = 6;
+      const s = root.spot.style;
+      s.left = (rect.left - pad) + 'px';
+      s.top = (rect.top - pad) + 'px';
+      s.width = (rect.width + pad * 2) + 'px';
+      s.height = (rect.height + pad * 2) + 'px';
+      root.spot.classList.remove('hidden');
+      root.backdrop.classList.add('hidden');   // the spotlight's ring dims the rest
+    } else {
+      root.spot.classList.add('hidden');
+      root.backdrop.classList.remove('hidden'); // no anchor → plain full dim
+    }
+    placeCard(rect, step.place);
+  }
+
+  function go(n) {
+    idx = Math.max(0, Math.min(n, STEPS.length - 1));
+    render();
+  }
+
+  function onKey(e) {
+    if (!active) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); return; }
+    if (e.key === 'ArrowRight' || e.key === 'Enter') {
+      e.preventDefault(); e.stopPropagation();
+      if (idx >= STEPS.length - 1) finish(true); else go(idx + 1);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault(); e.stopPropagation();
+      go(idx - 1);
+    }
+  }
+
+  const Tour = {
+    init() { /* DOM is built lazily on first start */ },
+
+    // Open the tour from the beginning (Help menu or first run).
+    start() {
+      build();
+      idx = 0;
+      active = true;
+      root.host.classList.remove('hidden');
+      document.body.classList.add('tour-open');
+      // Capture-phase key handling so the tour's keys win over app.js shortcuts.
+      window.addEventListener('keydown', onKey, true);
+      window.addEventListener('resize', relayout);
+      window.addEventListener('scroll', relayout, true);
+      render();
+      if (root.next) root.next.focus();
+    },
+
+    // `complete` true when the user reached the end (vs. skipped) — either way we
+    // never auto-show it again.
+    finish(complete) { finish(complete); },
+
+    isActive() { return active; },
+
+    // First-run auto-start: only when the pref is unset, and never under the
+    // smoke harness (its full-screen overlay must not intercept other scenarios).
+    maybeAutoStart() {
+      if (window.api && window.api.isSmokeTest) return false;
+      const seen = App.Prefs ? App.Prefs.get(PREF_SEEN, false) : true;
+      if (seen) return false;
+      // Wait for the UI to settle so anchors have real geometry.
+      setTimeout(() => { if (!active) Tour.start(); }, 700);
+      return true;
+    }
+  };
+
+  function finish(complete) {
+    if (!active) return;
+    active = false;
+    if (root) {
+      root.host.classList.add('hidden');
+      root.spot.classList.add('hidden');
+    }
+    document.body.classList.remove('tour-open');
+    window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('resize', relayout);
+    window.removeEventListener('scroll', relayout, true);
+    try { if (App.Prefs) App.Prefs.set(PREF_SEEN, true); } catch (_) { /* quota */ }
+    if (complete && App.toast) App.toast('You can replay this tour any time from Help (?)', 'success', 3000);
+  }
+
+  App.Tour = Tour;
+})();

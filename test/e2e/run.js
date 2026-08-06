@@ -349,6 +349,26 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'welcome tour — first-run onboarding steps, spotlights, records seen, replays; ? toggles shortcuts',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TOUR: '1' }, [SAMPLE]), 'tour');
+      check(j.smokeFlag === true, 'window.api.isSmokeTest not exposed under the harness');
+      check(j.autoSuppressed === true, 'welcome tour auto-started under the smoke harness');
+      check(j.opened === true, 'App.Tour.start() did not open the tour');
+      check(j.dots > 1, `progress dots not rendered (${j.dots})`);
+      check(j.backHiddenFirst === true, 'Back button visible on the first step');
+      check(/welcome/i.test(j.firstTitle), `first step is not the welcome screen ("${j.firstTitle}")`);
+      check(j.spotShown === true && j.anchored === true, 'spotlight did not anchor to the Open button on step 2');
+      check(j.backShownNow === true, 'Back button not shown after advancing');
+      check(j.doneLabel === 'Done', `last step Next button not labelled Done (${j.doneLabel})`);
+      check(j.closedAfter === true, 'finishing the tour did not close it');
+      check(j.seenPref === true, 'seenWelcome pref not recorded after finishing');
+      check(j.helpMenuShown === true, 'Help menu did not open');
+      check(j.replayed === true, 'Help → Take a quick tour did not replay the tour');
+      check(j.scOpen === true && j.scClosed === true, '? did not toggle the keyboard-shortcuts sheet');
+    }
+  },
+  {
     name: 'rail collapse — tool rail shrinks to icons, persists, expands back',
     run: () => {
       const j = tagJson(runApp({ SMOKE_RAIL: '1' }, [SAMPLE]), 'rail');

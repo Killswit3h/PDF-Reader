@@ -940,6 +940,69 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
 }
 @media (max-width: 560px) { .sc-body { grid-template-columns: 1fr; } }
 
+/* ---- Welcome tour (coach-marks) ---- */
+/* A full-screen layer that either dims everything (welcome / sign-off screens)
+ * or spotlights one real control via a huge box-shadow "hole". The card floats
+ * above both, positioned next to the highlighted control by tour.js. */
+#tour-root { position: fixed; inset: 0; z-index: 200; }
+#tour-root.hidden { display: none; }
+.tour-backdrop {
+  position: absolute; inset: 0; background: rgba(6, 12, 20, 0.62);
+  backdrop-filter: blur(1px);
+}
+.tour-backdrop.hidden { display: none; }
+.tour-spot {
+  position: absolute; border-radius: var(--r-md);
+  box-shadow: 0 0 0 9999px rgba(6, 12, 20, 0.62), 0 0 0 2px var(--accent) inset;
+  outline: 2px solid var(--accent); outline-offset: 0;
+  transition: left var(--dur-med) var(--ease), top var(--dur-med) var(--ease),
+              width var(--dur-med) var(--ease), height var(--dur-med) var(--ease);
+  pointer-events: none;
+}
+.tour-spot.hidden { display: none; }
+.tour-card {
+  position: absolute; width: 340px; max-width: calc(100vw - 24px);
+  background: var(--bg-surface); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-3); padding: var(--sp-4) var(--sp-4) var(--sp-3);
+  transition: left var(--dur-med) var(--ease), top var(--dur-med) var(--ease);
+}
+.tour-card.centered { width: 400px; }
+.tour-x {
+  position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
+  background: none; border: none; color: var(--text-faint);
+  font-size: 15px; cursor: pointer; border-radius: var(--r-sm); line-height: 1;
+}
+.tour-x:hover { background: var(--bg-hover); color: var(--text); }
+.tour-emoji { font-size: 30px; line-height: 1; margin-bottom: var(--sp-2); }
+.tour-emoji.hidden { display: none; }
+.tour-title { margin: 0 0 var(--sp-2); font-size: var(--fs-xl); font-weight: 650; }
+.tour-body { margin: 0; font-size: var(--fs-md); line-height: 1.55; color: var(--text-dim); }
+.tour-body kbd, .tour-body b { color: var(--text); }
+.tour-body kbd {
+  display: inline-block; padding: 1px 5px; background: var(--bg-input);
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: var(--r-sm);
+  font: 600 11px var(--font-mono);
+}
+.tour-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-3); margin-top: var(--sp-4);
+}
+.tour-dots { display: flex; gap: 6px; }
+.tour-dot {
+  width: 6px; height: 6px; border-radius: var(--r-pill);
+  background: var(--border-strong); transition: background var(--dur-fast) var(--ease),
+              width var(--dur-fast) var(--ease);
+}
+.tour-dot.on { width: 18px; background: var(--accent); }
+.tour-btns { display: flex; align-items: center; gap: var(--sp-2); }
+.tour-btns .tour-skip { color: var(--text-faint); }
+.tour-btns .hidden { display: none; }
+@media (max-width: 560px) {
+  .tour-card, .tour-card.centered { width: calc(100vw - 24px); }
+  .tour-foot { flex-wrap: wrap; }
+}
+
 /* ---- Digital signature modal ---- */
 .dsig-body { padding: var(--sp-4) var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-3); }
 .dsig-intro { margin: 0 0 var(--sp-1); color: var(--text-dim); font-size: var(--fs-sm); line-height: 1.5; }

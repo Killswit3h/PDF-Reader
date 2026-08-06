@@ -16,6 +16,11 @@ contextBridge.exposeInMainWorld('api', {
   // they don't double-fire against the shared in-page keyboard handler.
   isDesktop: true,
 
+  // True only under the e2e smoke harness (main passes '--smoke-test' via
+  // additionalArguments). The renderer uses it to suppress first-run UI — the
+  // welcome tour — so its full-screen overlay can't disturb SMOKE_* scenarios.
+  isSmokeTest: process.argv.includes('--smoke-test'),
+
   // True on macOS. The renderer tags <html class="platform-mac"> from this so
   // the Liquid Glass material (translucent frosted chrome that lets the OS
   // vibrancy behind the window show through) is scoped to macOS only — Windows

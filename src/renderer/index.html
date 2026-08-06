@@ -69,6 +69,13 @@
 
     <div class="tb-group" data-overflow>
       <button id="btn-theme" class="tb-btn icon ghost" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
+      <div class="tb-dropdown">
+        <button id="btn-help" class="tb-btn icon ghost" title="Help — tour &amp; keyboard shortcuts (?)" aria-label="Help" aria-haspopup="true" aria-expanded="false">?</button>
+        <div id="help-menu" class="tb-menu hidden">
+          <button data-help="tour">🎓 Take a quick tour</button>
+          <button data-help="shortcuts">⌨️ Keyboard shortcuts<span class="mk-key">?</span></button>
+        </div>
+      </div>
       <button id="btn-updates" class="tb-btn ghost" title="Version — click to check for updates">v…</button>
     </div>
 
@@ -870,6 +877,7 @@
   <script src="js/miniviewer.js"></script>
   <script src="js/splitview.js"></script>
   <script src="js/textcopy.js"></script>
+  <script src="js/tour.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
