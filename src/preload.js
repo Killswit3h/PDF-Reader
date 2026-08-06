@@ -75,8 +75,9 @@ contextBridge.exposeInMainWorld('api', {
   // Print the finished document. `bytes` is the exported PDF (Uint8Array); the
   // main process writes it to a temp file and prints it from a hidden window so
   // the native OS print dialog (preview + printer picker) pops up on every
-  // desktop platform.
-  print: (bytes) => ipcRenderer.invoke('app:print', bytes),
+  // desktop platform. `opts` is an optional { landscape } orientation hint so a
+  // wide plan sheet prints landscape instead of being shrunk into a portrait page.
+  print: (bytes, opts) => ipcRenderer.invoke('app:print', bytes, opts),
 
   // ---- Updates ----
   getVersion: () => ipcRenderer.invoke('app:version'),

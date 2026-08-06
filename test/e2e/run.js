@@ -501,6 +501,9 @@ const SCENARIOS = [
       check(j.darkPx > 500, `first page looks blank (${j.darkPx} dark px)`);
       check(j.printOk === true, 'print IPC did not report ok');
       check(j.hasFile === true, 'print IPC wrote no temp PDF file');
+      // The orientation hint (landscape for a wide sheet) must reach the print path.
+      check(j.wantLandscape === (j.w > j.h), `orientation hint ${j.wantLandscape} != page shape (${j.w}x${j.h})`);
+      check(j.gotLandscape === j.wantLandscape, 'orientation hint did not reach the print IPC');
     }
   },
   {
