@@ -260,15 +260,25 @@ distinct from the cosmetic Sign/Initials tools — using your own **digital ID**
 ## Layout & keyboard
 
 The **top bar** carries Open · zoom · page navigation · Save / Save As · theme ·
-version. A **left tool rail** holds the creation tools in three groups:
-**Stamp** (Sign · Initials · Date), **Take-off** (Measure ▾ · Markup ▾), and
-**Document ▾** (Organize Pages · Numbering & Stamps · Tool Chest).
+**Help (`?`)** · version. A **left tool rail** holds the creation tools in three
+groups: **Stamp** (Sign · Initials · Date), **Take-off** (Measure ▾ · Markup ▾),
+and **Document ▾** (Organize Pages · Numbering & Stamps · Tool Chest).
+
+**First run.** The very first time you open FieldMark, a short **guided tour**
+introduces the main tools — open, zoom, sign, measure, redline, organize, save —
+by spotlighting each control with a one-line explanation. It shows once; replay
+it any time from the **Help (`?`)** menu in the top bar. If you already have the
+app and it **updates**, you get a brief **What's new** note highlighting the
+additions instead of the full tour — onboarding never restarts, but you stay
+informed.
 
 Keyboard: `Ctrl+O` open · `Ctrl+S` save · `Ctrl+Shift+S` save as · `Ctrl+P` print ·
 `Ctrl+F` find · `Ctrl+Z` / `Ctrl+Shift+Z` undo/redo · `+ / − / 0` zoom (0 = 100%) ·
 `← / →` page · **arrow keys** nudge the selected item (**Shift** = ×10) · `Esc`
 cancel / close a modal / deselect · `Delete` remove selected. Press **`?`** (or
-`F1`) any time — or **Help → Keyboard Shortcuts** on desktop — for the full list.
+`F1`) any time to **toggle** the full keyboard cheat-sheet — or open it (and the
+guided tour) from the top-bar **Help (`?`)** menu, or **Help → Keyboard
+Shortcuts** on desktop.
 
 Zoom: trackpad **pinch-to-zoom** (macOS & Windows precision trackpads) and
 **`Ctrl`/`Cmd` + scroll wheel** zoom toward the pointer.

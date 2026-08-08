@@ -30,6 +30,11 @@ try { app.setPath('userData', path.join(app.getPath('appData'), 'PDF Signer')); 
 const store = process.env.SMOKE_TEST ? null : createStore(app.getPath('userData'));
 const IS_MAC = process.platform === 'darwin';
 
+// Extra argv handed to renderer processes. Under the e2e smoke harness this
+// carries a marker (surfaced as window.api.isSmokeTest) so first-run UI like the
+// welcome tour stays suppressed and can't intercept the other SMOKE_* scenarios.
+const SMOKE_RENDERER_ARGS = process.env.SMOKE_TEST ? ['--smoke-test'] : [];
+
 // macOS "Liquid Glass" window shell. On darwin the window becomes translucent so
 // the OS vibrancy material blurs the desktop behind the frosted chrome, and the
 // title bar is integrated (hiddenInset) — the toolbar itself becomes the drag
@@ -130,7 +135,8 @@ function createChildWindow(payload) {
     ...MAC_GLASS_WINDOW,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true, nodeIntegration: false, sandbox: false
+      contextIsolation: true, nodeIntegration: false, sandbox: false,
+      additionalArguments: SMOKE_RENDERER_ARGS
     }
   });
   childWindows.add(win);
@@ -268,7 +274,8 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      additionalArguments: SMOKE_RENDERER_ARGS
     }
   }, MAC_GLASS_WINDOW, saved || {}));
 
@@ -650,6 +657,86 @@ function createWindow() {
             })()`, true);
             console.log('[mrail] ' + r);
           } catch (e) { console.log('[mrail] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_TOUR: the first-run welcome tour is suppressed under the harness,
+      // opens on demand, steps through / spotlights real controls, records the
+      // "seen" pref when finished, is replayable from the Help menu, and the
+      // keyboard-shortcuts sheet toggles on '?'.
+      if (process.env.SMOKE_TOUR) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+              for(let i=0;i<80&&!App.state.numPages;i++)await sleep(100);
+              await sleep(300);
+              // Auto-start must NOT have fired under the smoke harness.
+              const autoSuppressed=!App.Tour.isActive() && !document.querySelector('#tour-root:not(.hidden)');
+              const smokeFlag=!!(window.api&&window.api.isSmokeTest);
+              // Open on demand.
+              App.Tour.start();
+              await sleep(150);
+              const root=document.querySelector('#tour-root');
+              const opened=App.Tour.isActive() && root && !root.classList.contains('hidden');
+              const dots=root.querySelectorAll('.tour-dot').length;
+              const backHiddenFirst=root.querySelector('.tour-back').classList.contains('hidden');
+              const firstTitle=root.querySelector('.tour-title').textContent||'';
+              // Advance one step: spotlight should anchor to the Open button.
+              root.querySelector('.tour-next').click();
+              await sleep(200);
+              const spot=root.querySelector('.tour-spot');
+              const spotShown=!spot.classList.contains('hidden');
+              const ob=document.querySelector('#btn-open').getBoundingClientRect();
+              const sb=spot.getBoundingClientRect();
+              const anchored=Math.abs((sb.left+sb.width/2)-(ob.left+ob.width/2))<24 &&
+                             Math.abs((sb.top+sb.height/2)-(ob.top+ob.height/2))<24;
+              const backShownNow=!root.querySelector('.tour-back').classList.contains('hidden');
+              // Walk to the last step; Next becomes Done.
+              for(let i=0;i<20 && root.querySelector('.tour-next').textContent.trim()!=='Done';i++){
+                root.querySelector('.tour-next').click(); await sleep(60);
+              }
+              const doneLabel=root.querySelector('.tour-next').textContent.trim();
+              root.querySelector('.tour-next').click();  // finish
+              await sleep(150);
+              const closedAfter=!App.Tour.isActive() && root.classList.contains('hidden');
+              const seenPref=App.Prefs.get('seenWelcome',false)===true;
+              // Replay from the Help menu.
+              document.querySelector('#btn-help').click();
+              await sleep(80);
+              const helpMenuShown=!document.querySelector('#help-menu').classList.contains('hidden');
+              document.querySelector('#help-menu button[data-help="tour"]').click();
+              await sleep(150);
+              const replayed=App.Tour.isActive();
+              App.Tour.finish(false);
+              await sleep(80);
+              // Keyboard-shortcuts sheet toggles on '?'.
+              const fire=()=>window.dispatchEvent(new KeyboardEvent('keydown',{key:'?',bubbles:true}));
+              fire(); await sleep(60); const scOpen=App.Shortcuts.isOpen();
+              fire(); await sleep(60); const scClosed=!App.Shortcuts.isOpen();
+              // First-run policy: fresh install -> tour, returning w/ unseen
+              // notes -> what's-new, returning & caught-up -> nothing.
+              const rev=App.Tour.notesRev();
+              const decideFresh=App.Tour.decideFirstRun({freshInstall:true,seenWelcome:false,ackRev:0});
+              const decideReturningNew=App.Tour.decideFirstRun({freshInstall:false,seenWelcome:true,ackRev:rev-1});
+              const decideReturningSeen=App.Tour.decideFirstRun({freshInstall:true,seenWelcome:true,ackRev:rev});
+              // What's-new card renders items and acknowledges the rev on open.
+              App.Prefs.set('whatsNewRev',0);
+              App.Tour.showWhatsNew();
+              await sleep(120);
+              const wnOpen=App.Tour.isWhatsNewOpen();
+              const wnItems=document.querySelectorAll('#wn-list .wn-item').length;
+              const wnAck=App.Prefs.get('whatsNewRev',0)===rev;
+              document.querySelector('#wn-close').click();
+              await sleep(80);
+              const wnClosed=!App.Tour.isWhatsNewOpen();
+              return JSON.stringify({autoSuppressed,smokeFlag,opened,dots,backHiddenFirst,firstTitle,
+                spotShown,anchored,backShownNow,doneLabel,closedAfter,seenPref,helpMenuShown,replayed,scOpen,scClosed,
+                decideFresh,decideReturningNew,decideReturningSeen,wnOpen,wnItems,wnAck,wnClosed});
+            })()`, true);
+            console.log('[tour] ' + r);
+          } catch (e) { console.log('[tour] error', e && e.message); }
           app.quit();
         }, 1200);
         return;
