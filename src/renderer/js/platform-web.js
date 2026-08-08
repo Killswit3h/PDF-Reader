@@ -197,7 +197,12 @@
     // Native (Android/iOS WebView): hand the PDF to the system viewer via a
     // '_system' open — the platform's own print / save-as-PDF flow is more
     // reliable there than an in-WebView iframe, and it also covers "save to PDF".
-    print: (bytes) => {
+    //
+    // `opts` ({ landscape }) mirrors the desktop contract, but the browser/WebView
+    // print goes through the system PDF viewer, which auto-orients each sheet and
+    // exposes its own orientation control — there's no reliable way to pre-set it
+    // for an embedded PDF, so the hint is accepted and left to the system dialog.
+    print: (bytes, _opts) => {
       const blob = new Blob([bytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
 

@@ -1166,10 +1166,14 @@ function createWindow() {
               await page.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;
               const d=c.getContext('2d').getImageData(0,0,w,h).data;
               let darkPx=0; for(let i=0;i<d.length;i+=4){ if(d[i]<200&&d[i+1]<200&&d[i+2]<200)darkPx++; }
+              // Orientation hint: a wide sheet must print landscape, a tall one portrait.
+              const sizes=[]; for(let n=1;n<=printPages;n++){const p=await doc.getPage(n);const v=p.getViewport({scale:1});sizes.push({width:v.width,height:v.height});}
+              const hint=App.orientationForSizes(sizes);
               try{doc.destroy();}catch(_){}
               // Drive the real IPC print path (open is skipped in this harness).
-              const res=await window.api.print(bytes);
+              const res=await window.api.print(bytes,hint);
               return JSON.stringify({numPages:App.state.numPages,printPages,w,h,darkPx,
+                wantLandscape:hint.landscape,gotLandscape:!!(res&&res.landscape),
                 printOk:!!(res&&res.ok),hasFile:!!(res&&res.file)});
             })()`, true);
             console.log('[print] ' + r);
@@ -2239,7 +2243,7 @@ const printTempFiles = [];
 // macOS was already fixed this way; Windows/Linux had the same latent bug.
 // If the offscreen print can't get going, we fall back to the default viewer so
 // the user still has a way to print.
-ipcMain.handle('app:print', async (_e, bytes) => {
+ipcMain.handle('app:print', async (_e, bytes, opts) => {
   if (!bytes) return { ok: false, error: 'Nothing to print' };
   try {
     const tmpFile = path.join(app.getPath('temp'), `fieldmark-print-${process.pid}-${Date.now()}.pdf`);
@@ -2247,8 +2251,10 @@ ipcMain.handle('app:print', async (_e, bytes) => {
     printTempFiles.push(tmpFile);
     // The e2e smoke harness exercises the pipeline without launching an external
     // app or a print dialog (there's no PDF handler / printer on headless CI).
-    if (process.env.SMOKE_NO_PRINT_OPEN) return { ok: true, file: tmpFile };
-    return await printViaSystemDialog(tmpFile);
+    if (process.env.SMOKE_NO_PRINT_OPEN) {
+      return { ok: true, file: tmpFile, landscape: !!(opts && opts.landscape) };
+    }
+    return await printViaSystemDialog(tmpFile, opts);
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -2260,7 +2266,11 @@ ipcMain.handle('app:print', async (_e, bytes) => {
 // the dialog closes (whether the user prints or cancels — cancel isn't an error).
 // If the offscreen print can't get going at all, fall back to opening the file in
 // the OS default viewer so the user still has a way to print.
-function printViaSystemDialog(tmpFile) {
+function printViaSystemDialog(tmpFile, opts) {
+  // Pre-select the sheet's orientation in the native dialog. Without this
+  // Chromium prints portrait, so a landscape plan sheet gets fit-to-page'd down
+  // to the paper width — drawing crammed into the top, blank below.
+  const landscape = !!(opts && opts.landscape);
   return new Promise((resolve) => {
     let win = new BrowserWindow({
       show: false,
@@ -2302,7 +2312,7 @@ function printViaSystemDialog(tmpFile) {
       setTimeout(() => {
         if (!win || win.isDestroyed()) return finish({ ok: true, file: tmpFile, dialog: true });
         try {
-          win.webContents.print({ silent: false, printBackground: true }, (_success, reason) => {
+          win.webContents.print({ silent: false, printBackground: true, landscape }, (_success, reason) => {
             // success=false is also how a user cancel is reported — not an error.
             finish({ ok: true, file: tmpFile, dialog: true });
             void reason;

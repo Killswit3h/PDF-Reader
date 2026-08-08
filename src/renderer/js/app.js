@@ -136,6 +136,32 @@
     App.setMode('date');
   }
 
+  // Measure the pages in `bytes` and decide the print orientation, so a wide
+  // plan sheet prints landscape instead of being shrunk into a portrait page.
+  // Returns { landscape } (App.orientationForSizes' shape, consumed by the print
+  // path); on any trouble reading the PDF, returns null and the platform falls
+  // back to its default orientation.
+  async function computePrintOrientation(bytes) {
+    if (!App.orientationForSizes || !window.pdfjsLib) return null;
+    let doc = null;
+    try {
+      const data = new Uint8Array(bytes.byteLength || bytes.length);
+      data.set(bytes);
+      doc = await window.pdfjsLib.getDocument({ data }).promise;
+      const sizes = [];
+      for (let n = 1; n <= doc.numPages; n++) {
+        const page = await doc.getPage(n);
+        const vp = page.getViewport({ scale: 1 }); // default viewport bakes in /Rotate
+        sizes.push({ width: vp.width, height: vp.height });
+      }
+      return App.orientationForSizes(sizes);
+    } catch (_) {
+      return null;
+    } finally {
+      if (doc) { try { doc.destroy(); } catch (_) { /* ignore */ } }
+    }
+  }
+
   // Build the exported PDF (all edits baked in) and hand it to the platform's
   // print path. Shared by the native File → Print menu and the Ctrl/Cmd+P key.
   async function doPrint() {
@@ -162,12 +188,19 @@
         return;
       }
     }
+    // Match the print job's orientation to the sheets. Chromium's print applies
+    // one orientation to the whole job and defaults to portrait, so a landscape
+    // plan sheet (e.g. tabloid 17x11) would otherwise be "fit to page"'d down to
+    // the portrait paper's width — drawing in the top half, blank below. Measure
+    // the pages that will actually print (PDF.js viewports bake in /Rotate) and
+    // request the majority orientation.
+    const printOpts = await computePrintOrientation(printBytes);
     try {
       // Hand the finished PDF to the platform's printer: the native system print
       // dialog on desktop (Windows/macOS/Linux print it from a hidden window so
       // the OS printer picker pops up directly), the system print or a new tab on
       // Android/web. Each provides a working print preview + printer picker.
-      const res = await window.api.print(printBytes);
+      const res = await window.api.print(printBytes, printOpts);
       if (res && res.ok === false) {
         App.toast('Could not print: ' + (res.error || 'unknown error'), 'error');
         return;
