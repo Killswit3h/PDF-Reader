@@ -26,6 +26,14 @@
     if (prev === 'measure' && mode !== 'measure' && App.Measure) App.Measure.stop();
     if (prev === 'markup' && mode !== 'markup' && App.Markup) App.Markup.stop();
 
+    // Arming a tool drops any object selection left over from another layer, so
+    // only the armed tool's contextual bar is on screen. Without this, drawing a
+    // markup (which selects it) and then switching to Measure left the markup
+    // properties bar up alongside the measure banner — two toolbars at once, and
+    // Escape was the only way to clear it. Disarming (mode = null) deliberately
+    // keeps the selection so the item can still be nudged, copied or deleted.
+    if (mode) clearObjectSelection();
+
     // toolbar armed highlight. Select is the resting tool — it lights up
     // whenever no drawing/placement tool is armed, so clicking anything on the
     // page selects it (to move, resize, delete, or nudge).
