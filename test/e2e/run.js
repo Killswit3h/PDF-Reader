@@ -447,6 +447,19 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'markup prospective color — restyling with a tool armed hits the next markup, not the last one',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MKPROSPECT: '1' }, [SAMPLE]), 'mkprospect');
+      check(j.armedSel === true, 'finalize() no longer selects the drawn markup — draw-then-nudge would be broken');
+      check(j.afterProspective === j.before,
+        `preset recolored the already-drawn highlight: ${j.before} -> ${j.afterProspective}`);
+      check(j.defAfter === '#2f6fed', `preset did not become the default for the next markup: ${j.defAfter}`);
+      check(j.selAfterSwitch === null, 'arming another tool left the markup selected');
+      check(j.propsHidden === true, 'markup properties bar stayed up after switching tools — two toolbars');
+      check(j.afterRetro === '#21a366', `restyling via Select was not retroactive: ${j.afterRetro}`);
+    }
+  },
+  {
     name: 'text copy — selecting PDF text shows the copy button',
     run: () => {
       const j = tagJson(runApp({ SMOKE_COPY: '1' }, [SAMPLE]), 'copy');
