@@ -933,6 +933,57 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_MKPROSPECT: restyling is prospective while a drawing tool is armed
+      // and retroactive only via Select, and arming a tool leaves exactly one
+      // contextual toolbar up. Drives the real finalize() path (startTool +
+      // commitActive) rather than hand-building an annotation, because the bug
+      // being guarded lives in the selection finalize() leaves behind.
+      if (process.env.SMOKE_MKPROSPECT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const sw=(c)=>document.querySelector('#mk-stroke-presets .mk-sw[data-color="'+c+'"]');
+              const anno=(id)=>App.state.annotations.find(a=>a.id===id);
+              // Draw a highlight through the real tool lifecycle: startTool arms
+              // it, commitActive runs finalize(), which selects what was drawn.
+              App.Markup.startTool('highlight');
+              App.Markup.active={type:'highlight',page:1,pts:[{vx:60,vy:420},{vx:200,vy:445}]};
+              App.Markup.commitActive();
+              const drawnId=App.state.annoSelectedId;
+              const armedSel=drawnId!=null;
+              const before=anno(drawnId).style.stroke;
+              // FR-1: tool still armed -> the preset must NOT recolour the drawn
+              // highlight, only the default for the next one.
+              sw('#2f6fed').click();
+              await new Promise(r=>setTimeout(r,20));
+              const afterProspective=anno(drawnId).style.stroke;
+              const defAfter=App.state.annoStyle.stroke;
+              // FR-3 / FR-4: arming another tool clears the markup selection, so
+              // the markup properties bar goes away instead of stacking up.
+              App.setMode('measure');
+              await new Promise(r=>setTimeout(r,20));
+              const selAfterSwitch=App.state.annoSelectedId;
+              const propsHidden=document.querySelector('#markup-props').classList.contains('hidden');
+              // FR-2: back in Select with no tool armed, restyling is retroactive.
+              App.setMode(null);
+              App.Markup.select(drawnId);
+              sw('#21a366').click();
+              await new Promise(r=>setTimeout(r,20));
+              const afterRetro=anno(drawnId).style.stroke;
+              // Restore the default markup style — applyStyle persists annoStyle to
+              // localStorage, shared across the suite's Electron runs (see mkpreset).
+              App.state.annoStyle={stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14};
+              if(App.Prefs)App.Prefs.set('annoStyle',App.state.annoStyle);
+              return JSON.stringify({armedSel,before,afterProspective,defAfter,selAfterSwitch,propsHidden,afterRetro});
+            })()`, true);
+            console.log('[mkprospect] ' + r);
+          } catch (e) { console.log('[mkprospect] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_COPY: selecting PDF text surfaces the copy button + a non-empty
       // text selection (the clipboard path itself can't be asserted headless).
       if (process.env.SMOKE_COPY) {

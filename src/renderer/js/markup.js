@@ -628,7 +628,12 @@
 
   /* ---------------- properties bar ---------------- */
   function syncPropBar() {
-    const an = annoById(App.state.annoSelectedId);
+    // While a drawing tool is armed the bar describes the NEXT markup, not the one
+    // just drawn — finalize() leaves that selected so it can still be nudged or
+    // deleted, but the user's next style change is meant for what comes next.
+    // Reading the selection here would make the bar show a colour that changing
+    // no longer affects (see applyStyle).
+    const an = editTarget();
     const s = an ? an.style : defaults();
     const set = (id, v) => { const el = App.$(id); if (el) el.value = v; };
     set('#mk-stroke', s.stroke);
@@ -648,8 +653,15 @@
     App.$$('#mk-stroke-presets .mk-sw').forEach((b) => b.classList.toggle('active', b.dataset.color.toLowerCase() === cur));
   }
   K.syncProps = syncPropBar;
+  // The markup a style change should edit, or null to edit the defaults instead.
+  // Restyling is retroactive only when the user explicitly picked an object with
+  // Select; with a tool armed it's prospective, so choosing a colour part-way
+  // through highlighting applies to the next highlight rather than recolouring
+  // the last one.
+  function editTarget() { return K.tool ? null : annoById(App.state.annoSelectedId); }
+
   function applyStyle(patch) {
-    const an = annoById(App.state.annoSelectedId);
+    const an = editTarget();
     if (an) { snapshot(); Object.assign(an.style, patch); K.repositionAll(); }
     Object.assign(defaults(), patch); // also update defaults for new items
     if (App.Prefs) App.Prefs.set('annoStyle', App.state.annoStyle); // persist across restarts
