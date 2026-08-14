@@ -62,8 +62,15 @@ active tool.
 **FR-5** — When the user leaves all tools (Select / Escape), the system shall retain
 any existing object selection so the item can still be nudged, copied or deleted.
 
-**FR-6** — The system shall render the expanded left tool rail at 124px wide with
+**FR-6** — The system shall render the expanded left tool rail at 130px wide with
 34px-tall rail buttons, reduced from 148px and 38px.
+
+> Amended during Phase 5. The plan assumed 124px, but inspection measured every
+> rail label in the browser: at 124px "Measure", "Markup" and "Document" all clip,
+> which AC-7 forbids, and width alone cannot fix it below 142px — a 4% reduction
+> not worth shipping. Trimming the rail button's padding (12px → 8px) and gap
+> (8px → 6px) buys back the label column and makes 130px clean, a 12% reduction.
+> FR-6 and AC-7 were mutually unsatisfiable as written; this is the resolution.
 
 **FR-7** — The system shall preserve the existing rail collapse toggle and its 56px
 collapsed width unchanged.

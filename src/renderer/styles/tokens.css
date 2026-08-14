@@ -27,7 +27,7 @@
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   --toolbar-h: 52px;
-  --rail-w: 124px;
+  --rail-w: 130px;
   --grid-size: 16px;   /* fine graph-paper pitch */
   --grid-major: 96px;  /* heavy line every 6 squares */
 }
