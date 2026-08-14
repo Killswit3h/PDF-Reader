@@ -751,7 +751,7 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
 .rail-group { display: flex; flex-direction: column; gap: var(--sp-1); }
 .rail-sep { height: 1px; background: var(--border); margin: var(--sp-1) var(--sp-1); }
 .rail-btn {
-  width: 100%; height: 38px; justify-content: flex-start; text-align: left;
+  width: 100%; height: 34px; justify-content: flex-start; text-align: left;
   display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md);
 }
 /* Dropdowns fly out to the right of the rail */
@@ -761,6 +761,11 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
    a row via .rail-btn's existing gap, so this reads "📐 Measure ▾" as before;
    on mobile the same markup stacks into an icon-over-label bottom-bar cell. */
 .rail-ico { line-height: 1; }
+/* At the rail's 124px the longest labels ("Continuous", "Initials") sit close to
+   the edge, and a longer one at a larger OS font scale must clip rather than wrap
+   the button to two lines or push the caret out of the rail. min-width:0 lets the
+   label shrink inside the flex row instead of forcing the caret to overflow. */
+.rail-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-caret { margin-left: auto; color: var(--text-faint); font-size: 11px; }
 
 /* ---- Collapsible rail (desktop) ----
