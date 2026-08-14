@@ -23,6 +23,7 @@ Each role is a skill in `.claude/skills/`:
 Support libraries (used by the roles, not phases themselves):
 - `.claude/skills/ui-ux-pro-max/` - searchable design intelligence engine (design systems, styles, palettes, typography, UX rules, stack guidance). The frontend-agent drives it.
 - `.claude/skills/react-best-practices/` - Vercel's React/Next.js performance rules. Used by frontend-agent while building and inspector while reviewing.
+- `.claude/skills/git-workflow/` - the git standard for every phase: repo setup, branching, Conventional Commits, merge rules, recovery recipes. The dev-project-manager enforces it.
 
 ## Ground rules
 
@@ -31,3 +32,4 @@ Support libraries (used by the roles, not phases themselves):
 - Two user checkpoints: spec approval and plan approval. After plan approval, build without further questions unless the spec is silent on something user-visible.
 - Pipeline artifacts live in `specs/`. Deferred ideas go to `specs/backlog.md` instead of expanding scope mid-build.
 - Security is a build track, not an afterthought. Critical security findings block delivery.
+- Git per `.claude/skills/git-workflow/`: `main` always works, feature work on `feat/<slug>` branches, Conventional Commits referencing FR numbers, `.gitignore` and `.env.example` before the first commit, merge to `main` only on inspection PASS.

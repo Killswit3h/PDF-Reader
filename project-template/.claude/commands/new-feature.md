@@ -29,10 +29,12 @@ Invoke the **dev-project-manager** skill. No stack decision needed; the plan mus
 **CHECKPOINT: user approves the plan. Then build autonomously.**
 
 ## Phase 4 - Build
+Follow the **git-workflow** skill: before any code, confirm the working tree is clean (stash or ask about uncommitted changes; never build on top of them), then create the branch `feat/<slug>` from `main`. Commit the approved specs first, then each completed work-order task as its own Conventional Commit referencing FR numbers. Never commit directly to `main`.
+
 Under dev-project-manager coordination: **backend-agent** for schema/endpoint changes (migrations must be backward-safe), **frontend-agent** for UI (reuse the existing design system; read `design-system/*/MASTER.md` if present rather than generating a new one), **security-agent** reviewing as code lands, with special attention to the new surface area's auth.
 
 ## Phase 5 - Inspection
 Invoke the **inspector** skill. In addition to the standard checks, verify the regression boundary: exercise the neighboring existing features listed in the plan and confirm they still behave. Loop the punch list until PASS.
 
 ## Phase 6 - Delivery
-Summarize: what changed, files touched, how to try the feature, anything deferred to `specs/backlog.md`.
+On inspection PASS: merge the feature branch to `main` per git-workflow (`--no-ff`, or push the branch and open a PR if a GitHub remote exists, and merge there), delete the branch, and push. Then summarize: what changed, files touched, how to try the feature, anything deferred to `specs/backlog.md`.

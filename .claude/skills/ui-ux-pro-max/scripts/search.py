@@ -9,7 +9,8 @@ Usage: python search.py "<query>" [--domain <domain>] [--stack <stack>] [--max-r
 
 Domains: style, color, chart, landing, product, ux, typography, google-fonts, icons, gsap, react, web
 Stacks: react, nextjs, vue, svelte, astro, swiftui, react-native, flutter, nuxtjs, nuxt-ui,
-        html-tailwind, shadcn, jetpack-compose, threejs, angular, laravel
+        html-tailwind, shadcn, jetpack-compose, threejs, angular, laravel, javafx, wpf,
+        winui, avalonia, uno, uwp
 
 Design dials (1-10, only with --design-system):
   --variance   DESIGN_VARIANCE: 1=centered/minimal, 10=bold/asymmetric

@@ -29,10 +29,12 @@ Invoke the **dev-project-manager** skill. Choose the stack (confirm with the use
 **CHECKPOINT: present stack choice and build plan summary; get approval.** After this approval, build autonomously without further questions unless the spec is silent on something user-visible.
 
 ## Phase 4 - Build
-Still under dev-project-manager coordination:
-1. Scaffold the project, then run the **backend-agent** work order (schema, auth, endpoints).
+Still under dev-project-manager coordination, following the **git-workflow** skill throughout:
+1. Scaffold the project, then `git init`, write `.gitignore` and `.env.example`, and make the `chore: scaffold project` commit before any feature code. Commit the approved specs (`docs: add research brief, spec, and build plan`). Then run the **backend-agent** work order (schema, auth, endpoints).
 2. Run the **frontend-agent** work order (design system via ui-ux-pro-max first, then UI against the contract).
 3. Run the **security-agent** review as code lands; route findings back as fix tasks. Critical findings block progress until fixed.
+
+Commit each completed work-order task with a Conventional Commit referencing its FR numbers (see git-workflow). The tree stays clean between tasks.
 
 Where the environment supports subagents (Task tool), the frontend and backend work orders may run as parallel subagents once the integration contract is fixed; otherwise run them sequentially in the order above.
 
@@ -40,4 +42,4 @@ Where the environment supports subagents (Task tool), the frontend and backend w
 Invoke the **inspector** skill against the finished build. On FAIL, dev-project-manager works the punch list and re-inspection loops until PASS.
 
 ## Phase 6 - Delivery
-Summarize for the user: what was built, how to run it, key decisions, contents of `specs/backlog.md` (ideas deferred), and suggested next steps. Do not deploy unless asked.
+Make the final commit, tag `v1.0.0`, and push to the user's remote if one is configured (offer to create a GitHub repo if not). Then summarize for the user: what was built, how to run it, key decisions, contents of `specs/backlog.md` (ideas deferred), and suggested next steps. Do not deploy unless asked.

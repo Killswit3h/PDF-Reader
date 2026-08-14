@@ -42,6 +42,8 @@ Dispatch the tracks in this order (matches the pipeline diagram):
 
 Track progress against the work orders with the todo list. When an agent hits an ambiguity, resolve it here against the spec; only escalate to the user when the spec itself is silent and the choice is user-visible.
 
+You also own git discipline for the build (full rules in the **git-workflow** skill): the feature branch exists before code is written (new projects: `git init` + `.gitignore` + `.env.example` + scaffold commit before feature code), every completed work-order task becomes one Conventional Commit referencing its FR numbers, the tree is clean between tasks, and nothing merges to `main` before the Inspector's PASS.
+
 ### 5. Integrate and hand off
 - Verify the app runs end to end: install, build, start, click the primary flow.
 - Verify every work-order task is done and every FR number is claimed by implemented code.

@@ -109,7 +109,7 @@ Each role is a skill in `.claude/skills/`:
 Support libraries (used by the roles, not phases themselves):
 - `.claude/skills/ui-ux-pro-max/` - searchable design intelligence engine (design systems, styles, palettes, typography, UX rules, stack guidance). The frontend-agent drives it.
 - `.claude/skills/react-best-practices/` - Vercel's React/Next.js performance rules. Used by frontend-agent while building and inspector while reviewing.
-- `.claude/skills/git-workflow/` - branching, commit, and merge conventions for pipeline runs.
+- `.claude/skills/git-workflow/` - the git standard for every phase: repo setup, branching, Conventional Commits, merge rules, recovery recipes. The dev-project-manager enforces it.
 
 ## Ground rules
 
@@ -118,12 +118,14 @@ Support libraries (used by the roles, not phases themselves):
 - Two user checkpoints: spec approval and plan approval. After plan approval, build without further questions unless the spec is silent on something user-visible.
 - Pipeline artifacts live in `specs/`. Deferred ideas go to `specs/backlog.md` instead of expanding scope mid-build.
 - Security is a build track, not an afterthought. Critical security findings block delivery.
+- Git per `.claude/skills/git-workflow/`: `main` always works, feature work on branches, Conventional Commits referencing FR numbers, merge to `main` only on inspection PASS.
 
 ## Applying the pipeline to *this* repo
 
 The pipeline is generic; the rules above this section are specific and win where they disagree:
 
 - **This is always a feature build, never a new project.** Use `/new-feature`. The `git-workflow` skill's "a brand-new project builds its first version directly on `main`" exception does not apply here — the golden branch rule at the top of this file does.
+- **Never merge to `main` yourself.** `/new-feature`'s Phase 6 and `git-workflow` both say to merge the branch on inspection PASS. In this repo, PASS means *open a draft PR and stop*; the maintainer merges. Same for releases: version bumps and tagging follow the "Releases" section above (`workflow_dispatch`, never `git push` a tag from a Claude Code session), not `git tag && git push --tags`.
 - **No stack decision to make.** `dev-project-manager` detects the existing stack: vanilla JS on a global `App` object, no bundler, PDF.js + pdf-lib, Electron + Capacitor. It does not propose Next.js, a database, or a hosting platform.
 - **`backend-agent` and `security-agent` have almost no surface here.** The app is offline with no network at runtime and no server. Their tracks reduce to reviewing file I/O across the `window.api` contract and anything touching the filesystem; skip the auth/API/CORS/rate-limiting checklists that assume a server.
 - **`frontend-agent` must not introduce React, a design-system generator, or new dependencies.** The cross-platform rule above governs: renderer-only features in `src/renderer/js/` + `src/shared/`. `react-best-practices` is not applicable; its general JS rules (`js-*`) still are.

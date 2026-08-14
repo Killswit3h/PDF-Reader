@@ -10,14 +10,15 @@ Deep Researcher → Spec Designer → Developer Project Manager
 
 ## How to install into a project
 
-Copy the **contents** of this folder into the root of your project:
+**Existing project (recommended): use the installer.** From Terminal:
 
-- `.claude/` (skills + commands)
-- `CLAUDE.md`
-- `specs/` (empty; pipeline outputs land here)
-- `docs/pipeline.md` (reference)
+```bash
+bash ~/Documents/Coding\ Projects/Developer\ Tree\ Skills/project-template/install.sh /path/to/your/project
+```
 
-New empty project: copy everything as-is. Existing project that already has a `CLAUDE.md`: paste the "Build Pipeline" section of this template's `CLAUDE.md` into yours (or keep both sections in one file). Existing `.claude/` folder: merge the `skills/` and `commands/` subfolders in.
+The installer is safe by design: it refuses to run if the project has uncommitted changes, never overwrites an existing file (same-name skills, commands, and docs are skipped and reported), appends the pipeline section to an existing `CLAUDE.md` instead of replacing it (and never appends twice), adds only missing safety entries to `.gitignore`, warns if any `.env` file is tracked by git, and records everything as a single commit. Undo the whole install anytime with `git revert HEAD`. Add `--yes` to skip the confirmation prompt.
+
+**New empty project:** copy the contents of this folder as-is (`.claude/`, `CLAUDE.md`, `specs/`, `docs/`), or just run the installer against the empty folder and let it `git init` for you.
 
 Requires Python 3 on the machine for the design engine (macOS has it; no packages to install).
 
@@ -46,9 +47,18 @@ You get asked questions at two checkpoints only: approving the **spec** (what ge
 | `.claude/skills/security-agent/` | Build track: continuous security review, blocking criticals |
 | `.claude/skills/inspector/` | Phase 5: spec compliance, code review (confidence ≥ 80), perf pass, PASS/FAIL loop |
 | `.claude/skills/ui-ux-pro-max/` | Bundled design intelligence engine (styles, palettes, typography, UX rules, 22 stacks) |
-| `.claude/skills/react-best-practices/` | Bundled Vercel React/Next.js performance rules (76 rules) |
+| `.claude/skills/react-best-practices/` | Bundled Vercel React/Next.js performance rules (70 rules) |
+| `.claude/skills/git-workflow/` | Git standard: branching, Conventional Commits, merge-on-PASS, recovery recipes |
+| `install.sh` | Safe installer for existing projects: no-overwrite merge, CLAUDE.md append, one revertible commit |
 | `specs/` | Where briefs, specs, plans, inspection reports, and backlog accumulate |
 
 ## Credits
 
-Skills distilled and bundled from four open-source repos: Anthropic's claude-code plugins (feature-dev, code-review), Jeffallan's claude-skills (feature-forge, spec-miner, architecture-designer, api-designer, fullstack-guardian, secure-code-guardian, security-reviewer, code-reviewer, test-master; MIT), the ui-ux-pro-max skill (bundled whole), and Vercel's agent-skills (react-best-practices; MIT). See the original repos in the Developer Tree Skills folder for full sources.
+Skills distilled and bundled from four upstream repos:
+
+- **ui-ux-pro-max** (MIT) — bundled whole as `.claude/skills/ui-ux-pro-max/`.
+- **Vercel's agent-skills** (MIT) — `react-best-practices` bundled whole.
+- **Jeffallan's claude-skills** (MIT) — feature-forge, spec-miner, architecture-designer, api-designer, fullstack-guardian, secure-code-guardian, security-reviewer, code-reviewer, test-master, distilled into the phase skills.
+- **Anthropic's claude-code plugins** (feature-dev, code-review) — **not** open source; © Anthropic PBC, use subject to Anthropic's Commercial Terms. Nothing is redistributed from them; only the workflow shape informed this template.
+
+Full license texts and per-source detail: `THIRD-PARTY-NOTICES.md`. Original repos are in the Developer Tree Skills folder.

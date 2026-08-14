@@ -33,7 +33,10 @@ Review the diff for real problems, and rate each candidate finding 0-100 confide
 ### 4. Stack-specific performance pass
 React/Next.js projects: check the diff against `.claude/skills/react-best-practices/rules/`, prioritizing the critical categories: waterfalls (`async-*`: sequential awaits that should be parallel, missing Suspense boundaries) and bundle size (`bundle-*`: barrel imports, heavy components not dynamically imported), then `server-*` (unauthenticated server actions are a fail, not a note). Other stacks: apply the equivalent judgment (N+1 queries, unbounded lists, missing pagination).
 
-### 5. Report
+### 5. Git hygiene check
+Per the git-workflow skill: working tree clean; the branch's commits are atomic Conventional Commits referencing FR numbers; `.gitignore` covers dependencies, builds, and env files; `git log --diff-filter=A -- "*.env*"` and a scan of tracked files confirm no secrets or `.env` files were ever committed (a committed secret is a Critical finding: rotate it, do not just delete the file); no commented-out code blocks or debug prints left in the diff.
+
+### 6. Report
 Save as `specs/04-inspection-report.md`:
 
 1. **Verdict**: PASS or FAIL (fail if any FR is missing, any acceptance criterion fails, the build breaks, or any Critical finding exists)

@@ -29,3 +29,4 @@ graph TD
 - One contract for integration. Frontend and backend build to the same declared routes and types, so parallel work converges.
 - Verification is adversarial. The Inspector runs the product and exercises the criteria; it does not take the builders' word.
 - Scope creep goes to `specs/backlog.md`, not into the build.
+- Git is part of the pipeline, not an afterthought: feature branches per run, Conventional Commits per work-order task referencing FR numbers, `main` only moves on inspection PASS. Full rules in `.claude/skills/git-workflow/`.
