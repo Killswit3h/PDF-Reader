@@ -4,9 +4,17 @@ Phase 5 output. Verified against `specs/02-spec.md`.
 
 ## 1. Verdict
 
-**PASS**, with one disclosed gap: the Electron e2e suite could not be executed in
-this environment (see §6). Every acceptance criterion was exercised for real in a
-browser engine; nothing here is checked off on the strength of reading the code.
+**PASS.** Every acceptance criterion was exercised for real in a browser engine;
+nothing here is checked off on the strength of reading the code.
+
+> **Gap closed after this report was written.** The Electron e2e suite could not run
+> locally (§6). CI ran it on PR #82 and it passed on real Electron:
+> `51 passed, 0 failed`, including the new scenario —
+> `✓ markup prospective color — restyling with a tool armed hits the next markup,
+> not the last one (2185ms)` — plus 162 unit tests on ubuntu, windows and macos.
+> §6's "what remains unverified" and finding F-2 are both resolved. The local
+> environment fault described there is still real, and still worth fixing on this
+> machine.
 
 ## 2. Requirements matrix
 
@@ -56,13 +64,14 @@ This was a **spec defect**, not just an implementation miss: FR-6's 124px and AC
 "no label clipped or wrapped" were mutually unsatisfiable. FR-6 is amended in place
 in `specs/02-spec.md` with the measurement and the reasoning. Fixed in `d4e045f`.
 
-### F-2 — The new smoke scenario is unexecuted (confidence 100)
+### F-2 — The new smoke scenario is unexecuted (confidence 100) — **RESOLVED**
 
-`SMOKE_MKPROSPECT` and its `test/e2e/run.js` assertion are written and
-syntax-checked but have **never run**, because Electron cannot start here. Its
-assertions duplicate what the Chromium harness verified passing, and it is modelled
-closely on the existing `SMOKE_MKPRESET`, but it is unproven until CI runs it. Treat
-a failure there as a test-harness bug, not a product regression.
+`SMOKE_MKPROSPECT` and its `test/e2e/run.js` assertion were written and
+syntax-checked but had **never run**, because Electron cannot start here.
+
+Resolved by CI on PR #82: the scenario ran on real Electron and passed in 2185ms,
+inside a full `51 passed, 0 failed` suite that also covers every scenario in the
+spec's regression list.
 
 ### Considered and dropped (below the 80-confidence bar)
 
