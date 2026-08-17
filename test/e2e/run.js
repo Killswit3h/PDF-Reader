@@ -544,6 +544,19 @@ const SCENARIOS = [
       // The orientation hint (landscape for a wide sheet) must reach the print path.
       check(j.wantLandscape === (j.w > j.h), `orientation hint ${j.wantLandscape} != page shape (${j.w}x${j.h})`);
       check(j.gotLandscape === j.wantLandscape, 'orientation hint did not reach the print IPC');
+      // Tabloid regression guard: the print document must BE the paper size, and
+      // the matching page box must reach the print IPC. Leaving either to the
+      // platform is what printed a 17x11 sheet at ~3/4 size in a corner.
+      const longEdge = Math.max(j.tabW, j.tabH), shortEdge = Math.min(j.tabW, j.tabH);
+      check(longEdge === 1224 && shortEdge === 792,
+        `tabloid print doc should be 1224x792 points, got ${j.tabW}x${j.tabH}`);
+      check(j.tabPages === j.numPages, `tabloid print doc has ${j.tabPages} pages, doc has ${j.numPages}`);
+      check(!!j.micron && Math.max(j.micron.width, j.micron.height) === 431800 &&
+        Math.min(j.micron.width, j.micron.height) === 279400,
+        `pageSize should be 17x11in in microns, got ${JSON.stringify(j.micron)}`);
+      check(!!j.gotPageSize, 'pageSize never reached the print IPC — tabloid geometry is back to a platform guess');
+      check(Math.max(j.gotPageSize.width, j.gotPageSize.height) === 431800,
+        `print IPC got the wrong page box: ${JSON.stringify(j.gotPageSize)}`);
     }
   },
   {
