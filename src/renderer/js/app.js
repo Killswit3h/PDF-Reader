@@ -370,6 +370,16 @@
           ['#printprev-modal', '#pp-cancel']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
         if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
+        // An open flyout swallows Esc: dismiss it and hand focus back to its
+        // trigger. The early return matters — falling through to the mode block
+        // below would also cancel an in-progress measurement or disarm the tool.
+        if (Dropdowns.open) {
+          e.preventDefault();
+          const trigger = Dropdowns.open.btn;
+          closeAllDropdowns();
+          if (trigger) trigger.focus();
+          return;
+        }
       }
       // Let the signature modal handle its own remaining keys.
       if (!App.$('#sig-modal').classList.contains('hidden')) return;
@@ -562,49 +572,90 @@
     App.$('#find-close').addEventListener('click', () => App.Viewer.closeFind());
   }
 
+  // ---------- Dropdown flyouts ----------
+  // Every rail/header flyout is a .tb-dropdown wrapping a trigger button and a
+  // .tb-menu. They all render in the same sliver of screen (styles.css:764 pins
+  // rail menus to top:0/left:100%), so two open at once means one draws on top
+  // of the other. This registry keeps exactly one open: opening any menu closes
+  // the rest, and Esc closes the current one and hands focus back to its trigger.
+  const Dropdowns = { list: [], open: null };
+
+  function closeAllDropdowns() {
+    Dropdowns.list.forEach((d) => d.close());
+  }
+
+  // Wire a trigger/menu pair into the registry. Returns the entry so callers can
+  // close it from an item handler.
+  function registerDropdown(btn, menu) {
+    if (!btn || !menu) return null;
+    const root = btn.closest('.tb-dropdown') || menu.parentElement;
+    const entry = {
+      btn, menu, root,
+      isOpen() { return !menu.classList.contains('hidden'); },
+      set(on) {
+        menu.classList.toggle('hidden', !on);
+        btn.setAttribute('aria-expanded', String(on));
+        if (on) Dropdowns.open = entry;
+        else if (Dropdowns.open === entry) Dropdowns.open = null;
+      },
+      close() { if (entry.isOpen()) entry.set(false); }
+    };
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', String(entry.isOpen()));
+    // stopPropagation keeps this very click from reaching the document-level
+    // handler below, which would immediately re-close what we just opened. That
+    // means siblings never see the click either — so we close them proactively.
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled) return;
+      const willOpen = !entry.isOpen();
+      closeAllDropdowns();
+      if (willOpen) entry.set(true);
+    });
+    Dropdowns.list.push(entry);
+    return entry;
+  }
+
+  // One outside-click listener for all of them. Scoping on the owning ELEMENT
+  // (not the '.tb-dropdown' selector) is what lets the Measure menu's colour
+  // input and checkboxes keep their own menu open while closing every other one.
+  function setupDropdownDismiss() {
+    document.addEventListener('click', (e) => {
+      const inside = e.target.closest('.tb-dropdown');
+      Dropdowns.list.forEach((d) => { if (inside !== d.root) d.close(); });
+    });
+  }
+
+  App.Dropdowns = { closeAll: () => closeAllDropdowns() };
+
   // ---------- Boot ----------
   function setupMeasureMenu() {
     const btn = App.$('#btn-measure');
     const menu = App.$('#measure-menu');
-    const close = () => menu.classList.add('hidden');
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (btn.disabled) return;
-      menu.classList.toggle('hidden');
-    });
+    const dd = registerDropdown(btn, menu);
     menu.querySelectorAll('button[data-mtool]').forEach((b) => {
       b.addEventListener('click', () => {
-        close();
+        if (dd) dd.close();
         const tool = b.dataset.mtool;
         if (tool === 'toggle-panel') App.Measure.togglePanel();
         else App.Measure.startTool(tool);
       });
-    });
-    // close menu on outside click
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.tb-dropdown')) close();
     });
   }
 
   function setupMarkupMenu() {
     const btn = App.$('#btn-markup');
     const menu = App.$('#markup-menu');
-    const close = () => menu.classList.add('hidden');
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (btn.disabled) return;
-      menu.classList.toggle('hidden');
-    });
+    const dd = registerDropdown(btn, menu);
     menu.querySelectorAll('button[data-mk]').forEach((b) => {
       b.addEventListener('click', () => {
-        close();
+        if (dd) dd.close();
         const mk = b.dataset.mk;
         if (mk === '__list') App.MarkupPanel.toggle();
         else if (App.Markup.isTextTool && App.Markup.isTextTool(mk)) App.Markup.startTextMarkup(mk);
         else App.Markup.startTool(mk);
       });
     });
-    document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
     App.$('#mk-undo').addEventListener('click', () => App.Markup.undo());
     App.$('#mk-redo').addEventListener('click', () => App.Markup.redo());
   }
@@ -674,15 +725,10 @@
     const btn = App.$('#btn-document');
     const menu = App.$('#document-menu');
     if (!btn || !menu) return;
-    const close = () => menu.classList.add('hidden');
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (btn.disabled) return;
-      menu.classList.toggle('hidden');
-    });
+    const dd = registerDropdown(btn, menu);
     menu.querySelectorAll('button[data-doc]').forEach((b) => {
       b.addEventListener('click', () => {
-        close();
+        if (dd) dd.close();
         const d = b.dataset.doc;
         if (d === 'organize') App.Organize.toggle();
         else if (d === 'stamp') App.DocStamp.open();
@@ -693,7 +739,6 @@
         else if (d === 'split') App.SplitView.toggle();
       });
     });
-    document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
   }
 
   // Help menu: the always-available entry point to the welcome tour and the
@@ -703,21 +748,15 @@
     const btn = App.$('#btn-help');
     const menu = App.$('#help-menu');
     if (!btn || !menu) return;
-    const close = () => { menu.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); };
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const open = menu.classList.toggle('hidden');
-      btn.setAttribute('aria-expanded', String(!open));
-    });
+    const dd = registerDropdown(btn, menu);
     menu.querySelectorAll('button[data-help]').forEach((b) => {
       b.addEventListener('click', () => {
-        close();
+        if (dd) dd.close();
         const h = b.dataset.help;
         if (h === 'tour' && App.Tour) App.Tour.start();
         else if (h === 'shortcuts') App.Shortcuts.open();
       });
     });
-    document.addEventListener('click', (e) => { if (!e.target.closest('.tb-dropdown')) close(); });
   }
 
   // Collapse the left tool rail to an icon-only strip (desktop). The armed
@@ -1060,6 +1099,7 @@
     setupMarkupMenu();
     setupMarkupRail();
     setupDocumentMenu();
+    setupDropdownDismiss();   // after every registerDropdown() call above
     setupRailToggle();
     setupMobileOverflow();
     setupFind();
