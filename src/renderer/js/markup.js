@@ -715,7 +715,7 @@
       ? all.filter((an) => an.type.includes(q) || (an.text || '').toLowerCase().includes(q) || ('p' + an.page).includes(q))
       : all;
     list.innerHTML = '';
-    if (!all.length) { list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">✏️</div>No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
+    if (!all.length) { list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">' + App.icon('pencil', 'ico-lg') + '</div>No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
     if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups match “' + esc(q) + '”.</div>'; return; }
     arr.forEach((an) => {
       const row = document.createElement('div');
@@ -725,7 +725,7 @@
         `<span class="mp-type">${an.type}</span>` +
         `<span class="mp-val">${an.text ? esc(an.text) : ''}</span>` +
         `<span class="mp-pg">p${an.page}</span>` +
-        `<button class="mp-del" title="Delete">✕</button>`;
+        `<button class="mp-del" title="Delete" aria-label="Delete">${App.icon('trash')}</button>`;
       row.addEventListener('click', (e) => {
         if (e.target.classList.contains('mp-del')) { K.remove(an.id); Panel.render(); return; }
         K.select(an.id);

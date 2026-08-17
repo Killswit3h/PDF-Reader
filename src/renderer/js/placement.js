@@ -157,7 +157,7 @@
 
     const del = document.createElement('button');
     del.className = 'del-btn';
-    del.textContent = '✕';
+    del.innerHTML = App.icon('close');
     del.title = 'Delete';
     el.appendChild(del);
 

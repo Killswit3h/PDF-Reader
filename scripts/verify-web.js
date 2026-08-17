@@ -160,6 +160,47 @@ function serve(dir) {
 
       return { measureAlone, swapped, swapped2, selfClosed, stickyOpen, escClosed, outsideClosed, maxOpen };
     });
+
+    // ---- Icon system (Track A) ----
+    // Two things are checked against the live DOM rather than the source, so a
+    // regression is caught wherever it comes from — hand-written markup or a
+    // module building rows with innerHTML.
+    //
+    // 1. No emoji is used as an interface icon. Emoji cannot inherit
+    //    currentColor and render as different vendor artwork on macOS, Windows
+    //    and Android, which is exactly what this track removed.
+    // 2. Every <use> resolves to a symbol that actually exists in the sprite —
+    //    a typo'd href renders as nothing at all, which is invisible in tests
+    //    that only assert on structure.
+    result.icons = await page.evaluate(() => {
+      const EMOJI = /\p{Extended_Pictographic}/u;
+      const offenders = [];
+      // Text nodes inside interactive chrome. The PDF's own text layer and any
+      // user-authored content are out of scope — this is about the app's UI.
+      document.querySelectorAll(
+        '#toolbar, #tool-rail, #markup-rail, #markup-props, #mode-banner, ' +
+        '.tb-menu, .tab-menu, .modal, #empty-state, #tab-bar, #find-bar, #copy-fab'
+      ).forEach((root) => {
+        const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+          if (EMOJI.test(n.nodeValue)) {
+            offenders.push((n.parentElement.id || n.parentElement.className || '?') +
+              ': ' + n.nodeValue.trim().slice(0, 40));
+          }
+        }
+      });
+      const missing = [];
+      document.querySelectorAll('use').forEach((u) => {
+        const href = u.getAttribute('href') || '';
+        if (href.startsWith('#') && !document.getElementById(href.slice(1))) missing.push(href);
+      });
+      return {
+        emojiOffenders: offenders,
+        missingSymbols: [...new Set(missing)],
+        symbolCount: document.querySelectorAll('#icon-sprite symbol').length,
+        iconCount: document.querySelectorAll('svg.ico use').length
+      };
+    });
   } finally {
     await browser.close();
     server.close();
@@ -168,12 +209,16 @@ function serve(dir) {
   const d = result.dropdowns || {};
   const dropdownsOk = d.measureAlone && d.swapped && d.swapped2 && d.selfClosed &&
     d.stickyOpen && d.escClosed && d.outsideClosed && d.maxOpen <= 1;
+  const ic = result.icons || {};
+  const iconsOk = ic.symbolCount > 0 && ic.iconCount > 0 &&
+    (ic.emojiOffenders || []).length === 0 && (ic.missingSymbols || []).length === 0;
   const ok = !errors.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
-    dropdownsOk;
+    dropdownsOk && iconsOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
   if (!dropdownsOk) console.log('[verify-web] dropdown exclusivity FAILED:', JSON.stringify(d));
+  if (!iconsOk) console.log('[verify-web] icon system FAILED:', JSON.stringify(ic, null, 2));
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });

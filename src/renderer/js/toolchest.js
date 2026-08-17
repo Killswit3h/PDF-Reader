@@ -98,7 +98,7 @@
     const tools = load();
     list.innerHTML = '';
     if (!tools.length) {
-      list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">🧰</div>No saved tools yet.<br>' +
+      list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">' + App.icon('toolbox', 'ico-lg') + '</div>No saved tools yet.<br>' +
         'Save a markup style or add an image stamp.</div>';
       return;
     }
@@ -112,7 +112,7 @@
         thumb +
         `<span class="tc-name">${esc(t.name)}</span>` +
         `<span class="tc-kind">${t.kind === 'stamp' ? 'stamp' : t.type}</span>` +
-        `<button class="tc-del" title="Remove">✕</button>`;
+        `<button class="tc-del" title="Remove" aria-label="Remove">${App.icon('trash')}</button>`;
       row.addEventListener('click', (e) => {
         if (e.target.classList.contains('tc-del')) { removeTool(t.id); return; }
         activate(t);

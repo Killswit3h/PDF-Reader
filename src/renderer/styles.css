@@ -41,6 +41,21 @@ html, body {
 .tb-sep { width: 1px; height: 26px; background: var(--border); margin: 0 4px; }
 .tb-spacer { flex: 1; }
 
+/* ---- Icons ----
+ * One sprite, one rule. Stroke lives here rather than on each <symbol> so every
+ * icon inherits currentColor and therefore the theme, the armed state, and the
+ * disabled fade for free. Buttons that pair an icon with a label lay out as a
+ * flex row so the two are optically centred rather than baseline-aligned. */
+.ico {
+  width: 16px; height: 16px; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.5;
+  stroke-linecap: square; stroke-linejoin: miter;
+  pointer-events: none;                /* clicks belong to the button, not the glyph */
+}
+.ico-lg { width: 20px; height: 20px; }
+.tb-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.tb-btn.icon { gap: 0; }
+
 .tb-btn {
   height: 34px;
   padding: 0 12px;
@@ -415,7 +430,7 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
   text-align: center; color: var(--text-dim);
 }
 #empty-state.hidden { display: none; }
-.empty-icon { font-size: 64px; margin-bottom: 8px; }
+.empty-icon { width: 64px; height: 64px; margin-bottom: 8px; }
 .empty-inner h1 { color: var(--text); margin: 6px 0; font-size: 26px; }
 .hint { font-size: 12px; margin-top: 16px; }
 
@@ -752,9 +767,11 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
 .rail-sep { height: 1px; background: var(--border); margin: var(--sp-1) var(--sp-1); }
 /* Tighter than a generic .tb-btn: at the narrowed rail width the label column is
    what runs out of room first, so the padding and gap come down to buy it back.
-   Measured — with the stock 12px padding / 8px gap the rail needs 142px before
-   "Document" stops clipping, which is barely narrower than the 148px it started
-   at; trimming both lets it sit at 130px with every label intact. */
+   The rail sat at 130px while the icons were emoji glyphs; the SVG set draws a
+   fixed 18px icon and a 12px caret where the emoji were narrower and the caret
+   was 11px text, so --rail-w went to 146px to keep "Document" intact.
+   Checked by rendering, not by scrollWidth: an ellipsis triggers on sub-pixel
+   overflow that integer scrollWidth/clientWidth both round away. */
 .rail-btn {
   width: 100%; height: 34px; justify-content: flex-start; text-align: left;
   display: flex; align-items: center; gap: 6px; font-size: var(--fs-md);
@@ -766,13 +783,22 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
 /* Rail-button parts (icon / label / dropdown caret). On desktop they lay out in
    a row via .rail-btn's existing gap, so this reads "📐 Measure ▾" as before;
    on mobile the same markup stacks into an icon-over-label bottom-bar cell. */
-.rail-ico { line-height: 1; }
+/* 18px, not the 20px of .ico-lg: the rail is width-constrained and the caret
+ * plus label must still fit at 136px. Measured, not guessed. */
+.rail-ico { line-height: 1; width: 18px; height: 18px; }
+/* Icon-bearing rows: menu items, context menus and panel action buttons all lay
+ * their glyph out the same way, so a row reads identically wherever it lives. */
+.tb-menu button, .tab-menu-item { display: flex; align-items: center; gap: var(--sp-2); }
+.org-act, .mp-del, .tc-del, .placed .del-btn, .mr-btn, .modal-x, .tour-x,
+.rail-toggle, .mr-toggle, .mr-reopen, .link-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
 /* At the rail's 124px the longest labels ("Continuous", "Initials") sit close to
    the edge, and a longer one at a larger OS font scale must clip rather than wrap
    the button to two lines or push the caret out of the rail. min-width:0 lets the
    label shrink inside the flex row instead of forcing the caret to overflow. */
 .rail-txt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rail-caret { margin-left: auto; color: var(--text-faint); font-size: 11px; }
+.rail-caret { margin-left: auto; color: var(--text-faint); width: 12px; height: 12px; }
 
 /* ---- Collapsible rail (desktop) ----
    A chevron toggle narrows the rail to an icon-only strip; the viewer reclaims
@@ -797,7 +823,7 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
   body.rail-collapsed #tool-rail .rail-btn {
     justify-content: center; gap: 0; padding-left: 0; padding-right: 0;
   }
-  body.rail-collapsed #tool-rail .rail-ico { font-size: 18px; }
+  body.rail-collapsed #tool-rail .rail-ico { width: 20px; height: 20px; }
 }
 
 /* ===================== Right-hand markup rail =====================
@@ -901,7 +927,8 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
   border: 1px solid var(--border); border-radius: var(--r-sm); font-size: var(--fs-md);
 }
 .mp-filter::placeholder { color: var(--text-faint); }
-.mp-empty-ico { font-size: 30px; opacity: 0.5; margin-bottom: var(--sp-2); }
+.mp-empty-ico { opacity: 0.5; margin-bottom: var(--sp-2); }
+.mp-empty-ico .ico { width: 28px; height: 28px; }
 
 /* ---- Confirm dialog ---- */
 #confirm-modal .modal.confirm { width: 440px; }
@@ -985,7 +1012,8 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
   font-size: 15px; cursor: pointer; border-radius: var(--r-sm); line-height: 1;
 }
 .tour-x:hover { background: var(--bg-hover); color: var(--text); }
-.tour-emoji { font-size: 30px; line-height: 1; margin-bottom: var(--sp-2); }
+.tour-emoji { line-height: 1; margin-bottom: var(--sp-2); color: var(--accent); }
+.tour-emoji .ico { width: 28px; height: 28px; }
 .tour-emoji.hidden { display: none; }
 .tour-title { margin: 0 0 var(--sp-2); font-size: var(--fs-xl); font-weight: 650; }
 .tour-body { margin: 0; font-size: var(--fs-md); line-height: 1.55; color: var(--text-dim); }
@@ -1139,7 +1167,7 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
   color: var(--text-faint); text-transform: uppercase;
 }
 .tb-body { padding: 26px 24px 22px; text-align: center; }
-.tb-body .empty-icon { font-size: 40px; margin-bottom: var(--sp-2); }
+.tb-body .empty-icon { width: 40px; height: 40px; margin-bottom: var(--sp-2); color: var(--text-faint); }
 .tb-body h1 { margin: 0 0 6px; font-size: var(--fs-xl); color: var(--text); letter-spacing: -0.01em; }
 .tb-body p { margin: 0; color: var(--text-dim); font-size: var(--fs-md); }
 .tb-body .tb-cta { margin: 18px 0 6px; }
@@ -1271,7 +1299,7 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
     color: var(--text-dim); border-radius: 0;
   }
   #tool-rail .rail-btn:hover:not(:disabled) { background: transparent; border-color: transparent; }
-  #tool-rail .rail-ico { font-size: 21px; }
+  #tool-rail .rail-ico { width: 22px; height: 22px; }
   #tool-rail .rail-txt {
     max-width: 100%; font-size: 10.5px; line-height: 1.05;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

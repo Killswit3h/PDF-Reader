@@ -73,6 +73,17 @@ App.state = {
 App.$ = (sel) => document.querySelector(sel);
 App.$$ = (sel) => Array.from(document.querySelectorAll(sel));
 
+// -------- Icons --------
+// Markup for one icon from the sprite in index.html. Modules that build rows and
+// tiles with innerHTML call this instead of hand-rolling <svg>, so every icon in
+// the app — static or generated — stays one edit away from the sprite.
+//   App.icon('trash')            -> 16px
+//   App.icon('rotate', 'ico-lg') -> 20px
+// aria-hidden because the icon never carries the accessible name; its button
+// does, via aria-label or visible text.
+App.icon = (name, cls = '') =>
+  `<svg class="ico${cls ? ' ' + cls : ''}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+
 // -------- Loading overlay --------
 App.showLoading = (text) => {
   App.$('#loading-text').textContent = text || 'Loading…';

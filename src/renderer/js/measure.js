@@ -548,7 +548,7 @@
       : all;
     list.innerHTML = '';
     if (!all.length) {
-      list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">📐</div>No measurements yet.<br>Use the Measure menu to add some.</div>';
+      list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">' + App.icon('measure', 'ico-lg') + '</div>No measurements yet.<br>Use the Measure menu to add some.</div>';
     } else if (!ms.length) {
       list.innerHTML = '<div class="mp-empty">No measurements match this filter.</div>';
     } else {
@@ -560,7 +560,7 @@
           `<span class="mp-type">${m.type}</span>` +
           `<span class="mp-val">${m.label}</span>` +
           `<span class="mp-pg">p${m.page}</span>` +
-          `<button class="mp-del" title="Delete">✕</button>`;
+          `<button class="mp-del" title="Delete" aria-label="Delete">${App.icon('trash')}</button>`;
         row.addEventListener('click', (e) => {
           if (e.target.classList.contains('mp-del')) { M.remove(m.id); return; }
           M.select(m.id, true); // panel pick: scroll the shape's page into view

@@ -831,7 +831,9 @@
     document.documentElement.dataset.theme = theme;
     const btn = App.$('#btn-theme');
     if (btn) {
-      btn.textContent = theme === 'light' ? '☀' : '☾';
+      // Swap the sprite reference rather than the text: the button holds an <svg>.
+    const use = App.$('#theme-ico-use');
+    if (use) use.setAttribute('href', theme === 'light' ? '#i-sun' : '#i-moon');
       btn.title = `Theme: ${theme} — click for ${theme === 'light' ? 'dark' : 'light'}`;
     }
   }
@@ -904,7 +906,7 @@
       latestUpdate = res;
       const badge = App.$('#btn-updates');
       badge.classList.add('armed');
-      badge.textContent = '⬆ Update';
+      badge.innerHTML = App.icon('download') + 'Update';
       badge.title = `Update available: v${res.latest}`;
       showUpdateModal(res);
     } else if (manual) {
