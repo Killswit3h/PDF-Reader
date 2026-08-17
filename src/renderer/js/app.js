@@ -185,12 +185,18 @@
     // the user confirm, narrow to a page range, or back out before we hand
     // anything to the printer.
     let printBytes = bytes;
+    let printPaper = null;
     if (App.Print && App.Print.preview) {
+      const paperName = App.Print.paper ? App.Print.paper() : '';
       const sel = await App.Print.preview(bytes, App.state.currentPage);
       if (!sel) return;
-      // Narrow to just the chosen pages (a no-op when all pages are selected).
+      // Narrow to the chosen pages AND rebuild each one at the chosen paper size,
+      // scaled to fill it. Doing the geometry here rather than leaving it to the
+      // platform is what fixes tabloid printing (see print.js).
       try {
-        printBytes = await App.Print.buildSubset(bytes, sel.pages, sel.total);
+        const built = await App.Print.buildPrintDoc(bytes, sel.pages, App.Print.paper ? App.Print.paper() : paperName);
+        printBytes = built.bytes;
+        printPaper = built.paper;
       } catch (e) {
         App.toast('Could not select those pages: ' + (e && e.message ? e.message : e), 'error');
         return;
@@ -202,7 +208,16 @@
     // the portrait paper's width — drawing in the top half, blank below. Measure
     // the pages that will actually print (PDF.js viewports bake in /Rotate) and
     // request the majority orientation.
-    const printOpts = await computePrintOrientation(printBytes);
+    const printOpts = (await computePrintOrientation(printBytes)) || {};
+    // Tell the platform the exact page box too. Orientation alone was not enough:
+    // without a pageSize the job's page box is the platform's guess, which is how
+    // a tabloid sheet ended up around three-quarters size in a corner of the
+    // paper with no dialog setting able to fix it. printBytes is now built AT the
+    // paper size, so this just states what the document already is.
+    if (printPaper && App.pageSizeMicrons) {
+      const ps = App.pageSizeMicrons(printPaper);
+      if (ps) printOpts.pageSize = ps;
+    }
     try {
       // Hand the finished PDF to the platform's printer: the native system print
       // dialog on desktop (Windows/macOS/Linux print it from a hidden window so
