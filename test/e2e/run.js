@@ -388,6 +388,27 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'dropdowns — only one rail/header flyout is ever open at a time',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_DROPDOWN: '1' }, [SAMPLE]), 'dropdown');
+      check(j.s1.measure === true && !j.s1.markup && !j.s1.doc, 'Measure menu did not open alone');
+      check(j.aria1 === 'true', 'trigger did not report aria-expanded=true when open');
+      // The reported bug: opening Markup left the Measure flyout stacked behind it.
+      check(j.s2.markup === true, 'Markup menu did not open');
+      check(j.s2.measure === false, 'Measure menu stayed open behind the Markup menu');
+      check(j.s3.doc === true && !j.s3.measure && !j.s3.markup, 'Document menu did not replace the others');
+      check(j.s3b.help === true && j.s3b.doc === false, 'Help menu did not close the Document menu');
+      check(j.selfOpen === true && j.selfClosed === true, 'self-click no longer toggles a menu shut');
+      check(j.ariaOff === 'false', 'trigger did not report aria-expanded=false when closed');
+      check(j.stickyOpen === true, 'ticking Snap wrongly closed the Measure menu');
+      check(j.escClosed === true, 'Esc did not close the open menu');
+      check(j.modeKept === true, 'Esc on an open menu also disarmed the active tool');
+      check(j.focusBack === true, 'Esc did not return focus to the trigger');
+      check(j.outsideClosed === true, 'clicking the page did not dismiss the menu');
+      check(j.maxOpen <= 1, `${j.maxOpen} menus were open at once (expected at most 1)`);
+    }
+  },
+  {
     name: 'sharp zoom — page past the old 16.7M cap renders crisp, not downscaled',
     run: () => {
       const j = tagJson(runApp({ SMOKE_SHARP: '1' }, [SAMPLE]), 'sharp');

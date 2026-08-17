@@ -122,15 +122,58 @@ function serve(dir) {
       };
     }, pdfB64);
     result.apiOk = apiOk;
+
+    // Rail/header flyouts are renderer-only, so the WebView gets the same wiring
+    // as Electron: only one may be open at a time (opening a second used to leave
+    // the first stacked behind it), and the Measure menu's inline controls must
+    // NOT dismiss it.
+    result.dropdowns = await page.evaluate(async () => {
+      const $ = (s) => document.querySelector(s);
+      const tick = () => new Promise((r) => setTimeout(r, 60));
+      const shown = (s) => !$(s).classList.contains('hidden');
+      const openCount = () => document.querySelectorAll('.tb-menu:not(.hidden)').length;
+      let maxOpen = 0;
+      const gauge = () => { maxOpen = Math.max(maxOpen, openCount()); };
+
+      $('#btn-measure').click(); await tick(); gauge();
+      const measureAlone = shown('#measure-menu') && openCount() === 1;
+      $('#btn-markup').click(); await tick(); gauge();
+      const swapped = shown('#markup-menu') && !shown('#measure-menu');
+      $('#btn-document').click(); await tick(); gauge();
+      const swapped2 = shown('#document-menu') && !shown('#markup-menu');
+      $('#btn-document').click(); await tick(); gauge();
+      const selfClosed = openCount() === 0;
+
+      $('#btn-measure').click(); await tick(); gauge();
+      $('#measure-snap').click(); await tick(); gauge();
+      const stickyOpen = shown('#measure-menu');
+      $('#measure-snap').click(); await tick();
+
+      const modeBefore = App.state.mode;
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await tick(); gauge();
+      const escClosed = !shown('#measure-menu') && App.state.mode === modeBefore;
+
+      $('#btn-markup').click(); await tick(); gauge();
+      $('#viewerContainer').click(); await tick(); gauge();
+      const outsideClosed = openCount() === 0;
+
+      return { measureAlone, swapped, swapped2, selfClosed, stickyOpen, escClosed, outsideClosed, maxOpen };
+    });
   } finally {
     await browser.close();
     server.close();
   }
 
+  const d = result.dropdowns || {};
+  const dropdownsOk = d.measureAlone && d.swapped && d.swapped2 && d.selfClosed &&
+    d.stickyOpen && d.escClosed && d.outsideClosed && d.maxOpen <= 1;
   const ok = !errors.length && result.apiOk && result.numPages > 0 &&
-    result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr;
+    result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
+    dropdownsOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
+  if (!dropdownsOk) console.log('[verify-web] dropdown exclusivity FAILED:', JSON.stringify(d));
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });

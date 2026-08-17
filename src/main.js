@@ -794,6 +794,73 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_DROPDOWN: only ONE rail/header flyout may be open at a time. Opening
+      // a second menu closes the first (the original bug: they stacked on top of
+      // each other), self-click still toggles, Esc closes without disarming the
+      // active tool, an outside click dismisses, and the Measure menu's inline
+      // checkboxes deliberately do NOT close it.
+      if (process.env.SMOKE_DROPDOWN) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=()=>new Promise(r=>setTimeout(r,80));
+              const shown=(s)=>!$(s).classList.contains('hidden');
+              const openCount=()=>document.querySelectorAll('.tb-menu:not(.hidden)').length;
+              let maxOpen=0; const gauge=()=>{maxOpen=Math.max(maxOpen,openCount());};
+
+              // 1. Measure alone.
+              $('#btn-measure').click(); await tick(); gauge();
+              const s1={measure:shown('#measure-menu'),markup:shown('#markup-menu'),doc:shown('#document-menu')};
+              const aria1=$('#btn-measure').getAttribute('aria-expanded');
+              // 2. Markup replaces it — this is the reported bug.
+              $('#btn-markup').click(); await tick(); gauge();
+              const s2={measure:shown('#measure-menu'),markup:shown('#markup-menu'),doc:shown('#document-menu')};
+              // 3. Document replaces that.
+              $('#btn-document').click(); await tick(); gauge();
+              const s3={measure:shown('#measure-menu'),markup:shown('#markup-menu'),doc:shown('#document-menu')};
+              // 3b. Header Help participates in the same exclusion group.
+              $('#btn-help').click(); await tick(); gauge();
+              const s3b={help:shown('#help-menu'),doc:shown('#document-menu')};
+              $('#btn-help').click(); await tick(); gauge();
+
+              // 4. Self-toggle: open then close, nothing left open.
+              $('#btn-markup').click(); await tick(); gauge();
+              const selfOpen=shown('#markup-menu');
+              $('#btn-markup').click(); await tick(); gauge();
+              const selfClosed=!shown('#markup-menu')&&openCount()===0;
+              const ariaOff=$('#btn-markup').getAttribute('aria-expanded');
+
+              // 5. Sticky inline control: ticking Snap must keep the menu open.
+              $('#btn-measure').click(); await tick(); gauge();
+              $('#measure-snap').click(); await tick(); gauge();
+              const stickyOpen=shown('#measure-menu');
+              $('#measure-snap').click(); await tick();   // restore
+
+              // 6. Esc closes the menu WITHOUT touching the armed tool.
+              const modeBefore=App.state.mode;
+              window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+              await tick(); gauge();
+              const escClosed=!shown('#measure-menu');
+              const modeKept=App.state.mode===modeBefore;
+              const focusBack=document.activeElement===$('#btn-measure');
+
+              // 7. Outside click dismisses.
+              $('#btn-document').click(); await tick(); gauge();
+              $('#viewerContainer').click(); await tick(); gauge();
+              const outsideClosed=!shown('#document-menu')&&openCount()===0;
+
+              return JSON.stringify({s1,s2,s3,s3b,aria1,selfOpen,selfClosed,ariaOff,
+                stickyOpen,escClosed,modeKept,focusBack,outsideClosed,maxOpen});
+            })()`, true);
+            console.log('[dropdown] ' + r);
+          } catch (e) { console.log('[dropdown] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_RT: marks survive a save→reopen as editable objects (round-trip via
       // the embedded sidecar), and the reopened working doc is the pristine base.
       if (process.env.SMOKE_RT) {
