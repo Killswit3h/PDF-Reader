@@ -250,11 +250,109 @@
     return out.save();
   };
 
+  // The paper the user picked in the preview ('' = keep the PDF's own size).
+  P.paper = function () {
+    const el = App.$('#pp-paper');
+    return el ? el.value : '';
+  };
+
+  // Visual size of page 1 in points, via PDF.js so /Rotate is already applied
+  // (the repo's rule: never hand-roll page geometry). Null if it can't be read,
+  // so the caller simply omits pageSize and the platform default applies.
+  async function firstPageSize(bytes) {
+    if (!pdfjsLib) return null;
+    let doc = null;
+    try {
+      const data = new Uint8Array(bytes.byteLength || bytes.length);
+      data.set(bytes);
+      doc = await pdfjsLib.getDocument({ data }).promise;
+      const vp = (await doc.getPage(1)).getViewport({ scale: 1 });
+      return { width: vp.width, height: vp.height };
+    } catch (_) {
+      return null;
+    } finally {
+      if (doc) { try { doc.destroy(); } catch (_) { /* ignore */ } }
+    }
+  }
+
+  /*
+   * Rebuild `bytes` so every page IS the target paper, with the original page
+   * scaled uniformly to fill it and centred.
+   *
+   * This exists because leaving the geometry to the platform did not work: the
+   * desktop path handed Chromium an orientation and nothing else, and a tabloid
+   * sheet came out around three-quarters size in a corner of the paper, with no
+   * setting in the macOS dialog able to correct it. Doing the arithmetic here
+   * with pdf-lib means the printer receives a document whose page box already
+   * matches the paper, so there is nothing left for it to guess at — and being
+   * renderer-side, Android and the web build get the same fix.
+   *
+   * `pages` is 1-based and ascending (from the preview's selection).
+   * Returns { bytes, paper } where `paper` is {width,height} in points, ready
+   * for pageSizeMicrons(); paper is null when no resizing was requested.
+   */
+  P.buildPrintDoc = async function (bytes, pages, paperName) {
+    const list = (pages && pages.length) ? pages : null;
+    // "Same as PDF": don't rescale anything, but still measure the sheet so the
+    // caller can send a matching pageSize. That alone fixes the reported bug at
+    // true scale — the job box stops being the platform's guess — which is why
+    // this path reports a paper instead of null.
+    if (!App.paperSize || !App.paperSize(paperName)) {
+      const subset = await P.buildSubset(bytes, list || [], list ? null : 0);
+      return { bytes: subset, paper: await firstPageSize(subset) };
+    }
+    const { PDFDocument } = window.PDFLib;
+    const src = await PDFDocument.load(bytes);
+    const idx = (list || Array.from({ length: src.getPageCount() }, (_, i) => i + 1))
+      .map((n) => n - 1)
+      .filter((i) => i >= 0 && i < src.getPageCount());
+    const out = await PDFDocument.create();
+    // copyPages (not embedPages) so each page keeps its own /Rotate. Everything
+    // below then stays in UNROTATED page space and lets the viewer apply /Rotate
+    // as it always would — the repo's rule against hand-rolling page geometry.
+    const copied = await out.copyPages(src, idx);
+    let paper = null;
+    copied.forEach((page) => {
+      const { width: mw, height: mh } = page.getSize();   // mediabox, pre-/Rotate
+      const rot = ((page.getRotation().angle % 360) + 360) % 360;
+      const quarter = rot === 90 || rot === 270;
+      // Choose the paper against the page's VISUAL extents, so a sheet that only
+      // looks landscape because of /Rotate still gets landscape paper.
+      const plan = App.layoutForPage(quarter ? mh : mw, quarter ? mw : mh, paperName);
+      // ...then bring that paper back into unrotated space to set the box.
+      const tw = quarter ? plan.paper.height : plan.paper.width;
+      const th = quarter ? plan.paper.width : plan.paper.height;
+      const scale = plan.fit.scale;                        // uniform, so rotation-safe
+      if (scale !== 1) {
+        page.scaleContent(scale, scale);
+        if (page.scaleAnnotations) page.scaleAnnotations(scale, scale);
+      }
+      page.translateContent((tw - mw * scale) / 2, (th - mh * scale) / 2);
+      page.setSize(tw, th);
+      // Report the VISUAL paper — that's what the printer's pageSize describes.
+      paper = paper || { width: plan.paper.width, height: plan.paper.height };
+      out.addPage(page);
+    });
+    return { bytes: await out.save(), paper };
+  };
+
   // Programmatic hooks (used by the Escape handler + smoke harness).
   P.confirm = confirmPrint;
   P.cancel = () => settle(null);
 
   function wire() {
+    // Remember the paper choice across sessions, like the other print-adjacent
+    // preferences. Someone who prints plan sets on tabloid picks it once.
+    const paperSel = App.$('#pp-paper');
+    if (paperSel) {
+      if (App.Prefs) {
+        const saved = App.Prefs.get('printPaper', '');
+        if ([...paperSel.options].some((o) => o.value === saved)) paperSel.value = saved;
+      }
+      paperSel.addEventListener('change', () => {
+        if (App.Prefs) App.Prefs.set('printPaper', paperSel.value);
+      });
+    }
     App.$('#pp-print').addEventListener('click', confirmPrint);
     App.$('#pp-cancel').addEventListener('click', () => settle(null));
     App.$('#pp-close').addEventListener('click', () => settle(null));

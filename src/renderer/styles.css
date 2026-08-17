@@ -1381,7 +1381,13 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 .pp-toolbar {
   display: flex; align-items: center; gap: 16px;
   padding: 12px 20px; border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
 }
+/* Pushes the paper picker to the far end, so page selection and paper choice
+   read as the two separate decisions they are. */
+.pp-toolbar-sep { flex: 1 1 auto; }
+.pp-paper { gap: 8px; white-space: nowrap; }
+.pp-paper select { font-size: 13px; padding: 3px 6px; }
 .pp-opt { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; }
 .pp-opt input { cursor: pointer; }
 .pp-current-n { color: var(--text-dim); }

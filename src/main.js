@@ -1308,11 +1308,24 @@ function createWindow() {
               const sizes=[]; for(let n=1;n<=printPages;n++){const p=await doc.getPage(n);const v=p.getViewport({scale:1});sizes.push({width:v.width,height:v.height});}
               const hint=App.orientationForSizes(sizes);
               try{doc.destroy();}catch(_){}
+              // Rebuild at tabloid the way doPrint does, and check the document is
+              // actually the paper size: this is the tabloid defect's regression
+              // guard. A page that comes back at ~0.75 of the sheet, or at the
+              // source size, means the geometry regressed.
+              const built=await App.Print.buildPrintDoc(bytes,null,'tabloid');
+              const tDoc=await window.pdfjsLib.getDocument({data:new Uint8Array(built.bytes)}).promise;
+              const tvp=(await tDoc.getPage(1)).getViewport({scale:1});
+              const tabW=Math.round(tvp.width), tabH=Math.round(tvp.height);
+              const tabPages=tDoc.numPages;
+              try{tDoc.destroy();}catch(_){}
+              const micron=App.pageSizeMicrons(built.paper);
               // Drive the real IPC print path (open is skipped in this harness).
               const res=await window.api.print(bytes,hint);
+              const res2=await window.api.print(built.bytes,Object.assign({},hint,{pageSize:micron}));
               return JSON.stringify({numPages:App.state.numPages,printPages,w,h,darkPx,
                 wantLandscape:hint.landscape,gotLandscape:!!(res&&res.landscape),
-                printOk:!!(res&&res.ok),hasFile:!!(res&&res.file)});
+                printOk:!!(res&&res.ok),hasFile:!!(res&&res.file),
+                tabW,tabH,tabPages,micron,gotPageSize:(res2&&res2.pageSize)||null});
             })()`, true);
             console.log('[print] ' + r);
           } catch (e) { console.log('[print] error', e && e.message); }
@@ -2390,7 +2403,13 @@ ipcMain.handle('app:print', async (_e, bytes, opts) => {
     // The e2e smoke harness exercises the pipeline without launching an external
     // app or a print dialog (there's no PDF handler / printer on headless CI).
     if (process.env.SMOKE_NO_PRINT_OPEN) {
-      return { ok: true, file: tmpFile, landscape: !!(opts && opts.landscape) };
+      // Echo the page box back too, so the e2e can prove the renderer's pageSize
+      // reaches this path — the option whose absence made tabloid printing wrong.
+      return {
+        ok: true, file: tmpFile,
+        landscape: !!(opts && opts.landscape),
+        pageSize: (opts && opts.pageSize) || null
+      };
     }
     return await printViaSystemDialog(tmpFile, opts);
   } catch (err) {
@@ -2409,6 +2428,25 @@ function printViaSystemDialog(tmpFile, opts) {
   // Chromium prints portrait, so a landscape plan sheet gets fit-to-page'd down
   // to the paper width — drawing crammed into the top, blank below.
   const landscape = !!(opts && opts.landscape);
+  // Page box + margins, not just orientation. Left unspecified, Chromium boxes the
+  // job at its own default and lays the PDF out inside it, which is how a tabloid
+  // sheet printed at roughly three-quarters size in a corner of the paper — the
+  // native dialog's paper and scaling settings sit on top of that and cannot undo
+  // it. The renderer now builds the document at the exact paper size and sends the
+  // matching pageSize (microns), so the job box, the document and the paper agree.
+  const printOpts = { silent: false, printBackground: true, landscape };
+  const ps = opts && opts.pageSize;
+  if (ps && Number(ps.width) > 0 && Number(ps.height) > 0) {
+    // Chromium wants the page box in its portrait form and applies `landscape`
+    // itself; handing it an already-landscape box double-rotates the job.
+    printOpts.pageSize = {
+      width: Math.round(Math.min(ps.width, ps.height)),
+      height: Math.round(Math.max(ps.width, ps.height))
+    };
+    // The content is already positioned for the full sheet, so any print margin
+    // would scale it down again and re-create the original bug.
+    printOpts.margins = { marginType: 'none' };
+  }
   return new Promise((resolve) => {
     let win = new BrowserWindow({
       show: false,
@@ -2450,7 +2488,7 @@ function printViaSystemDialog(tmpFile, opts) {
       setTimeout(() => {
         if (!win || win.isDestroyed()) return finish({ ok: true, file: tmpFile, dialog: true });
         try {
-          win.webContents.print({ silent: false, printBackground: true, landscape }, (_success, reason) => {
+          win.webContents.print(printOpts, (_success, reason) => {
             // success=false is also how a user cancel is reported — not an error.
             finish({ ok: true, file: tmpFile, dialog: true });
             void reason;
