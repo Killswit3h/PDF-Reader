@@ -19,3 +19,10 @@ fastlane/test_output/
 *.ipa
 *.dSYM.zip
 build/ios-export/
+
+# Claude Code local permission grants — per-machine, not shared.
+.claude/settings.local.json
+
+# Python bytecode from the ui-ux-pro-max design engine (.claude/skills/…/scripts/).
+__pycache__/
+*.pyc
