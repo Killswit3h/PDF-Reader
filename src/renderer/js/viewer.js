@@ -281,28 +281,45 @@
       b.style.height = Math.abs(y1 - y0) + 'px';
     };
 
-    const onMove = (e) => { if (dragging) { paint(e.clientX, e.clientY); e.preventDefault(); } };
+    // Pointer events, not mouse events. The marquee button ships in the mobile
+    // "⋯" sheet, so on a tablet it armed a mode that then did nothing at all —
+    // a control that is present and inert is worse than one that is absent.
+    let pid = null;
 
-    const onUp = (e) => {
-      if (!dragging) return;
-      dragging = false;
-      window.removeEventListener('mousemove', onMove, true);
-      window.removeEventListener('mouseup', onUp, true);
-      const b = box(); if (b) b.classList.add('hidden');
-      Viewer.zoomToRegion(x0, y0, e.clientX, e.clientY);
-      Viewer.setMarquee(false); // one-shot
+    const onMove = (e) => {
+      if (!dragging || (pid !== null && e.pointerId !== pid)) return;
+      paint(e.clientX, e.clientY);
+      e.preventDefault();
     };
 
-    container.addEventListener('mousedown', (e) => {
+    const finish = (e, apply) => {
+      if (!dragging || (pid !== null && e.pointerId !== pid)) return;
+      dragging = false; pid = null;
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onCancel, true);
+      const b = box(); if (b) b.classList.add('hidden');
+      if (apply) {
+        Viewer.zoomToRegion(x0, y0, e.clientX, e.clientY);
+        Viewer.setMarquee(false); // one-shot
+      }
+    };
+    const onUp = (e) => finish(e, true);
+    // A cancelled pointer (system gesture, palm rejection) must not zoom to a
+    // region the user never finished drawing.
+    const onCancel = (e) => finish(e, false);
+
+    container.addEventListener('pointerdown', (e) => {
       if (!App.state.marquee) return;
-      if (e.button !== 0) return;          // left button only
+      if (e.pointerType === 'mouse' && e.button !== 0) return;  // left button only
       if (!App.state.pdfDoc) return;
-      dragging = true;
+      dragging = true; pid = e.pointerId;
       x0 = e.clientX; y0 = e.clientY;
       const b = box();
       if (b) { paint(x0, y0); b.classList.remove('hidden'); }
-      window.addEventListener('mousemove', onMove, true);
-      window.addEventListener('mouseup', onUp, true);
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onCancel, true);
       e.preventDefault();
     });
   }
@@ -763,8 +780,11 @@
     ['#btn-select', '#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
      '#btn-document',
      '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-marquee', '#btn-rotate', '#btn-prev', '#btn-next',
-     '#btn-save', '#btn-save-as', '#page-input']
+     '#btn-find', '#btn-save', '#btn-save-as', '#page-input']
       .forEach((s) => { const el = App.$(s); if (el) el.disabled = !enabled; });
+    // Undo/redo track history depth rather than merely "a document is open" —
+    // an enabled button that does nothing is its own kind of broken.
+    if (App.refreshUndoButtons) App.refreshUndoButtons();
     // Marquee zoom is a transient mode — never carry it across a doc close or a
     // tab switch (each tab restores its own state; the crosshair must not linger).
     if (Viewer.setMarquee) Viewer.setMarquee(false);

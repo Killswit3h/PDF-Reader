@@ -107,6 +107,19 @@
     App.$('#markup-props').classList.toggle('hidden', !show);
     document.body.classList.toggle('has-props', show);
     App.refreshDirtyIndicator();
+    App.refreshUndoButtons();
+  };
+
+  // Undo/redo availability, mirrored onto the toolbar pair. Called from
+  // refreshChrome so it tracks every state change the app already announces.
+  App.refreshUndoButtons = function () {
+    const H = App.History;
+    if (!H) return;
+    const hasDoc = !!App.state.pdfDoc;
+    const u = App.$('#btn-undo');
+    const r = App.$('#btn-redo');
+    if (u) u.disabled = !hasDoc || !H.canUndo();
+    if (r) r.disabled = !hasDoc || !H.canRedo();
   };
 
   // The unsaved-changes dot lived only in the tab label, and the tab bar is
@@ -694,6 +707,13 @@
     });
     App.$('#mk-undo').addEventListener('click', () => App.Markup.undo());
     App.$('#mk-redo').addEventListener('click', () => App.Markup.redo());
+    // Toolbar undo/redo — the only pair that exists on a phone.
+    const tbUndo = App.$('#btn-undo');
+    const tbRedo = App.$('#btn-redo');
+    if (tbUndo) tbUndo.addEventListener('click', () => App.Markup.undo());
+    if (tbRedo) tbRedo.addEventListener('click', () => App.Markup.redo());
+    const findBtn = App.$('#btn-find');
+    if (findBtn) findBtn.addEventListener('click', () => App.Viewer.openFind());
   }
 
   // Right-hand markup rail (Bluebeam-style): a compact, always-visible strip of

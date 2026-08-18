@@ -409,6 +409,23 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'mobile parity — find has a button, undo is reachable, marquee takes touch',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_MOBILE: '1' }, [SAMPLE]), 'mobile');
+      // Find was keyboard-only, which means it did not exist at all on Android.
+      check(j.findExists === true, 'no Find button exists');
+      check(j.findOpened === true, 'the Find button did not open the find bar');
+      // The only undo/redo pair on a phone.
+      check(j.undoOffAtRest === true, 'Undo was enabled with an empty history');
+      check(j.undoOnAfterEdit === true, 'Undo stayed disabled after an edit');
+      check(j.undoWorked === true, 'the toolbar Undo did not undo the edit');
+      // Marquee ships in the mobile sheet; mouse-only handlers made it inert there.
+      check(j.marqueeTracked === true, 'marquee zoom ignored a pointer drag');
+      check(j.touchAction === 'none', 'armed marquee did not claim the touch drag');
+      check(j.cancelLeftClean === true, 'a cancelled pointer left the marquee box on screen');
+    }
+  },
+  {
     name: 'a11y — dialogs trap focus, restore it, and tools report pressed state',
     run: () => {
       const j = tagJson(runApp({ SMOKE_A11Y: '1' }, [SAMPLE]), 'a11y');

@@ -148,6 +148,9 @@
       <button id="btn-fit-width" class="tb-btn" data-overflow disabled title="Fit to width"><svg class="ico" aria-hidden="true"><use href="#i-fit-width"/></svg>Fit</button>
       <button id="btn-marquee" class="tb-btn icon" data-overflow disabled title="Marquee zoom — drag a box to zoom into that area (Z)" aria-label="Marquee zoom"><svg class="ico" aria-hidden="true"><use href="#i-marquee"/></svg></button>
       <button id="btn-rotate" class="tb-btn icon" data-overflow disabled title="Rotate view 90° (R)" aria-label="Rotate view"><svg class="ico" aria-hidden="true"><use href="#i-rotate"/></svg></button>
+      <!-- Find had no button anywhere: it was reachable only via Ctrl+F or the
+           desktop View menu, which means it did not exist at all on Android. -->
+      <button id="btn-find" class="tb-btn icon" data-overflow disabled title="Find in document (Ctrl+F)" aria-label="Find in document"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg></button>
     </div>
 
     <div class="tb-sep"></div>
@@ -166,6 +169,11 @@
     <div class="tb-group g-save">
       <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)"><svg class="ico" aria-hidden="true"><use href="#i-save"/></svg>Save</button>
       <button id="btn-save-as" class="tb-btn" data-overflow disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
+      <!-- Always-available undo/redo. The markup rail is display:none below
+           820px and #markup-props only appears in markup mode, so on a phone
+           there was previously no way to undo anything at all. -->
+      <button id="btn-undo" class="tb-btn icon" disabled title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg></button>
+      <button id="btn-redo" class="tb-btn icon" data-overflow disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg class="ico" aria-hidden="true"><use href="#i-redo"/></svg></button>
     </div>
 
     <div class="tb-sep"></div>

@@ -2404,6 +2404,61 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_MOBILE: Android runs this renderer verbatim, so anything that only
+      // works with a mouse, or is hidden at phone width, is broken in the
+      // shipped app. Undo was unreachable on a phone entirely (the markup rail
+      // is display:none below 820px and #markup-props only shows in markup
+      // mode), and Find had no button anywhere.
+      if (process.env.SMOKE_MOBILE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=()=>new Promise(r=>setTimeout(r,100));
+
+              // Find is now a real control, not a keyboard-only feature.
+              const findExists=!!$('#btn-find');
+              $('#btn-find').click(); await tick();
+              const findOpened=!$('#find-bar').classList.contains('hidden');
+              $('#find-close').click(); await tick();
+
+              // Undo reflects history depth and actually undoes.
+              App.History.reset(); App.refreshChrome(); await tick();
+              const undoOffAtRest=$('#btn-undo').disabled;
+              App.History.snapshot();
+              App.state.annotations.push({id:7701,page:1,type:'rect',
+                pts:[{vx:20,vy:20},{vx:90,vy:70}],style:{stroke:'#e5473b',width:2,opacity:1}});
+              App.refreshChrome(); await tick();
+              const undoOnAfterEdit=!$('#btn-undo').disabled;
+              $('#btn-undo').click(); await tick();
+              const undoWorked=!App.state.annotations.some(a=>a.id===7701);
+
+              // Marquee zoom ships in the mobile sheet, so it must track a
+              // pointer drag rather than mouse-only events.
+              App.Viewer.setMarquee(true); await tick();
+              const vc=$('#viewerContainer');
+              const touchAction=getComputedStyle(vc).touchAction;
+              vc.dispatchEvent(new PointerEvent('pointerdown',
+                {pointerId:1,clientX:120,clientY:220,bubbles:true,isPrimary:true}));
+              window.dispatchEvent(new PointerEvent('pointermove',
+                {pointerId:1,clientX:300,clientY:380,bubbles:true}));
+              const marqueeTracked=!$('#marquee-box').classList.contains('hidden');
+              window.dispatchEvent(new PointerEvent('pointercancel',{pointerId:1,bubbles:true}));
+              await tick();
+              const cancelLeftClean=$('#marquee-box').classList.contains('hidden');
+              App.Viewer.setMarquee(false);
+
+              return JSON.stringify({findExists,findOpened,undoOffAtRest,undoOnAfterEdit,
+                undoWorked,touchAction,marqueeTracked,cancelLeftClean});
+            })()`, true);
+            console.log('[mobile] ' + r);
+          } catch (e) { console.log('[mobile] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       setTimeout(() => { console.log('[smoke] done'); app.quit(); },
         parseInt(process.env.SMOKE_MS || '4000', 10));
     });

@@ -265,6 +265,51 @@ function serve(dir) {
         focusRestored, unnamed, missingLive: live };
     });
 
+    // ---- Mobile parity (Track F) ----
+    // Android runs this exact renderer, so anything unreachable at phone width
+    // is unreachable in the shipped app. Undo and Find were both in that state.
+    result.mobile = await page.evaluate(async () => {
+      const $ = (s) => document.querySelector(s);
+      const visible = (el) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+      };
+      const findBtn = $('#btn-find');
+      const undoBtn = $('#btn-undo');
+      const redoBtn = $('#btn-redo');
+
+      // Undo must become available after an edit and actually be reachable.
+      App.History.reset();
+      const undoDisabledAtRest = !!(undoBtn && undoBtn.disabled);
+      App.History.snapshot();
+      App.state.annotations.push({ id: 8801, page: 1, type: 'rect',
+        pts: [{ vx: 20, vy: 20 }, { vx: 80, vy: 60 }],
+        style: { stroke: '#e5473b', width: 2, opacity: 1 } });
+      App.refreshChrome();
+      const undoEnabledAfterEdit = !!(undoBtn && !undoBtn.disabled);
+
+      // Marquee zoom is offered on touch, so it must respond to pointer events
+      // rather than mouse-only ones.
+      const marqueeUsesPointer = typeof PointerEvent !== 'undefined';
+      App.Viewer.setMarquee(true);
+      const vc = $('#viewerContainer');
+      const armedTouchAction = getComputedStyle(vc).touchAction;
+      vc.dispatchEvent(new PointerEvent('pointerdown',
+        { pointerId: 1, clientX: 100, clientY: 200, bubbles: true, isPrimary: true }));
+      window.dispatchEvent(new PointerEvent('pointermove',
+        { pointerId: 1, clientX: 260, clientY: 340, bubbles: true }));
+      const boxShown = !$('#marquee-box').classList.contains('hidden');
+      window.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true }));
+      App.Viewer.setMarquee(false);
+
+      return {
+        findVisible: visible(findBtn), undoVisible: visible(undoBtn), redoVisible: visible(redoBtn),
+        undoDisabledAtRest, undoEnabledAfterEdit,
+        marqueeUsesPointer, armedTouchAction, marqueeDragTracked: boxShown
+      };
+    });
+
     // ---- Layout at every supported size (Track D) ----
     // These specific breakages recur, so they get an automated sweep rather than
     // a one-time fix: nothing may overflow the viewport horizontally, and a tall
@@ -330,18 +375,24 @@ function serve(dir) {
     a.focusMovedIn && a.wrapped && a.focusRestored &&
     (a.unnamed || []).length === 0 && (a.missingLive || []).length === 0;
 
+  const mob = result.mobile || {};
+  const mobileOk = mob.findVisible && mob.undoVisible && mob.redoVisible &&
+    mob.undoDisabledAtRest && mob.undoEnabledAfterEdit &&
+    mob.marqueeDragTracked && mob.armedTouchAction === 'none';
+
   const ic = result.icons || {};
   const iconsOk = ic.symbolCount > 0 && ic.iconCount > 0 &&
     (ic.emojiOffenders || []).length === 0 && (ic.missingSymbols || []).length === 0;
   const ok = !errors.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
-    dropdownsOk && iconsOk && layoutOk && a11yOk;
+    dropdownsOk && iconsOk && layoutOk && a11yOk && mobileOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
   if (!dropdownsOk) console.log('[verify-web] dropdown exclusivity FAILED:', JSON.stringify(d));
   if (!iconsOk) console.log('[verify-web] icon system FAILED:', JSON.stringify(ic, null, 2));
   if (!layoutOk) console.log('[verify-web] layout FAILED at:', JSON.stringify(layoutBad, null, 2));
   if (!a11yOk) console.log('[verify-web] a11y FAILED:', JSON.stringify(a, null, 2));
+  if (!mobileOk) console.log('[verify-web] mobile parity FAILED:', JSON.stringify(mob, null, 2));
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });
