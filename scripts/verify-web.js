@@ -29,8 +29,12 @@ const WWW = path.join(ROOT, 'www');
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.ttf': 'font/ttf', '.pdf': 'application/pdf', '.txt': 'text/plain',
-  '.map': 'application/json'
+  '.map': 'application/json', '.wasm': 'application/wasm'
 };
+// NOTE: .traineddata.gz is served as application/octet-stream (the fallback)
+// and deliberately WITHOUT Content-Encoding: gzip. With that header the browser
+// would transparently inflate the body, and tesseract — which gunzips the bytes
+// itself after sniffing the gzip magic number — would then fail on them.
 
 function findChromium() {
   if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
@@ -71,6 +75,22 @@ function serve(dir) {
   const page = await browser.newPage();
 
   const errors = [];
+  // The app is offline by contract, so any request that leaves localhost is a
+  // failure, not a warning. OCR is the feature most able to regress this: the
+  // engine falls back to a CDN for its worker, WASM cores and language data the
+  // moment one of those paths is wrong.
+  //
+  // One remote call is by design and allow-listed: the in-app update check asks
+  // GitHub for the latest release. Document handling must never reach the
+  // network; checking for a new version is a deliberate, user-visible feature.
+  const ALLOWED_REMOTE = /^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/releases\//;
+  const offsite = [];
+  page.on('request', (r) => {
+    const u = r.url();
+    if (/^https?:\/\/localhost:/.test(u) || /^(data|blob):/.test(u)) return;
+    if (ALLOWED_REMOTE.test(u)) return;
+    offsite.push(u);
+  });
   // The generic "Failed to load resource" console line carries no URL; track
   // real resource failures via response/requestfailed and ignore the browser's
   // automatic /favicon.ico probe (not part of the app).
@@ -123,6 +143,65 @@ function serve(dir) {
     }, pdfB64);
     result.apiOk = apiOk;
 
+    // ---- OCR (AC-A-15): recognition must work in this engine, offline ----
+    // Builds its own "scan" — a page whose only content is a bitmap of a word —
+    // so the check is hermetic and needs no fixture. Then asserts the word is
+    // real text afterwards, that it sits on top of the ink it was read from,
+    // and that the user's marks survived the rebuild.
+    result.ocr = await page.evaluate(async () => {
+      const cv = document.createElement('canvas');
+      cv.width = 1400; cv.height = 400;
+      const c = cv.getContext('2d');
+      c.fillStyle = '#fff'; c.fillRect(0, 0, cv.width, cv.height);
+      c.fillStyle = '#000';
+      c.font = 'bold 150px Helvetica, Arial, sans-serif';
+      c.fillText('DRAWING', 40, 200);
+      const dataUrl = cv.toDataURL('image/png');
+
+      const { PDFDocument } = window.PDFLib;
+      const doc = await PDFDocument.create();
+      const png = await doc.embedPng(dataUrl);
+      const pg = doc.addPage([612, 792]);
+      const IMG = { x: 56, y: 480, w: 500, h: 143 };
+      pg.drawImage(png, { x: IMG.x, y: IMG.y, width: IMG.w, height: IMG.h });
+      const bytes = await doc.save();
+
+      await App.Viewer.load(bytes.buffer, 'scan.pdf', null);
+      for (let i = 0; i < 100 && !App.state.numPages; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 500));
+
+      const items = async () => {
+        const p = await App.state.pdfDoc.getPage(1);
+        const tc = await p.getTextContent();
+        return (tc.items || []).filter((i) => i.str && i.str.trim())
+          .map((i) => ({ str: i.str.trim(), x: i.transform[4], y: i.transform[5] }));
+      };
+      const before = (await items()).map((i) => i.str).join(' ');
+
+      // a mark that must survive the OCR rebuild (FR-A-12)
+      App.state.measurements.push({
+        id: 1, page: 1, type: 'length', pts: [{ vx: 10, vy: 10 }, { vx: 90, vy: 10 }],
+        value: 80, unit: 'in', label: '80 in'
+      });
+
+      const summary = await App.OCR.run({ scope: 'page', force: false });
+      const after = await items();
+      const inside = after.filter((i) =>
+        i.x >= IMG.x - 20 && i.x <= IMG.x + IMG.w + 20 &&
+        i.y >= IMG.y - 20 && i.y <= IMG.y + IMG.h + 20);
+
+      return {
+        before,
+        after: after.map((i) => i.str).join(' '),
+        recognized: summary.recognized,
+        words: summary.words,
+        failed: summary.failed,
+        found: /DRAWING/i.test(after.map((i) => i.str).join(' ')),
+        positioned: after.length > 0 && inside.length === after.length,
+        measurementsKept: App.state.measurements.length,
+        dirty: App.state.dirty
+      };
+    });
     // Rail/header flyouts are renderer-only, so the WebView gets the same wiring
     // as Electron: only one may be open at a time (opening a second used to leave
     // the first stacked behind it), and the Measure menu's inline controls must
@@ -333,15 +412,24 @@ function serve(dir) {
   const ic = result.icons || {};
   const iconsOk = ic.symbolCount > 0 && ic.iconCount > 0 &&
     (ic.emojiOffenders || []).length === 0 && (ic.missingSymbols || []).length === 0;
-  const ok = !errors.length && result.apiOk && result.numPages > 0 &&
+  const o = result.ocr || {};
+  const ocrOk = o.recognized === 1 && o.words > 0 && !o.failed &&
+    !o.before && o.found && o.positioned && o.measurementsKept === 1 && o.dirty;
+
+  const ok = !errors.length && !offsite.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
-    dropdownsOk && iconsOk && layoutOk && a11yOk;
+    dropdownsOk && iconsOk && layoutOk && a11yOk && ocrOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
+  if (offsite.length) {
+    console.log('[verify-web] OFFLINE VIOLATION — requests left the machine:\n' +
+      offsite.join('\n'));
+  }
   if (!dropdownsOk) console.log('[verify-web] dropdown exclusivity FAILED:', JSON.stringify(d));
   if (!iconsOk) console.log('[verify-web] icon system FAILED:', JSON.stringify(ic, null, 2));
   if (!layoutOk) console.log('[verify-web] layout FAILED at:', JSON.stringify(layoutBad, null, 2));
   if (!a11yOk) console.log('[verify-web] a11y FAILED:', JSON.stringify(a, null, 2));
+  if (!ocrOk) console.log('[verify-web] OCR check FAILED:', JSON.stringify(o, null, 2));
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });

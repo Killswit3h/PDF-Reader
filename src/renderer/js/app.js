@@ -768,6 +768,7 @@
         if (dd) dd.close();
         const d = b.dataset.doc;
         if (d === 'organize') App.Organize.toggle();
+        else if (d === 'ocr') App.OCR.open();
         else if (d === 'stamp') App.DocStamp.open();
         else if (d === 'chest') App.ToolChest.toggle();
         else if (d === 'digisign') App.DigiSign.open();
@@ -1121,6 +1122,7 @@
     App.Measure.init();
     App.Markup.init();
     if (App.Organize) App.Organize.init();
+    if (App.OCR) App.OCR.init();
     if (App.DocStamp) App.DocStamp.init();
     if (App.ToolChest) App.ToolChest.init();
     if (App.DigiSign) App.DigiSign.init();

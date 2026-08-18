@@ -467,6 +467,26 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'OCR — a scanned page becomes searchable text, offline, without losing marks',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_OCR: '1' }, [SAMPLE]), 'ocr');
+      check(j.avail === true, 'OCR engine did not initialize from the bundled assets');
+      check(j.before === '', `the synthetic scan already had text: ${JSON.stringify(j.before)}`);
+      check(j.recognized === 1 && j.failed === 0,
+        `expected 1 page recognized, got ${j.recognized} recognized / ${j.failed} failed`);
+      check(j.words > 0, 'recognition produced no words');
+      check(j.found === true, `recognized text does not contain the printed word: ${JSON.stringify(j.text)}`);
+      // The invisible text must sit on the ink it was read from — otherwise
+      // find highlights and selections land beside the word.
+      check(j.positioned === true, 'recognized text is not positioned over the source image');
+      // FR-A-12: unlike the page organizer's rebuild, OCR must not cost marks.
+      check(j.m === 1 && j.a === 1, `marks lost across the OCR rebuild (m${j.m} a${j.a})`);
+      check(j.dirty === true, 'document was not marked as having unsaved changes');
+      // FR-A-8: the page now has text, so a second pass leaves it alone.
+      check(j.skippedOnRerun === 1, `re-running OCR did not skip the now-texted page (${j.skippedOnRerun})`);
+    }
+  },
+  {
     name: 'measure color — chosen color applies only to later measurements; Reset restores default',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MCOLOR: '1' }, [SAMPLE]), 'mcolor');

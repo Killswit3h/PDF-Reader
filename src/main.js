@@ -894,6 +894,58 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_OCR: text recognition turns a scanned page into real, searchable
+      // text without changing how the page looks, and without costing the user
+      // the marks they already placed.
+      //
+      // Hermetic on purpose: the "scan" is built here — a one-page PDF whose only
+      // content is a bitmap of a word — so there is no fixture to keep in sync,
+      // and the page genuinely has no text layer to begin with.
+      if (process.env.SMOKE_OCR) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              const cv=document.createElement('canvas'); cv.width=1400; cv.height=400;
+              const c=cv.getContext('2d');
+              c.fillStyle='#fff'; c.fillRect(0,0,cv.width,cv.height);
+              c.fillStyle='#000'; c.font='bold 150px Helvetica, Arial, sans-serif';
+              c.fillText('DRAWING',40,200);
+              const dataUrl=cv.toDataURL('image/png');
+              const {PDFDocument}=window.PDFLib;
+              const doc=await PDFDocument.create();
+              const png=await doc.embedPng(dataUrl);
+              const IMG={x:56,y:480,w:500,h:143};
+              doc.addPage([612,792]).drawImage(png,{x:IMG.x,y:IMG.y,width:IMG.w,height:IMG.h});
+              const bytes=await doc.save();
+              await App.Viewer._loadInto(bytes.buffer.slice(0),'scan.pdf',null);
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const items=async()=>{const p=await App.state.pdfDoc.getPage(1);const tc=await p.getTextContent();
+                return (tc.items||[]).filter(i=>i.str&&i.str.trim()).map(i=>({s:i.str.trim(),x:i.transform[4],y:i.transform[5]}));};
+              const before=(await items()).map(i=>i.s).join(' ');
+              const st=App.state;
+              st.measureSeq++; st.measurements.push({id:st.measureSeq,page:1,type:'length',pts:[{vx:60,vy:80},{vx:240,vy:80}],value:12.5,unit:'ft',label:"12.5'"});
+              st.annoSeq++; st.annotations.push({id:st.annoSeq,page:1,type:'rect',pts:[{vx:20,vy:200},{vx:120,vy:260}],style:{stroke:'#e5484d',width:2}});
+              const avail=await App.OCR.isAvailable();
+              const sum=await App.OCR.run({scope:'page',force:false});
+              const after=await items();
+              const text=after.map(i=>i.s).join(' ');
+              const inside=after.filter(i=>i.x>=IMG.x-20&&i.x<=IMG.x+IMG.w+20&&i.y>=IMG.y-20&&i.y<=IMG.y+IMG.h+20);
+              // re-running with force off must now skip: the page has text
+              const again=await App.OCR.run({scope:'page',force:false});
+              return JSON.stringify({avail,before,text,found:/DRAWING/i.test(text),
+                recognized:sum.recognized,words:sum.words,failed:sum.failed,
+                positioned:after.length>0&&inside.length===after.length,
+                m:App.state.measurements.length,a:App.state.annotations.length,
+                dirty:App.state.dirty,skippedOnRerun:again.skipped});
+            })()`, true);
+            console.log('[ocr] ' + r);
+          } catch (e) { console.log('[ocr] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_MCOLOR: a chosen measurement color applies only to measurements
       // drawn AFTER the change; earlier ones keep their color, and Reset goes
       // back to the per-type default. Drives the real tool flow (handleClick).
@@ -2383,7 +2435,8 @@ function createWindow() {
               const pressedOff=$('#btn-markup').getAttribute('aria-pressed')==='false';
 
               // 4. Panel rows are focusable and Enter-activatable.
-              App.Markup.setTool('rect');
+              // (No tool needs arming here — the annotation is pushed directly
+              // below, which is all the panel needs to render a row.)
               App.state.annotations.push({id:9001,page:1,type:'rect',
                 pts:[{vx:40,vy:40},{vx:120,vy:100}],style:{stroke:'#e5473b',width:2,opacity:1}});
               App.MarkupPanel.render(); await tick();
