@@ -18,62 +18,165 @@
   <link rel="stylesheet" href="styles/liquid-glass.css" />
 </head>
 <body>
+  <!-- ================= Icon sprite =================
+       Every interface icon in the app comes from here. Inline rather than
+       fetched: no request, no flash of missing icons, nothing for the CSP to
+       allow, and build-web.js carries it into www/ for free because it lives in
+       this file.
+
+       Symbols hold geometry only. Stroke, width, cap and join are set once on
+       .ico in styles.css and inherit through <use>, which is what lets an icon
+       take the theme and the armed state from currentColor. A child element
+       that needs to be solid carries its own fill="currentColor".
+
+       Drawn on a 24x24 grid with a 1.5px stroke and squared terminals — the
+       drafting-instrument look the rest of the product uses.
+
+       Use:  <svg class="ico" aria-hidden="true"><use href="#i-save"/></svg>
+       From JS:  App.icon('save')  -->
+  <svg id="icon-sprite" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+    <defs>
+      <!-- ---- Chrome / navigation ---- -->
+      <symbol id="i-folder-open" viewBox="0 0 24 24"><path d="M3 19V5h6l2 2.5h9V10"/><path d="M3 19l3-9h18l-3 9z"/></symbol>
+      <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-fit-width" viewBox="0 0 24 24"><path d="M3 5v14M21 5v14"/><path d="M6 12h12"/><path d="M9 9l-3 3 3 3"/><path d="M15 15l3-3-3-3"/></symbol>
+      <symbol id="i-marquee" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+      <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3.5V9h-5.5"/></symbol>
+      <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+      <symbol id="i-chevrons-left" viewBox="0 0 24 24"><path d="M11 5l-7 7 7 7M20 5l-7 7 7 7"/></symbol>
+      <symbol id="i-chevrons-right" viewBox="0 0 24 24"><path d="M13 5l7 7-7 7M4 5l7 7-7 7"/></symbol>
+      <symbol id="i-save" viewBox="0 0 24 24"><path d="M4 4h12l4 4v12H4z"/><path d="M8 4v6h7V4"/><path d="M7 20v-6h10v6"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 14.8A8.6 8.6 0 0 1 9.2 3.5a8.6 8.6 0 1 0 11.3 11.3z"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9L7 7M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></symbol>
+      <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.3 9.4a2.8 2.8 0 1 1 3.9 2.6c-.8.35-1.2 1-1.2 1.9"/><circle cx="12" cy="17.3" r="1" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></symbol>
+      <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M15.8 15.8L21 21"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><path d="M8 8h12v12H8z"/><path d="M16 8V4H4v12h4"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 20h16"/></symbol>
+      <symbol id="i-window" viewBox="0 0 24 24"><path d="M3 4h18v16H3z"/><path d="M3 9h18"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6.5 7l1 13h9l1-13"/></symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></symbol>
+
+      <!-- ---- Tool rail ---- -->
+      <symbol id="i-cursor" viewBox="0 0 24 24"><path d="M5 3l7.5 17.5 2.6-7 7-2.6z"/></symbol>
+      <symbol id="i-signature" viewBox="0 0 24 24"><path d="M3 16.5c3.5 0 3.5-9.5 6.5-9.5s2.5 9.5 5.5 9.5 3-4 6-4"/><path d="M3 21h18"/></symbol>
+      <symbol id="i-initials" viewBox="0 0 24 24"><path d="M4 4h16v16H4z"/><path d="M9 16l3-8 3 8M10 13.5h4"/></symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24"><path d="M3.5 5h17v15h-17z"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+      <symbol id="i-measure" viewBox="0 0 24 24"><path d="M4 4v16h16z"/><path d="M8 20v-3M12 20v-4.5M16 20v-2"/></symbol>
+      <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20l4.5-1L20 7.5 16.5 4 5 15.5z"/><path d="M14.5 6L18 9.5"/></symbol>
+      <symbol id="i-document" viewBox="0 0 24 24"><path d="M6 3h8.5L19 7.5V21H6z"/><path d="M14 3v5h5"/></symbol>
+
+      <!-- ---- Measure ---- -->
+      <symbol id="i-scale" viewBox="0 0 24 24"><path d="M3 8h18v8H3z"/><path d="M7 8v4M11 8v3M15 8v4M19 8v3"/></symbol>
+      <symbol id="i-length" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M3 8.5v7M21 8.5v7"/></symbol>
+      <symbol id="i-continuous" viewBox="0 0 24 24"><path d="M3 18l5.5-7 4.5 4.5L21 6"/><path d="M3 21v-3M21 9V6"/></symbol>
+      <symbol id="i-perimeter" viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><circle cx="5" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="19" cy="5" r="1.8" fill="currentColor" stroke="none"/><circle cx="19" cy="19" r="1.8" fill="currentColor" stroke="none"/><circle cx="5" cy="19" r="1.8" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-area" viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M4 14l9-9M8 19l11-11M14 19l6-6"/></symbol>
+      <symbol id="i-angle" viewBox="0 0 24 24"><path d="M4 20h17"/><path d="M4 20L17 5"/><path d="M11.5 20a7.5 7.5 0 0 0-1.6-4.6"/></symbol>
+      <symbol id="i-count" viewBox="0 0 24 24"><circle cx="6" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="6" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="18" r="1.4" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-1.6 1.1-2.3 2.4-2.3H18a3 3 0 0 0 3-3c0-5.8-4-11-9-11z"/><circle cx="8" cy="10" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.2" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-magnet" viewBox="0 0 24 24"><path d="M5 4h4v9a3 3 0 0 0 6 0V4h4v9a7 7 0 0 1-14 0z"/><path d="M5 9h4M15 9h4"/></symbol>
+      <symbol id="i-region" viewBox="0 0 24 24"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9 9h6v6H9z"/></symbol>
+      <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor" stroke="none"/></symbol>
+
+      <!-- ---- Markup ---- -->
+      <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 19L19 5"/><path d="M11 5h8v8"/></symbol>
+      <symbol id="i-line" viewBox="0 0 24 24"><path d="M4 20L20 4"/></symbol>
+      <symbol id="i-rect" viewBox="0 0 24 24"><path d="M4 6h16v12H4z"/></symbol>
+      <symbol id="i-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></symbol>
+      <symbol id="i-polyline" viewBox="0 0 24 24"><path d="M4 18l5-8 5 4.5 6-9.5"/><circle cx="4" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="9" cy="10" r="1.4" fill="currentColor" stroke="none"/><circle cx="14" cy="14.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="20" cy="5" r="1.4" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-polygon" viewBox="0 0 24 24"><path d="M12 3l9 6.6-3.4 10.4H6.4L3 9.6z"/></symbol>
+      <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18.5h10.5a4 4 0 0 0 .6-8A6.2 6.2 0 0 0 6 11.2a3.7 3.7 0 0 0 1 7.3z"/></symbol>
+      <symbol id="i-pen" viewBox="0 0 24 24"><path d="M3 19c4.5 0 3.5-9 7.5-9s3 6 6 6 4.5-3 4.5-3"/></symbol>
+      <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6V4h14v2"/><path d="M12 4v16"/><path d="M8.5 20h7"/></symbol>
+      <symbol id="i-callout" viewBox="0 0 24 24"><path d="M4 4h16v12h-8l-5 4v-4H4z"/></symbol>
+      <symbol id="i-highlight" viewBox="0 0 24 24"><path d="M8.5 14.5l5.5-9.5 4.5 3-5.5 9.5H8.5z"/><path d="M4 20h16"/></symbol>
+      <symbol id="i-text-highlight" viewBox="0 0 24 24"><path d="M6.5 14l4-9 4 9M8 11h5"/><path d="M4 19.5h16" stroke-width="3"/></symbol>
+      <symbol id="i-underline" viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4"/><path d="M5 20h14"/></symbol>
+      <symbol id="i-strikeout" viewBox="0 0 24 24"><path d="M16.5 7.5A4 3.2 0 0 0 8 8c0 2 2 2.7 4 3.2"/><path d="M8 16.2a4 3.2 0 0 0 8.4-.7c0-1.4-.9-2.2-2.2-2.8"/><path d="M4 12h16"/></symbol>
+      <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 10h10.5a5 5 0 0 1 0 10H9"/><path d="M8 6l-4 4 4 4"/></symbol>
+      <symbol id="i-redo" viewBox="0 0 24 24"><path d="M20 10H9.5a5 5 0 0 0 0 10H15"/><path d="M16 6l4 4-4 4"/></symbol>
+
+      <!-- ---- Document ---- -->
+      <symbol id="i-pages" viewBox="0 0 24 24"><path d="M3 4h8v11H3z"/><path d="M13 9h8v11h-8z"/></symbol>
+      <symbol id="i-hash" viewBox="0 0 24 24"><path d="M6 9h13M5 15h13M10.5 4l-2 16M17.5 4l-2 16"/></symbol>
+      <symbol id="i-toolbox" viewBox="0 0 24 24"><path d="M3 9h18v11H3z"/><path d="M8.5 9V6h7v3"/><path d="M3 14h18"/></symbol>
+      <symbol id="i-certificate" viewBox="0 0 24 24"><circle cx="12" cy="9" r="5.5"/><path d="M8.8 13.6L7.5 21l4.5-2.2L16.5 21l-1.3-7.4"/></symbol>
+      <symbol id="i-compare" viewBox="0 0 24 24"><path d="M3 4h7.5v16H3z"/><path d="M13.5 4H21v16h-7.5z"/></symbol>
+      <symbol id="i-overlay" viewBox="0 0 24 24"><path d="M4 4h11v11H4z"/><path d="M9 9h11v11H9z"/></symbol>
+      <symbol id="i-split" viewBox="0 0 24 24"><path d="M3 5h18v14H3z"/><path d="M12 5v14"/></symbol>
+      <symbol id="i-image" viewBox="0 0 24 24"><path d="M3 5h18v14H3z"/><path d="M3 16l5-5 4 4 3-3 6 6"/><circle cx="8.5" cy="9.5" r="1.5"/></symbol>
+
+      <!-- ---- Help ---- -->
+      <symbol id="i-tour" viewBox="0 0 24 24"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11.5V17c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5"/></symbol>
+      <symbol id="i-keyboard" viewBox="0 0 24 24"><path d="M2 6h20v12H2z"/><path d="M5.5 10h.01M9.5 10h.01M13.5 10h.01M17.5 10h.01M7.5 14h9"/></symbol>
+      <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 9h16l-4-4"/><path d="M20 15H4l4 4"/></symbol>
+      <symbol id="i-page-blank" viewBox="0 0 24 24"><path d="M6 3h12v18H6z" stroke-dasharray="3 2.5"/><path d="M12 9v6M9 12h6"/></symbol>
+    </defs>
+  </svg>
+
   <!-- ================= Top bar ================= -->
   <header id="toolbar">
     <div class="tb-group brand">
       <span class="brand-mark" aria-hidden="true">
         <svg viewBox="0 0 1024 1024" width="22" height="22" fill="none">
-          <rect x="64" y="64" width="896" height="896" rx="208" fill="#2f6fed"/>
-          <g stroke="#fff" stroke-width="34" stroke-linecap="round" opacity="0.5"><path d="M250 360V250h110"/><path d="M774 360V250H664"/></g>
-          <path d="M286 548l150 150 302-330" fill="none" stroke="#fff" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle cx="738" cy="368" r="52" fill="#e8a33d"/>
+          <rect x="64" y="64" width="896" height="896" rx="208" fill="currentColor"/>
+          <g stroke="var(--on-accent)" stroke-width="34" stroke-linecap="round" opacity="0.5"><path d="M250 360V250h110"/><path d="M774 360V250H664"/></g>
+          <path d="M286 548l150 150 302-330" fill="none" stroke="var(--on-accent)" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="738" cy="368" r="52" fill="var(--measure)"/>
         </svg>
       </span>
       <span class="brand-name">FieldMark</span>
     </div>
 
     <div class="tb-group g-open">
-      <button id="btn-open" class="tb-btn primary" title="Open a PDF (Ctrl+O)">📂 Open</button>
+      <button id="btn-open" class="tb-btn primary" title="Open a PDF (Ctrl+O)"><svg class="ico" aria-hidden="true"><use href="#i-folder-open"/></svg>Open</button>
     </div>
 
     <div class="tb-spacer"></div>
 
     <div class="tb-group">
-      <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out (−)">−</button>
-      <span id="zoom-label" class="tb-readout">100%</span>
-      <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in (+)">+</button>
-      <button id="btn-fit-width" class="tb-btn" data-overflow disabled title="Fit to width">↔ Fit</button>
-      <button id="btn-marquee" class="tb-btn icon" data-overflow disabled title="Marquee zoom — drag a box to zoom into that area (Z)" aria-label="Marquee zoom">⤢</button>
-      <button id="btn-rotate" class="tb-btn icon" data-overflow disabled title="Rotate view 90° (R)" aria-label="Rotate view">⟳</button>
+      <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out (−)" aria-label="Zoom out"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button>
+      <span id="zoom-label" class="tb-readout" role="status" aria-live="polite" aria-label="Zoom level">100%</span>
+      <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in (+)" aria-label="Zoom in"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
+      <button id="btn-fit-width" class="tb-btn" data-overflow disabled title="Fit to width"><svg class="ico" aria-hidden="true"><use href="#i-fit-width"/></svg>Fit</button>
+      <button id="btn-marquee" class="tb-btn icon" data-overflow disabled title="Marquee zoom — drag a box to zoom into that area (Z)" aria-label="Marquee zoom"><svg class="ico" aria-hidden="true"><use href="#i-marquee"/></svg></button>
+      <button id="btn-rotate" class="tb-btn icon" data-overflow disabled title="Rotate view 90° (R)" aria-label="Rotate view"><svg class="ico" aria-hidden="true"><use href="#i-rotate"/></svg></button>
     </div>
 
     <div class="tb-sep"></div>
 
     <div class="tb-group" data-overflow>
-      <button id="btn-prev" class="tb-btn icon" disabled title="Previous page">▲</button>
+      <button id="btn-prev" class="tb-btn icon" disabled title="Previous page" aria-label="Previous page"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></button>
       <span class="tb-readout">
-        <input id="page-input" type="number" min="1" value="1" disabled />
-        / <span id="page-total">0</span>
+        <input id="page-input" type="number" min="1" value="1" disabled aria-label="Page number" />
+        / <span id="page-total" aria-label="Total pages">0</span>
       </span>
-      <button id="btn-next" class="tb-btn icon" disabled title="Next page">▼</button>
+      <button id="btn-next" class="tb-btn icon" disabled title="Next page" aria-label="Next page"><svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
     </div>
 
     <div class="tb-sep"></div>
 
     <div class="tb-group g-save">
-      <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
+      <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)"><svg class="ico" aria-hidden="true"><use href="#i-save"/></svg>Save</button>
       <button id="btn-save-as" class="tb-btn" data-overflow disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
     </div>
 
     <div class="tb-sep"></div>
 
     <div class="tb-group" data-overflow>
-      <button id="btn-theme" class="tb-btn icon ghost" title="Toggle light / dark theme" aria-label="Toggle theme">☾</button>
+      <button id="btn-theme" class="tb-btn icon ghost" title="Toggle light / dark theme" aria-label="Toggle theme"><svg class="ico" aria-hidden="true"><use id="theme-ico-use" href="#i-moon"/></svg></button>
       <div class="tb-dropdown">
-        <button id="btn-help" class="tb-btn icon ghost" title="Help — tour &amp; keyboard shortcuts (?)" aria-label="Help" aria-haspopup="true" aria-expanded="false">?</button>
+        <button id="btn-help" class="tb-btn icon ghost" title="Help — tour &amp; keyboard shortcuts (?)" aria-label="Help" aria-haspopup="true" aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-help"/></svg></button>
         <div id="help-menu" class="tb-menu hidden">
-          <button data-help="tour">🎓 Take a quick tour</button>
-          <button data-help="shortcuts">⌨️ Keyboard shortcuts<span class="mk-key">?</span></button>
+          <button data-help="tour"><svg class="ico" aria-hidden="true"><use href="#i-tour"/></svg>Take a quick tour</button>
+          <button data-help="shortcuts"><svg class="ico" aria-hidden="true"><use href="#i-keyboard"/></svg>Keyboard shortcuts<span class="mk-key">?</span></button>
         </div>
       </div>
       <button id="btn-updates" class="tb-btn ghost" title="Version — click to check for updates">v…</button>
@@ -83,26 +186,26 @@
          relocated here by app.js when the viewport is narrow, so the top bar
          never overflows. Empty + hidden on desktop. -->
     <div class="tb-group g-more">
-      <button id="btn-more" class="tb-btn icon" title="More controls" aria-label="More controls" aria-haspopup="true" aria-expanded="false">⋯</button>
+      <button id="btn-more" class="tb-btn icon" title="More controls" aria-label="More controls" aria-haspopup="true" aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-more"/></svg></button>
       <div id="more-menu" class="tb-menu hidden"></div>
     </div>
   </header>
 
   <!-- ================= Left tool rail ================= -->
   <aside id="tool-rail" aria-label="Tools">
-    <button id="rail-toggle" class="rail-toggle" title="Collapse toolbar" aria-label="Collapse toolbar" aria-expanded="true"><span class="rail-toggle-ico" aria-hidden="true">«</span></button>
+    <button id="rail-toggle" class="rail-toggle" title="Collapse toolbar" aria-label="Collapse toolbar" aria-expanded="true"><svg class="ico rail-toggle-ico" aria-hidden="true"><use id="rail-toggle-use" href="#i-chevrons-left"/></svg></button>
     <div class="rail-label">Edit</div>
     <div class="rail-group">
-      <button id="btn-select" class="tb-btn rail-btn" disabled title="Select — click any markup, measurement, or placement to move, resize, or delete it (Esc)"><span class="rail-ico" aria-hidden="true">↖</span><span class="rail-txt">Select</span></button>
+      <button id="btn-select" class="tb-btn rail-btn" disabled title="Select — click any markup, measurement, or placement to move, resize, or delete it (Esc)"><svg class="ico ico-lg rail-ico" aria-hidden="true"><use href="#i-cursor"/></svg><span class="rail-txt">Select</span></button>
     </div>
 
     <div class="rail-sep"></div>
 
     <div class="rail-label">Stamp</div>
     <div class="rail-group">
-      <button id="btn-sign" class="tb-btn rail-btn" disabled title="Place a signature"><span class="rail-ico" aria-hidden="true">✒️</span><span class="rail-txt">Sign</span></button>
-      <button id="btn-initials" class="tb-btn rail-btn" disabled title="Place initials"><span class="rail-ico" aria-hidden="true">🅰️</span><span class="rail-txt">Initials</span></button>
-      <button id="btn-date" class="tb-btn rail-btn" disabled title="Place today's date"><span class="rail-ico" aria-hidden="true">📅</span><span class="rail-txt">Date</span></button>
+      <button id="btn-sign" class="tb-btn rail-btn" disabled title="Place a signature"><svg class="ico ico-lg rail-ico" aria-hidden="true"><use href="#i-signature"/></svg><span class="rail-txt">Sign</span></button>
+      <button id="btn-initials" class="tb-btn rail-btn" disabled title="Place initials"><svg class="ico ico-lg rail-ico" aria-hidden="true"><use href="#i-initials"/></svg><span class="rail-txt">Initials</span></button>
+      <button id="btn-date" class="tb-btn rail-btn" disabled title="Place today's date"><svg class="ico ico-lg rail-ico" aria-hidden="true"><use href="#i-calendar"/></svg><span class="rail-txt">Date</span></button>
     </div>
 
     <div class="rail-sep"></div>
@@ -110,19 +213,19 @@
     <div class="rail-label">Take-off</div>
     <div class="rail-group">
       <div class="tb-dropdown">
-        <button id="btn-measure" class="tb-btn rail-btn" disabled title="Measure tools"><span class="rail-ico" aria-hidden="true">📐</span><span class="rail-txt">Measure</span><span class="rail-caret" aria-hidden="true">▾</span></button>
+        <button id="btn-measure" class="tb-btn rail-btn" disabled title="Measure tools"><svg class="ico ico-lg rail-ico" aria-hidden="true"><use href="#i-measure"/></svg><span class="rail-txt">Measure</span><svg class="ico rail-caret" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
         <div id="measure-menu" class="tb-menu hidden">
-          <button data-mtool="calibrate">📏 Set Scale…</button>
+          <button data-mtool="calibrate"><svg class="ico" aria-hidden="true"><use href="#i-scale"/></svg>Set Scale…</button>
           <div class="tb-menu-sep"></div>
-          <button data-mtool="length">➖ Length</button>
-          <button data-mtool="continuous" title="One continuous run of connected segments — click each point, its total length is the sum of every leg (Enter or double-click to finish)">📏 Continuous</button>
-          <button data-mtool="perimeter">〰️ Perimeter</button>
-          <button data-mtool="area">⬛ Area</button>
-          <button data-mtool="angle">📐 Angle</button>
-          <button data-mtool="count">🔢 Count</button>
+          <button data-mtool="length"><svg class="ico" aria-hidden="true"><use href="#i-length"/></svg>Length</button>
+          <button data-mtool="continuous" title="One continuous run of connected segments — click each point, its total length is the sum of every leg (Enter or double-click to finish)"><svg class="ico" aria-hidden="true"><use href="#i-continuous"/></svg>Continuous</button>
+          <button data-mtool="perimeter"><svg class="ico" aria-hidden="true"><use href="#i-perimeter"/></svg>Perimeter</button>
+          <button data-mtool="area"><svg class="ico" aria-hidden="true"><use href="#i-area"/></svg>Area</button>
+          <button data-mtool="angle"><svg class="ico" aria-hidden="true"><use href="#i-angle"/></svg>Angle</button>
+          <button data-mtool="count"><svg class="ico" aria-hidden="true"><use href="#i-count"/></svg>Count</button>
           <div class="tb-menu-sep"></div>
           <label class="mtool-color" title="Color for new measurements (existing ones keep their color)">
-            <span class="mtool-color-ico" aria-hidden="true">🎨</span>
+            <svg class="ico mtool-color-ico" aria-hidden="true"><use href="#i-palette"/></svg>
             <span>Color</span>
             <span id="measure-color-active" class="mtool-color-active" aria-hidden="true"></span>
             <input id="measure-color" type="color" value="#2f6fed" aria-label="Measurement color" />
@@ -131,39 +234,39 @@
           <div class="tb-menu-sep"></div>
           <label class="mtool-toggle" title="Snap the cursor to the drawing's own lines, corners and endpoints">
             <input id="measure-snap" type="checkbox" checked />
-            <span class="mtool-toggle-ico" aria-hidden="true">🧲</span>
+            <svg class="ico mtool-toggle-ico" aria-hidden="true"><use href="#i-magnet"/></svg>
             <span>Snap to drawing</span>
           </label>
           <label class="mtool-toggle" title="Show imperial lengths as feet-inches (e.g. 24'-6&quot;) instead of decimal feet">
             <input id="measure-ftin" type="checkbox" />
-            <span class="mtool-toggle-ico" aria-hidden="true">📐</span>
+            <svg class="ico mtool-toggle-ico" aria-hidden="true"><use href="#i-measure"/></svg>
             <span>Feet-inches</span>
           </label>
           <div class="tb-menu-sep"></div>
-          <button data-mtool="viewport">🗺️ Add Scale Region…</button>
-          <button data-mtool="toggle-panel">📋 Measurements List</button>
+          <button data-mtool="viewport"><svg class="ico" aria-hidden="true"><use href="#i-region"/></svg>Add Scale Region…</button>
+          <button data-mtool="toggle-panel"><svg class="ico" aria-hidden="true"><use href="#i-list"/></svg>Measurements List</button>
         </div>
       </div>
       <div class="tb-dropdown">
-        <button id="btn-markup" class="tb-btn rail-btn" disabled title="Markup tools"><span class="rail-ico" aria-hidden="true">✏️</span><span class="rail-txt">Markup</span><span class="rail-caret" aria-hidden="true">▾</span></button>
+        <button id="btn-markup" class="tb-btn rail-btn" disabled title="Markup tools"><svg class="ico ico-lg rail-ico" aria-hidden="true"><use href="#i-pencil"/></svg><span class="rail-txt">Markup</span><svg class="ico rail-caret" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
         <div id="markup-menu" class="tb-menu hidden">
-          <button data-mk="arrow">➷ Arrow<span class="mk-key">A</span></button>
-          <button data-mk="line">╱ Line<span class="mk-key">L</span></button>
-          <button data-mk="rect">▭ Rectangle<span class="mk-key">B</span></button>
-          <button data-mk="ellipse">◯ Ellipse<span class="mk-key">O</span></button>
-          <button data-mk="polyline">〰️ Polyline</button>
-          <button data-mk="polygon">⬠ Polygon</button>
-          <button data-mk="cloud">☁️ Cloud</button>
-          <button data-mk="ink">✒️ Freehand<span class="mk-key">P</span></button>
-          <button data-mk="text">🅃 Text<span class="mk-key">T</span></button>
-          <button data-mk="callout">💬 Callout<span class="mk-key">C</span></button>
-          <button data-mk="highlight">🖍️ Highlight<span class="mk-key">H</span></button>
+          <button data-mk="arrow"><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg>Arrow<span class="mk-key">A</span></button>
+          <button data-mk="line"><svg class="ico" aria-hidden="true"><use href="#i-line"/></svg>Line<span class="mk-key">L</span></button>
+          <button data-mk="rect"><svg class="ico" aria-hidden="true"><use href="#i-rect"/></svg>Rectangle<span class="mk-key">B</span></button>
+          <button data-mk="ellipse"><svg class="ico" aria-hidden="true"><use href="#i-ellipse"/></svg>Ellipse<span class="mk-key">O</span></button>
+          <button data-mk="polyline"><svg class="ico" aria-hidden="true"><use href="#i-polyline"/></svg>Polyline</button>
+          <button data-mk="polygon"><svg class="ico" aria-hidden="true"><use href="#i-polygon"/></svg>Polygon</button>
+          <button data-mk="cloud"><svg class="ico" aria-hidden="true"><use href="#i-cloud"/></svg>Cloud</button>
+          <button data-mk="ink"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Freehand<span class="mk-key">P</span></button>
+          <button data-mk="text"><svg class="ico" aria-hidden="true"><use href="#i-text"/></svg>Text<span class="mk-key">T</span></button>
+          <button data-mk="callout"><svg class="ico" aria-hidden="true"><use href="#i-callout"/></svg>Callout<span class="mk-key">C</span></button>
+          <button data-mk="highlight"><svg class="ico" aria-hidden="true"><use href="#i-highlight"/></svg>Highlight<span class="mk-key">H</span></button>
           <div class="tb-menu-sep"></div>
-          <button data-mk="texthighlight">🖍️ Highlight Text</button>
-          <button data-mk="underline">U̲ Underline Text</button>
-          <button data-mk="strikeout">S̶ Strikeout Text</button>
+          <button data-mk="texthighlight"><svg class="ico" aria-hidden="true"><use href="#i-text-highlight"/></svg>Highlight Text</button>
+          <button data-mk="underline"><svg class="ico" aria-hidden="true"><use href="#i-underline"/></svg>Underline Text</button>
+          <button data-mk="strikeout"><svg class="ico" aria-hidden="true"><use href="#i-strikeout"/></svg>Strikeout Text</button>
           <div class="tb-menu-sep"></div>
-          <button data-mk="__list">📋 Markups List</button>
+          <button data-mk="__list"><svg class="ico" aria-hidden="true"><use href="#i-list"/></svg>Markups List</button>
         </div>
       </div>
     </div>
@@ -173,25 +276,25 @@
     <div class="rail-label">Document</div>
     <div class="rail-group">
       <div class="tb-dropdown">
-        <button id="btn-document" class="tb-btn rail-btn" disabled title="Document tools"><span class="rail-ico" aria-hidden="true">📄</span><span class="rail-txt">Document</span><span class="rail-caret" aria-hidden="true">▾</span></button>
+        <button id="btn-document" class="tb-btn rail-btn" disabled title="Document tools"><svg class="ico ico-lg rail-ico" aria-hidden="true"><use href="#i-document"/></svg><span class="rail-txt">Document</span><svg class="ico rail-caret" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
         <div id="document-menu" class="tb-menu hidden">
-          <button data-doc="organize">🗂️ Organize Pages…</button>
-          <button data-doc="stamp">#️⃣ Numbering &amp; Stamps…</button>
-          <button data-doc="chest">🧰 Tool Chest</button>
-          <button data-doc="digisign">🔏 Digital Signature…</button>
-          <button data-doc="compare">🔍 Compare Documents…</button>
-          <button data-doc="overlay">⧉ Overlay Documents…</button>
+          <button data-doc="organize"><svg class="ico" aria-hidden="true"><use href="#i-pages"/></svg>Organize Pages…</button>
+          <button data-doc="stamp"><svg class="ico" aria-hidden="true"><use href="#i-hash"/></svg>Numbering &amp; Stamps…</button>
+          <button data-doc="chest"><svg class="ico" aria-hidden="true"><use href="#i-toolbox"/></svg>Tool Chest</button>
+          <button data-doc="digisign"><svg class="ico" aria-hidden="true"><use href="#i-certificate"/></svg>Digital Signature…</button>
+          <button data-doc="compare"><svg class="ico" aria-hidden="true"><use href="#i-compare"/></svg>Compare Documents…</button>
+          <button data-doc="overlay"><svg class="ico" aria-hidden="true"><use href="#i-overlay"/></svg>Overlay Documents…</button>
           <div class="tb-menu-sep"></div>
-          <button data-doc="split">◫ Side by Side<span class="mk-key">\</span></button>
+          <button data-doc="split"><svg class="ico" aria-hidden="true"><use href="#i-split"/></svg>Side by Side<span class="mk-key">\</span></button>
         </div>
       </div>
     </div>
   </aside>
 
   <!-- ============ Status / mode banner ============ -->
-  <div id="mode-banner" class="hidden">
+  <div id="mode-banner" class="hidden" role="status" aria-live="polite">
     <span id="mode-banner-text"></span>
-    <button id="mode-finish" class="link-btn hidden">✓ Finish shape</button>
+    <button id="mode-finish" class="link-btn hidden"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Finish shape</button>
     <button id="mode-cancel" class="link-btn">Cancel</button>
   </div>
 
@@ -207,25 +310,25 @@
         <button type="button" class="mk-sw" data-color="#2f6fed" style="background:#2f6fed" title="Blue" aria-label="Blue"></button>
         <button type="button" class="mk-sw" data-color="#1a1a1a" style="background:#1a1a1a" title="Black" aria-label="Black"></button>
       </div>
-      <label class="mk-custom" title="Custom color (color wheel)"><input id="mk-stroke" type="color" value="#e5484d" /></label>
+      <label class="mk-custom" title="Custom color (color wheel)"><input id="mk-stroke" type="color" value="#e5484d" aria-label="Custom line colour" /></label>
     </div>
-    <label class="mk-prop"><input id="mk-fill-on" type="checkbox" /> Fill <input id="mk-fill" type="color" value="#ffcc00" /></label>
-    <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" /></label>
-    <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" /></label>
+    <label class="mk-prop"><input id="mk-fill-on" type="checkbox" aria-label="Enable fill" /> Fill <input id="mk-fill" type="color" value="#ffcc00" aria-label="Fill colour" /></label>
+    <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" aria-label="Line width" /></label>
+    <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" aria-label="Opacity" /></label>
     <label class="mk-prop mk-font-only" title="Text font">Font
-      <select id="mk-font-family">
+      <select id="mk-font-family" aria-label="Text font">
         <option value="Helvetica">Helvetica</option>
         <option value="Times">Times</option>
         <option value="Courier">Courier</option>
       </select>
     </label>
     <label class="mk-prop mk-font-only" title="Text size (points)">Size
-      <input id="mk-font-size" type="number" min="6" max="120" step="1" value="14" />
+      <input id="mk-font-size" type="number" min="6" max="120" step="1" value="14" aria-label="Text size in points" />
     </label>
-    <label class="mk-prop" title="Snap to nearby vertices while dragging"><input id="mk-snap" type="checkbox" checked /> Snap</label>
+    <label class="mk-prop" title="Snap to nearby vertices while dragging"><input id="mk-snap" type="checkbox" checked aria-label="Snap to nearby vertices" /> Snap</label>
     <span class="mk-spacer"></span>
-    <button id="mk-undo" class="tb-btn" title="Undo (Ctrl+Z)">↶ Undo</button>
-    <button id="mk-redo" class="tb-btn" title="Redo (Ctrl+Y)">↷ Redo</button>
+    <button id="mk-undo" class="tb-btn" title="Undo (Ctrl+Z)"><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg>Undo</button>
+    <button id="mk-redo" class="tb-btn" title="Redo (Ctrl+Y)"><svg class="ico" aria-hidden="true"><use href="#i-redo"/></svg>Redo</button>
   </div>
 
   <!-- ================= Viewer ================= -->
@@ -240,10 +343,10 @@
           <span class="tb-rev">Rev —</span>
         </div>
         <div class="tb-body">
-          <div class="empty-icon">▦</div>
+          <svg class="ico empty-icon" aria-hidden="true"><use href="#i-grid"/></svg>
           <h1>Open a drawing to begin</h1>
           <p>View, measure, redline, and sign — offline.</p>
-          <div class="tb-cta"><button id="btn-open-empty" class="tb-btn primary large">📂 Open PDF</button></div>
+          <div class="tb-cta"><button id="btn-open-empty" class="tb-btn primary large"><svg class="ico ico-lg" aria-hidden="true"><use href="#i-folder-open"/></svg>Open PDF</button></div>
           <p class="hint">…or drag a <b>.pdf</b> anywhere onto this window.</p>
         </div>
         <div class="tb-fields">
@@ -274,47 +377,47 @@
          (which shifts the viewer's right edge). Shown once a document is open;
          a small handle collapses it, and the choice is remembered. -->
     <aside id="markup-rail" aria-label="Markup tools">
-      <button id="mr-toggle" class="mr-toggle" title="Hide markup toolbar" aria-label="Hide markup toolbar" aria-expanded="true">›</button>
+      <button id="mr-toggle" class="mr-toggle" title="Hide markup toolbar" aria-label="Hide markup toolbar" aria-expanded="true"><svg class="ico" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
       <div class="mr-scroll">
-        <button class="mr-btn" data-mr="select" title="Select (Esc) — move, resize or delete a markup" aria-label="Select">↖</button>
+        <button class="mr-btn" data-mr="select" title="Select (Esc) — move, resize or delete a markup" aria-label="Select"><svg class="ico" aria-hidden="true"><use href="#i-cursor"/></svg></button>
         <div class="mr-sep"></div>
-        <button class="mr-btn" data-mk="arrow" title="Arrow (A)" aria-label="Arrow">➷</button>
-        <button class="mr-btn" data-mk="line" title="Line (L)" aria-label="Line">╱</button>
-        <button class="mr-btn" data-mk="rect" title="Rectangle (B)" aria-label="Rectangle">▭</button>
-        <button class="mr-btn" data-mk="ellipse" title="Ellipse (O)" aria-label="Ellipse">◯</button>
-        <button class="mr-btn" data-mk="polyline" title="Polyline" aria-label="Polyline">〰️</button>
-        <button class="mr-btn" data-mk="polygon" title="Polygon" aria-label="Polygon">⬠</button>
-        <button class="mr-btn" data-mk="cloud" title="Cloud" aria-label="Cloud">☁️</button>
-        <button class="mr-btn" data-mk="ink" title="Freehand (P)" aria-label="Freehand">✒️</button>
+        <button class="mr-btn" data-mk="arrow" title="Arrow (A)" aria-label="Arrow"><svg class="ico" aria-hidden="true"><use href="#i-arrow"/></svg></button>
+        <button class="mr-btn" data-mk="line" title="Line (L)" aria-label="Line"><svg class="ico" aria-hidden="true"><use href="#i-line"/></svg></button>
+        <button class="mr-btn" data-mk="rect" title="Rectangle (B)" aria-label="Rectangle"><svg class="ico" aria-hidden="true"><use href="#i-rect"/></svg></button>
+        <button class="mr-btn" data-mk="ellipse" title="Ellipse (O)" aria-label="Ellipse"><svg class="ico" aria-hidden="true"><use href="#i-ellipse"/></svg></button>
+        <button class="mr-btn" data-mk="polyline" title="Polyline" aria-label="Polyline"><svg class="ico" aria-hidden="true"><use href="#i-polyline"/></svg></button>
+        <button class="mr-btn" data-mk="polygon" title="Polygon" aria-label="Polygon"><svg class="ico" aria-hidden="true"><use href="#i-polygon"/></svg></button>
+        <button class="mr-btn" data-mk="cloud" title="Cloud" aria-label="Cloud"><svg class="ico" aria-hidden="true"><use href="#i-cloud"/></svg></button>
+        <button class="mr-btn" data-mk="ink" title="Freehand (P)" aria-label="Freehand"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg></button>
         <div class="mr-sep"></div>
-        <button class="mr-btn" data-mk="text" title="Text (T)" aria-label="Text">🅃</button>
-        <button class="mr-btn" data-mk="callout" title="Callout (C)" aria-label="Callout">💬</button>
-        <button class="mr-btn" data-mk="highlight" title="Highlight (H)" aria-label="Highlight">🖍️</button>
+        <button class="mr-btn" data-mk="text" title="Text (T)" aria-label="Text"><svg class="ico" aria-hidden="true"><use href="#i-text"/></svg></button>
+        <button class="mr-btn" data-mk="callout" title="Callout (C)" aria-label="Callout"><svg class="ico" aria-hidden="true"><use href="#i-callout"/></svg></button>
+        <button class="mr-btn" data-mk="highlight" title="Highlight (H)" aria-label="Highlight"><svg class="ico" aria-hidden="true"><use href="#i-highlight"/></svg></button>
         <div class="mr-sep"></div>
-        <button class="mr-btn" data-mk="texthighlight" title="Highlight text" aria-label="Highlight text">🅗</button>
-        <button class="mr-btn" data-mk="underline" title="Underline text" aria-label="Underline text">U̲</button>
-        <button class="mr-btn" data-mk="strikeout" title="Strikeout text" aria-label="Strikeout text">S̶</button>
+        <button class="mr-btn" data-mk="texthighlight" title="Highlight text" aria-label="Highlight text"><svg class="ico" aria-hidden="true"><use href="#i-text-highlight"/></svg></button>
+        <button class="mr-btn" data-mk="underline" title="Underline text" aria-label="Underline text"><svg class="ico" aria-hidden="true"><use href="#i-underline"/></svg></button>
+        <button class="mr-btn" data-mk="strikeout" title="Strikeout text" aria-label="Strikeout text"><svg class="ico" aria-hidden="true"><use href="#i-strikeout"/></svg></button>
         <div class="mr-sep"></div>
-        <button class="mr-btn" data-mr="undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-        <button class="mr-btn" data-mr="redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button>
-        <button class="mr-btn" data-mr="list" title="Markups list" aria-label="Markups list">📋</button>
+        <button class="mr-btn" data-mr="undo" title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg></button>
+        <button class="mr-btn" data-mr="redo" title="Redo (Ctrl+Y)" aria-label="Redo"><svg class="ico" aria-hidden="true"><use href="#i-redo"/></svg></button>
+        <button class="mr-btn" data-mr="list" title="Markups list" aria-label="Markups list"><svg class="ico" aria-hidden="true"><use href="#i-list"/></svg></button>
       </div>
     </aside>
 
     <!-- Collapsed-rail reopen tab: a slim edge handle that brings the markup
          toolbar back after it's hidden. -->
-    <button id="mr-reopen" class="mr-reopen" title="Show markup toolbar" aria-label="Show markup toolbar">‹</button>
+    <button id="mr-reopen" class="mr-reopen" title="Show markup toolbar" aria-label="Show markup toolbar"><svg class="ico" aria-hidden="true"><use href="#i-chevron-left"/></svg></button>
 
     <!-- Side-by-side reference pane (read-only MiniViewer). Shown when Split
          View is on; the left viewer shrinks to make room. -->
     <div id="split-pane" class="hidden">
       <div id="split-head">
-        <select id="split-pick" title="Choose the document for this pane"></select>
+        <select id="split-pick" aria-label="Document shown in the side pane" title="Choose the document for this pane"></select>
         <span class="split-spacer"></span>
-        <button id="split-zoom-out" class="tb-btn icon" title="Zoom out">−</button>
-        <button id="split-fit" class="tb-btn icon" title="Fit width">⤢</button>
-        <button id="split-zoom-in" class="tb-btn icon" title="Zoom in">+</button>
-        <button id="split-close" class="tb-btn icon" title="Close side-by-side">✕</button>
+        <button id="split-zoom-out" class="tb-btn icon" title="Zoom out" aria-label="Zoom out"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button>
+        <button id="split-fit" class="tb-btn icon" title="Fit width" aria-label="Fit width"><svg class="ico" aria-hidden="true"><use href="#i-fit-width"/></svg></button>
+        <button id="split-zoom-in" class="tb-btn icon" title="Zoom in" aria-label="Zoom in"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
+        <button id="split-close" class="tb-btn icon" title="Close side-by-side" aria-label="Close side-by-side"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div id="split-body" class="mini-scroll"></div>
     </div>
@@ -322,31 +425,31 @@
 
   <!-- Find bar (Ctrl+F) -->
   <div id="find-bar" class="hidden">
-    <input id="find-input" type="text" placeholder="Find in document…" />
-    <span id="find-count" class="find-count"></span>
-    <button id="find-prev" class="tb-btn icon" title="Previous">▲</button>
-    <button id="find-next" class="tb-btn icon" title="Next">▼</button>
-    <button id="find-close" class="tb-btn icon" title="Close">✕</button>
+    <input id="find-input" type="text" placeholder="Find in document…" aria-label="Find in document" />
+    <span id="find-count" class="find-count" role="status" aria-live="polite" aria-label="Search results"></span>
+    <button id="find-prev" class="tb-btn icon" title="Previous" aria-label="Previous match"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></button>
+    <button id="find-next" class="tb-btn icon" title="Next" aria-label="Next match"><svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
+    <button id="find-close" class="tb-btn icon" title="Close" aria-label="Close find"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
   </div>
 
   <!-- Full-window drag-over overlay -->
   <div id="drop-overlay" class="hidden"><div class="drop-msg">Drop PDF to open</div></div>
 
   <!-- Floating "Copy" button shown when PDF text is selected -->
-  <button id="copy-fab" class="hidden" title="Copy selected text (Ctrl/Cmd+C)"><span aria-hidden="true">📋</span> Copy</button>
+  <button id="copy-fab" class="hidden" title="Copy selected text (Ctrl/Cmd+C)"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg> Copy</button>
 
   <!-- Loading spinner -->
-  <div id="loading" class="hidden"><div class="spinner"></div><span id="loading-text">Loading…</span></div>
+  <div id="loading" class="hidden" role="status" aria-live="polite"><div class="spinner"></div><span id="loading-text">Loading…</span></div>
 
   <!-- Toast messages -->
-  <div id="toast" class="hidden"></div>
+  <div id="toast" class="hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- ============ Signature creation modal ============ -->
   <div id="sig-modal" class="modal-backdrop hidden">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sig-modal-title">
       <div class="modal-head">
         <h2 id="sig-modal-title">Add Signature</h2>
-        <button id="sig-close" class="modal-x" title="Close">✕</button>
+        <button id="sig-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
 
       <div class="modal-tabs">
@@ -386,10 +489,10 @@
 
   <!-- ============ Scale / calibration modal ============ -->
   <div id="scale-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:560px">
+    <div class="modal" style="width:560px" role="dialog" aria-modal="true" aria-labelledby="scale-modal-title">
       <div class="modal-head">
         <h2 id="scale-modal-title">Set Scale</h2>
-        <button id="scale-close" class="modal-x" title="Close">✕</button>
+        <button id="scale-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
 
       <div class="modal-tabs">
@@ -400,13 +503,13 @@
       <!-- Enter-scale panel -->
       <div class="scale-panel" data-spanel="enter">
         <label class="field-label">Common presets</label>
-        <select id="scale-preset"><option value="">— choose a preset —</option></select>
+        <select id="scale-preset" aria-label="Common scale presets"><option value="">— choose a preset —</option></select>
         <div class="scale-eq">
-          <input id="enter-draw-val" type="number" step="any" value="1" />
-          <select id="enter-draw-unit" class="unit-sel"></select>
+          <input id="enter-draw-val" type="number" step="any" value="1" aria-label="Drawing length" />
+          <select id="enter-draw-unit" class="unit-sel" aria-label="Drawing length unit"></select>
           <span class="eq">=</span>
-          <input id="enter-real-val" type="number" step="any" value="1" />
-          <select id="enter-real-unit" class="unit-sel"></select>
+          <input id="enter-real-val" type="number" step="any" value="1" aria-label="Real-world length" />
+          <select id="enter-real-unit" class="unit-sel" aria-label="Real-world length unit"></select>
         </div>
         <p class="scale-hint">On the drawing, the left length equals the right real-world length.</p>
       </div>
@@ -415,13 +518,13 @@
       <div class="scale-panel hidden" data-spanel="calibrate">
         <p id="calib-instr" class="scale-hint">Click “Draw calibration line”, then click two points on a
           known dimension in the drawing.</p>
-        <button id="calib-draw" class="tb-btn">✏️ Draw calibration line</button>
+        <button id="calib-draw" class="tb-btn"><svg class="ico" aria-hidden="true"><use href="#i-pencil"/></svg>Draw calibration line</button>
         <div id="calib-result" class="hidden">
           <div class="scale-eq">
             <span id="calib-drawn" class="calib-drawn">—</span>
             <span class="eq">=</span>
-            <input id="calib-real-val" type="number" step="any" value="1" />
-            <select id="calib-real-unit" class="unit-sel"></select>
+            <input id="calib-real-val" type="number" step="any" value="1" aria-label="Real-world length of the measured line" />
+            <select id="calib-real-unit" class="unit-sel" aria-label="Real-world length unit"></select>
           </div>
         </div>
       </div>
@@ -442,12 +545,12 @@
   </div>
 
   <!-- ============ Markups List panel ============ -->
-  <aside id="markup-panel" class="hidden">
+  <aside id="markup-panel" class="hidden" aria-labelledby="markup-panel-title">
     <div class="mp-head">
-      <span>Markups</span>
-      <button id="mkp-close" class="modal-x" title="Close">✕</button>
+      <h2 id="markup-panel-title" class="mp-title">Markups</h2>
+      <button id="mkp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
-    <input id="mkp-filter" class="mp-filter" type="text" placeholder="Filter markups…" />
+    <input id="mkp-filter" aria-label="Filter markups" class="mp-filter" type="text" placeholder="Filter markups…" />
     <div id="mkp-list" class="mp-list"></div>
     <label class="mkp-opt"><input id="mkp-annots" type="checkbox" /> Save markups as editable PDF annotations (else flatten)</label>
     <div class="mp-foot">
@@ -457,16 +560,16 @@
   </aside>
 
   <!-- ============ Measurements panel ============ -->
-  <aside id="measure-panel" class="hidden">
+  <aside id="measure-panel" class="hidden" aria-labelledby="measure-panel-title">
     <div class="mp-head">
-      <span>Measurements</span>
-      <button id="mp-close" class="modal-x" title="Close">✕</button>
+      <h2 id="measure-panel-title" class="mp-title">Measurements</h2>
+      <button id="mp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
-    <input id="mp-filter" class="mp-filter" type="text" placeholder="Filter measurements…" />
+    <input id="mp-filter" aria-label="Filter measurements" class="mp-filter" type="text" placeholder="Filter measurements…" />
     <div id="mp-props" class="mp-props hidden">
       <span class="mp-props-title">Selected line</span>
       <label class="mp-prop" title="Line color for the selected measurement">
-        <span class="mp-prop-ico" aria-hidden="true">🎨</span>
+        <svg class="ico mp-prop-ico" aria-hidden="true"><use href="#i-palette"/></svg>
         <input id="mp-color" type="color" aria-label="Selected measurement color" />
       </label>
       <label class="mp-prop" title="Line thickness for the selected measurement">
@@ -484,17 +587,17 @@
   </aside>
 
   <!-- ============ Page Organizer panel ============ -->
-  <aside id="organize-panel" class="hidden">
+  <aside id="organize-panel" class="hidden" aria-labelledby="organize-panel-title">
     <div class="mp-head">
-      <span>Organize Pages</span>
-      <button id="org-close" class="modal-x" title="Close">✕</button>
+      <h2 id="organize-panel-title" class="mp-title">Organize Pages</h2>
+      <button id="org-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="org-toolbar">
-      <button id="org-merge" class="tb-btn" title="Append another PDF's pages">➕ Merge…</button>
-      <button id="org-insert" class="tb-btn" title="Insert a blank page">▤ Blank</button>
+      <button id="org-merge" class="tb-btn" title="Append another PDF's pages"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>Merge…</button>
+      <button id="org-insert" class="tb-btn" title="Insert a blank page"><svg class="ico" aria-hidden="true"><use href="#i-page-blank"/></svg>Blank</button>
       <button id="org-extract" class="tb-btn" title="Save the ticked pages as a new PDF">⤓ Extract…</button>
     </div>
-    <p class="org-hint">Use ◀ ▶ to reorder, ⟳ to rotate, ✕ to delete. Tick pages to extract.
+    <p class="org-hint">Use the arrows to reorder, the rotate button to turn a page, and the cross to delete. Tick pages to extract.
       <b>Apply</b> rebuilds the document.</p>
     <div id="org-grid" class="org-grid"></div>
     <div class="mp-foot">
@@ -504,24 +607,24 @@
   </aside>
 
   <!-- ============ Tool Chest panel ============ -->
-  <aside id="toolchest-panel" class="hidden">
+  <aside id="toolchest-panel" class="hidden" aria-labelledby="toolchest-panel-title">
     <div class="mp-head">
-      <span>Tool Chest</span>
-      <button id="tc-close" class="modal-x" title="Close">✕</button>
+      <h2 id="toolchest-panel-title" class="mp-title">Tool Chest</h2>
+      <button id="tc-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="org-toolbar">
       <button id="tc-save-markup" class="tb-btn" title="Save the current markup tool/style">＋ Save markup style</button>
-      <button id="tc-add-stamp" class="tb-btn" title="Add an image as a reusable stamp">🖼️ Add stamp…</button>
+      <button id="tc-add-stamp" class="tb-btn" title="Add an image as a reusable stamp"><svg class="ico" aria-hidden="true"><use href="#i-image"/></svg>Add stamp…</button>
     </div>
     <div id="tc-list" class="tc-list"></div>
   </aside>
 
   <!-- ============ Print preview modal ============ -->
   <div id="printprev-modal" class="modal-backdrop hidden">
-    <div class="modal pp-modal">
+    <div class="modal pp-modal" role="dialog" aria-modal="true" aria-labelledby="printprev-title">
       <div class="modal-head">
-        <h2>Print preview</h2>
-        <button id="pp-close" class="modal-x" title="Close">✕</button>
+        <h2 id="printprev-title">Print preview</h2>
+        <button id="pp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="pp-toolbar">
         <label class="pp-opt"><input type="radio" name="pp-mode" id="pp-mode-all" checked /> All pages</label>
@@ -551,10 +654,10 @@
 
   <!-- ============ Document stamps modal (Bates / header-footer / watermark) ============ -->
   <div id="docstamp-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:600px">
+    <div class="modal" style="width:600px" role="dialog" aria-modal="true" aria-labelledby="docstamp-title">
       <div class="modal-head">
-        <h2>Numbering &amp; Stamps</h2>
-        <button id="ds-close" class="modal-x" title="Close">✕</button>
+        <h2 id="docstamp-title">Numbering &amp; Stamps</h2>
+        <button id="ds-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="ds-body">
         <fieldset class="ds-sec">
@@ -629,10 +732,10 @@
 
   <!-- ============ Update modal ============ -->
   <div id="update-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:520px">
+    <div class="modal" style="width:520px" role="dialog" aria-modal="true" aria-labelledby="upd-title">
       <div class="modal-head">
         <h2 id="upd-title">Update available</h2>
-        <button id="upd-close" class="modal-x" title="Close">✕</button>
+        <button id="upd-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div style="padding:16px 20px">
         <p id="upd-msg"></p>
@@ -647,7 +750,7 @@
 
   <!-- ============ Confirm dialog (destructive actions) ============ -->
   <div id="confirm-modal" class="modal-backdrop hidden">
-    <div class="modal confirm">
+    <div class="modal confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div class="modal-head"><h2 id="confirm-title">Confirm</h2></div>
       <div class="confirm-body"><p id="confirm-msg"></p></div>
       <div class="modal-foot">
@@ -659,10 +762,10 @@
 
   <!-- ============ Keyboard shortcuts help ============ -->
   <div id="shortcuts-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:600px">
+    <div class="modal" style="width:600px" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
       <div class="modal-head">
-        <h2>Keyboard shortcuts</h2>
-        <button id="sc-close" class="modal-x" title="Close">✕</button>
+        <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+        <button id="sc-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <!-- Rows are rendered by app.js so the modifier key matches the OS (⌘/Ctrl). -->
       <div id="sc-body" class="sc-body"></div>
@@ -677,17 +780,17 @@
        "here's what changed" so an update doesn't restart the first-run tour.
        The heading + highlights are filled in by tour.js from its NOTES data. -->
   <div id="whatsnew-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:520px">
+    <div class="modal" style="width:520px" role="dialog" aria-modal="true" aria-labelledby="wn-title">
       <div class="modal-head">
         <h2 id="wn-title">What’s new</h2>
-        <button id="wn-close" class="modal-x" title="Close">✕</button>
+        <button id="wn-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="wn-body">
         <p id="wn-sub" class="wn-sub"></p>
         <ul id="wn-list" class="wn-list"></ul>
       </div>
       <div class="modal-foot">
-        <button id="wn-tour" class="tb-btn">🎓 Take a quick tour</button>
+        <button id="wn-tour" class="tb-btn"><svg class="ico" aria-hidden="true"><use href="#i-tour"/></svg>Take a quick tour</button>
         <button id="wn-ok" class="tb-btn primary">Got it</button>
       </div>
     </div>
@@ -695,10 +798,10 @@
 
   <!-- ============ Digital signature (PKI / PAdES) ============ -->
   <div id="digisign-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:520px">
+    <div class="modal" style="width:520px" role="dialog" aria-modal="true" aria-labelledby="digisign-title">
       <div class="modal-head">
-        <h2>Digital signature</h2>
-        <button id="dsig-close" class="modal-x" title="Close">✕</button>
+        <h2 id="digisign-title">Digital signature</h2>
+        <button id="dsig-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="dsig-body">
         <p class="dsig-intro">Apply a certified, tamper-evident signature using your digital ID
@@ -790,10 +893,10 @@
 
   <!-- ============ Document compare modal ============ -->
   <div id="compare-modal" class="modal-backdrop hidden">
-    <div class="modal cmp-modal">
+    <div class="modal cmp-modal" role="dialog" aria-modal="true" aria-labelledby="compare-title">
       <div class="modal-head">
-        <h2>Compare Documents</h2>
-        <button id="cmp-close" class="modal-x" title="Close">✕</button>
+        <h2 id="compare-title">Compare Documents</h2>
+        <button id="cmp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="cmp-bar">
         <div id="cmp-names" class="cmp-names"></div>
@@ -812,9 +915,9 @@
       <div id="cmp-view" class="cmp-view"></div>
       <div class="modal-foot cmp-foot">
         <div class="cmp-nav">
-          <button id="cmp-prev" class="tb-btn">◀ Prev</button>
+          <button id="cmp-prev" class="tb-btn"><svg class="ico" aria-hidden="true"><use href="#i-chevron-left"/></svg>Prev</button>
           <span id="cmp-page" class="cmp-page"></span>
-          <button id="cmp-next" class="tb-btn">Next ▶</button>
+          <button id="cmp-next" class="tb-btn">Next<svg class="ico" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
         </div>
         <span id="cmp-changed" class="cmp-changed"></span>
         <button id="cmp-done" class="tb-btn primary">Done</button>
@@ -827,10 +930,10 @@
        document is tinted its own color and multiply-blended, so shared lines
        read dark and each revision's unique content shows in its own color. -->
   <div id="overlay-modal" class="modal-backdrop hidden">
-    <div class="modal ovl-modal">
+    <div class="modal ovl-modal" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
       <div class="modal-head">
-        <h2>Overlay Documents</h2>
-        <button id="ovl-close" class="modal-x" title="Close">✕</button>
+        <h2 id="overlay-title">Overlay Documents</h2>
+        <button id="ovl-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="ovl-bar">
         <div class="ovl-layer">
@@ -851,7 +954,7 @@
         </div>
         <span class="ovl-spacer"></span>
         <div class="cmp-zoom-ctrl">
-          <button id="ovl-swap" class="tb-btn" title="Swap which document is A and which is B">⇄ Swap</button>
+          <button id="ovl-swap" class="tb-btn" title="Swap which document is A and which is B"><svg class="ico" aria-hidden="true"><use href="#i-swap"/></svg>Swap</button>
           <button id="ovl-fit" class="tb-btn" title="Fit page to window">Fit</button>
           <button id="ovl-zoom-out" class="tb-btn cmp-zbtn" title="Zoom out">−</button>
           <span id="ovl-zoom" class="cmp-zoom">100%</span>
@@ -861,9 +964,9 @@
       <div id="ovl-view" class="cmp-view"></div>
       <div class="modal-foot cmp-foot">
         <div class="cmp-nav">
-          <button id="ovl-prev" class="tb-btn">◀ Prev</button>
+          <button id="ovl-prev" class="tb-btn"><svg class="ico" aria-hidden="true"><use href="#i-chevron-left"/></svg>Prev</button>
           <span id="ovl-page" class="cmp-page"></span>
-          <button id="ovl-next" class="tb-btn">Next ▶</button>
+          <button id="ovl-next" class="tb-btn">Next<svg class="ico" aria-hidden="true"><use href="#i-chevron-right"/></svg></button>
         </div>
         <span id="ovl-hint" class="cmp-changed"></span>
         <button id="ovl-done" class="tb-btn primary">Done</button>

@@ -74,7 +74,15 @@
       });
       const uri = res && res.uri;
       if (plugins.Share && uri) {
-        try { await plugins.Share.share({ title: name, url: uri }); } catch (_) { /* user dismissed */ }
+        // A dismissed share sheet and a share that threw are different events.
+        // Both used to look identical: nothing happened and nothing was said.
+        try {
+          await plugins.Share.share({ title: name, url: uri });
+        } catch (e) {
+          if (!/cancel|dismiss|abort/i.test((e && e.message) || '')) {
+            App.toast('Saved to Documents, but sharing failed — the file is on the device.', 'error');
+          }
+        }
       }
       return { ok: true, path: uri || name };
     }
@@ -93,7 +101,13 @@
       });
       const uri = res && res.uri;
       if (plugins.Share && uri) {
-        try { await plugins.Share.share({ title: name, url: uri }); } catch (_) { /* dismissed */ }
+        try {
+          await plugins.Share.share({ title: name, url: uri });
+        } catch (e) {
+          if (!/cancel|dismiss|abort/i.test((e && e.message) || '')) {
+            App.toast('Saved to Documents, but sharing failed — the file is on the device.', 'error');
+          }
+        }
       }
       return { ok: true, path: uri || name };
     }

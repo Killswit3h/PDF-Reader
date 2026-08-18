@@ -102,10 +102,10 @@
 
       const acts = document.createElement('div');
       acts.className = 'org-acts';
-      acts.appendChild(actBtn('◀', 'Move left', () => moveEntry(i, -1)));
-      acts.appendChild(actBtn('⟳', 'Rotate 90°', () => rotateEntry(i)));
-      acts.appendChild(actBtn(e.deleted ? '↺' : '✕', e.deleted ? 'Restore' : 'Delete', () => toggleDelete(i)));
-      acts.appendChild(actBtn('▶', 'Move right', () => moveEntry(i, 1)));
+      acts.appendChild(actBtn('chevron-left', 'Move left', () => moveEntry(i, -1)));
+      acts.appendChild(actBtn('rotate', 'Rotate 90°', () => rotateEntry(i)));
+      acts.appendChild(actBtn(e.deleted ? 'rotate' : 'trash', e.deleted ? 'Restore' : 'Delete', () => toggleDelete(i)));
+      acts.appendChild(actBtn('chevron-right', 'Move right', () => moveEntry(i, 1)));
 
       tile.appendChild(sel);
       tile.appendChild(canvas);
@@ -120,7 +120,8 @@
 
   function actBtn(label, title, fn) {
     const b = document.createElement('button');
-    b.className = 'org-act'; b.textContent = label; b.title = title;
+    // label is an icon name from the sprite; the title carries the meaning.
+    b.className = 'org-act'; b.innerHTML = App.icon(label); b.title = title; b.setAttribute('aria-label', title);
     b.addEventListener('click', (ev) => { ev.stopPropagation(); fn(); });
     return b;
   }

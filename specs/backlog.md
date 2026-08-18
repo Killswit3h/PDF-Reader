@@ -65,3 +65,12 @@ calls. Rejected: web workers — PDF.js canvas rendering needs the main thread h
 - `test/unit/pdf-sign.test.js` fails to load: `node-forge` is declared in
   `package.json` but missing from `node_modules`. Pre-existing, unrelated to this
   work, fixed by `npm install`.
+
+## Mobile overflow sheet is outside the dropdown registry
+
+`#more-menu` (the `<820px` header overflow sheet) dismisses via its own
+`.g-more`-scoped document listener and is not registered with the `Dropdowns`
+registry added in `feat/rail-menu-exclusivity`. Opening it therefore does not
+close an open rail flyout and vice versa. Pre-existing; no visible overlap on
+current layouts because the rail is a bottom bar at that breakpoint. Fold it
+into `registerDropdown()` if the two ever collide.
