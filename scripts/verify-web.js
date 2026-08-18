@@ -201,6 +201,53 @@ function serve(dir) {
         iconCount: document.querySelectorAll('svg.ico use').length
       };
     });
+    // ---- Layout at every supported size (Track D) ----
+    // These specific breakages recur, so they get an automated sweep rather than
+    // a one-time fix: nothing may overflow the viewport horizontally, and a tall
+    // dialog's action buttons must stay on screen at every width AND height.
+    result.layout = [];
+    for (const vp of [
+      { name: 'phone-320', w: 320, h: 640 },
+      { name: 'phone-390', w: 390, h: 844 },
+      { name: 'tablet-768', w: 768, h: 1024 },
+      { name: 'laptop-short', w: 1400, h: 700 },   // the one that hid modal footers
+      { name: 'desktop-1440', w: 1440, h: 900 }
+    ]) {
+      await page.setViewportSize({ width: vp.w, height: vp.h });
+      await page.waitForTimeout(250);
+      const r = await page.evaluate(async (v) => {
+        const $ = (s) => document.querySelector(s);
+        const tick = () => new Promise((r) => setTimeout(r, 120));
+        const de = document.documentElement;
+        const bodyOverflow = de.scrollWidth - de.clientWidth;
+
+        // Find must fit fully on screen, including on a 320px phone.
+        App.Viewer.openFind();
+        await tick();
+        const fb = $('#find-bar').getBoundingClientRect();
+        const findOnScreen = fb.left >= -0.5 && fb.right <= v.w + 0.5;
+        $('#find-close').click();
+        await tick();
+
+        // The tallest dialog: its footer buttons must be reachable.
+        const modal = $('#digisign-modal');
+        modal.classList.remove('hidden');
+        await tick();
+        const dlg = modal.querySelector('.modal');
+        const go = $('#dsig-go');
+        const dr = dlg.getBoundingClientRect();
+        const gr = go.getBoundingClientRect();
+        const modalFits = dr.height <= v.h + 0.5;
+        const actionsReachable = gr.bottom <= v.h + 0.5 && gr.top >= -0.5 && gr.height > 0;
+        modal.classList.add('hidden');
+        await tick();
+
+        return { name: v.name, bodyOverflow, findOnScreen, modalFits, actionsReachable };
+      }, vp);
+      result.layout.push(r);
+    }
+    await page.setViewportSize({ width: 1280, height: 800 });
+
   } finally {
     await browser.close();
     server.close();
@@ -209,16 +256,22 @@ function serve(dir) {
   const d = result.dropdowns || {};
   const dropdownsOk = d.measureAlone && d.swapped && d.swapped2 && d.selfClosed &&
     d.stickyOpen && d.escClosed && d.outsideClosed && d.maxOpen <= 1;
+  const layout = result.layout || [];
+  const layoutBad = layout.filter((l) => l.bodyOverflow > 1 || !l.findOnScreen ||
+    !l.modalFits || !l.actionsReachable);
+  const layoutOk = layout.length > 0 && layoutBad.length === 0;
+
   const ic = result.icons || {};
   const iconsOk = ic.symbolCount > 0 && ic.iconCount > 0 &&
     (ic.emojiOffenders || []).length === 0 && (ic.missingSymbols || []).length === 0;
   const ok = !errors.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
-    dropdownsOk && iconsOk;
+    dropdownsOk && iconsOk && layoutOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
   if (!dropdownsOk) console.log('[verify-web] dropdown exclusivity FAILED:', JSON.stringify(d));
   if (!iconsOk) console.log('[verify-web] icon system FAILED:', JSON.stringify(ic, null, 2));
+  if (!layoutOk) console.log('[verify-web] layout FAILED at:', JSON.stringify(layoutBad, null, 2));
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });

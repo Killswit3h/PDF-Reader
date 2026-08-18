@@ -236,8 +236,11 @@ body.has-tabs #split-pane { top: var(--tab-h); }
   display: flex; align-items: center; justify-content: center;
 }
 .mini-page canvas { display: block; }
-/* On a narrow window, stack the two panes instead of squeezing them. */
-@media (max-width: 720px) {
+/* On a narrow window, stack the two panes instead of squeezing them.
+   Aligned to the app's 820px mobile breakpoint. It used to stack at 720 while
+   the markup rail disappeared at 820, so between those two widths the layout
+   was half in mobile mode and half not. See the breakpoint ladder in tokens.css. */
+@media (max-width: 820px) {
   #split-pane { left: 0; top: 50%; }
   body.has-split #viewerContainer { right: 0; bottom: 50%; }
   body.has-tabs #split-pane { top: calc(50% + var(--tab-h) / 2); }
@@ -304,7 +307,7 @@ body.dsig-placing #viewerContainer .page { cursor: crosshair; }
 }
 body.has-banner #find-bar { top: calc(var(--toolbar-h) + 42px); }
 #find-input {
-  width: 220px; height: 30px; padding: 0 10px;
+  width: 220px; height: 30px; padding: 0 10px; min-width: 0;
   background: var(--panel-2); color: var(--text);
   border: 1px solid var(--border); border-radius: 6px; font-size: var(--fs-md);
 }
@@ -328,7 +331,13 @@ body.tool-active .markup-svg .handle { pointer-events: none; }
   height: 40px; display: flex; align-items: center; gap: 14px; padding: 0 14px;
   background: var(--panel-2); border-bottom: 1px solid var(--border);
   font-size: var(--fs-sm); color: var(--text-dim); position: relative; z-index: var(--z-chrome);
+  /* Scrolls at every width, not just on phones: the bar holds 8 control groups
+     and below roughly 900px the Undo/Redo buttons at its end were clipped with
+     no way to reach them. */
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
 }
+#markup-props::-webkit-scrollbar { display: none; }
 .mk-prop { display: flex; align-items: center; gap: 6px; }
 .mk-prop input[type="color"] { width: 30px; height: 24px; border: none; background: none; cursor: pointer; padding: 0; }
 .mk-prop input[type="range"] { width: 90px; }
@@ -531,9 +540,22 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 }
 .modal {
   width: 760px; max-width: 94vw;
+  /* Clamp at every size, not only on phones. The digital-signature and stamps
+     dialogs are ~900px of content; on a 1400x700 laptop window they used to
+     overflow the viewport and their Cancel/Apply buttons became unreachable —
+     a functional dead end, not a cosmetic issue. The head and foot stay put and
+     only the body scrolls, so the actions are always on screen. */
+  max-height: 88dvh;
   background: var(--panel); border: 1px solid var(--border);
   border-radius: 12px; box-shadow: var(--shadow-3);
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.modal-head, .modal-foot { flex: 0 0 auto; }
+/* Every dialog body variant scrolls rather than pushing the footer off-screen. */
+.modal > .sig-panel, .modal > .scale-panel, .modal > .confirm-body,
+.modal > .sc-body, .modal > .wn-body, .modal > .dsig-body, .modal > .ds-body,
+.modal > .modal-body, .modal > .pp-body, .modal > .cmp-body, .modal > .ovl-body {
+  overflow-y: auto; min-height: 0;
 }
 .modal-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -915,7 +937,13 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
   padding-left: var(--sp-2); padding-right: var(--sp-2);
 }
 /* Dropdowns fly out to the right of the rail */
-#tool-rail .tb-menu { top: 0; left: calc(100% + 8px); box-shadow: var(--shadow-2); }
+#tool-rail .tb-menu {
+  top: 0; left: calc(100% + 8px); box-shadow: var(--shadow-2);
+  /* The Measure menu is 14 rows plus separators; anchored to a button in the
+     lower half of a short window it ran off the bottom with nothing to scroll. */
+  max-height: calc(100vh - var(--toolbar-h) - var(--sp-5));
+  overflow-y: auto;
+}
 
 /* Rail-button parts (icon / label / dropdown caret). On desktop they lay out in
    a row via .rail-btn's existing gap, so this reads "📐 Measure ▾" as before;
@@ -969,6 +997,9 @@ body.has-banner.has-props #tool-rail { top: calc(var(--toolbar-h) + 74px); }
    and shifts the viewer's right edge inward, the rail rides along with it.
    Hidden until a document is open (body.doc-open) and can be collapsed to a
    slim reopen tab; both states persist via prefs. */
+/* With two or more documents open the tab strip occupies the top of the viewer;
+   without this the rail (a higher tier) covered its right end and the + button. */
+body.has-tabs #markup-rail, body.has-tabs .mr-reopen { top: calc(var(--tab-h) + var(--sp-2)); }
 #markup-rail {
   position: absolute;
   top: var(--sp-2); right: var(--sp-2); bottom: var(--sp-2);
@@ -1055,6 +1086,22 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
 .modal-backdrop { backdrop-filter: blur(2px); }
 
 /* ---- Panel filter input + richer empty state ---- */
+/* The "save markups as editable annotations" row had no CSS rule at all: it
+   rendered as raw, unpadded, full-bleed text between two styled panel regions.
+   It was the most visibly unstyled element in the app, and it decides whether a
+   saved file can be reopened with its markups still editable — so it reads as a
+   deliberate setting now, not an afterthought. */
+.mkp-opt {
+  display: flex; align-items: flex-start; gap: var(--sp-2);
+  padding: var(--sp-3); margin: 0 var(--sp-3) var(--sp-2);
+  background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.4;
+  cursor: pointer;
+}
+.mkp-opt:hover { border-color: var(--border-strong); color: var(--text); }
+.mkp-opt input { flex: none; margin-top: 1px; }
+
 .mp-filter {
   margin: var(--sp-2) var(--sp-3) 0; padding: 0 var(--sp-3); height: 32px;
   background: var(--bg-input); color: var(--text);
@@ -1362,7 +1409,10 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
      control is relocated by app.js into the "⋯" dropdown, so the row never
      overflows and never needs a horizontal scroll. */
   #toolbar {
-    padding: 0 6px;
+    /* Landscape with a display cutout puts the notch on a *side*; only the top
+       and bottom insets were handled, so the first and last controls ran under
+       it. */
+    padding: 0 calc(6px + env(safe-area-inset-right)) 0 calc(6px + env(safe-area-inset-left));
     padding-top: env(safe-area-inset-top);
     gap: 4px;
     /* Primary controls fit down to ~360px; on anything narrower the row scrolls
@@ -1412,7 +1462,8 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
     top: auto !important; bottom: 0; left: 0; right: 0;
     width: auto; height: auto;
     flex-direction: row; align-items: stretch; gap: 0;
-    padding: 4px 4px calc(4px + env(safe-area-inset-bottom));
+    padding: 4px calc(4px + env(safe-area-inset-right))
+             calc(4px + env(safe-area-inset-bottom)) calc(4px + env(safe-area-inset-left));
     border-right: none; border-top: 1px solid var(--border);
     box-shadow: var(--shadow-2);
     z-index: calc(var(--z-chrome) + 2);
@@ -1475,6 +1526,13 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
 
   /* Markup properties bar: scroll its controls rather than overflow the width. */
   #markup-props { gap: 10px; padding: 0 10px; overflow-x: auto; }
+  /* Find was ~390px of fixed-width content pinned to the right edge, so on a
+     360px screen its left end — including the input — was off-screen. */
+  #find-bar {
+    left: calc(var(--sp-2) + env(safe-area-inset-left));
+    right: calc(var(--sp-2) + env(safe-area-inset-right));
+  }
+  #find-input { flex: 1 1 auto; width: auto; }
   #markup-props::-webkit-scrollbar { display: none; }
   .mk-prop { flex: 0 0 auto; }
   .mk-prop input[type="range"] { width: 74px; }
@@ -1669,7 +1727,7 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 .dsig-id-forget:hover { color: var(--danger); background: var(--bg-hover); }
 
 /* Placement mode tiles */
-.dsig-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.dsig-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-2); }
 .dsig-mode { display: flex; align-items: flex-start; gap: 8px;
   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--r-sm);
   padding: 10px; cursor: pointer; }
