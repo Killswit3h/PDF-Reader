@@ -130,12 +130,40 @@
     return Math.abs(b.x1 - b.x0) > 0 && Math.abs(b.y1 - b.y0) > 0;
   }
 
+  // The characters outside Latin-1 that WinAnsiEncoding still covers (the
+  // 0x80–0x9F block: smart quotes, dashes, bullet, ellipsis and friends).
+  const WINANSI_EXTRA =
+    '€‚ƒ„…†‡ˆ‰Š‹Œ' +
+    'Ž‘’“”•–—˜™š›' +
+    'œžŸ';
+
+  /**
+   * Drop characters a standard PDF font cannot encode.
+   *
+   * pdf-lib throws on the first character WinAnsiEncoding cannot represent, so
+   * a single stray glyph hallucinated from scanner noise — a CJK character, an
+   * emoji — would abort the export of the whole document. Recognition runs on
+   * unpredictable input, so filter rather than trust it.
+   */
+  function sanitizeText(s) {
+    const str = s == null ? '' : String(s);
+    let out = '';
+    for (const ch of str) {
+      const c = ch.codePointAt(0);
+      if (c >= 0x20 && c <= 0x7e) out += ch;            // printable ASCII
+      else if (c >= 0xa0 && c <= 0xff) out += ch;       // Latin-1 supplement
+      else if (WINANSI_EXTRA.indexOf(ch) !== -1) out += ch;
+      // control characters, CJK, emoji and the rest are dropped
+    }
+    return out;
+  }
+
   return {
     OcrLayout: {
       DPI_PER_SCALE, MAX_DPI, MAX_PIXELS, MIN_SCALE, MIN_CONFIDENCE,
       BASELINE_RATIO,
       rasterScale, dpiOf, wordToViewport, baselineY, fontSizeFor, squeeze,
-      usableWord
+      usableWord, sanitizeText
     }
   };
 });

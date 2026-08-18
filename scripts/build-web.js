@@ -60,7 +60,18 @@ const VENDOR = [
   ['node_modules/pdfjs-dist/web/pdf_viewer.css', 'vendor/pdfjs/web/pdf_viewer.css'],
   ['node_modules/pdf-lib/dist/pdf-lib.min.js', 'vendor/pdf-lib/pdf-lib.min.js'],
   ['node_modules/signature_pad/dist/signature_pad.umd.min.js', 'vendor/signature_pad/signature_pad.umd.min.js'],
-  ['node_modules/node-forge/dist/forge.min.js', 'vendor/node-forge/forge.min.js']
+  ['node_modules/node-forge/dist/forge.min.js', 'vendor/node-forge/forge.min.js'],
+  // OCR. The UMD entry is loaded on demand by App.ensureLib('tesseract');
+  // worker.min.js and the WASM cores are fetched by tesseract itself from the
+  // paths ocr.js hands it.
+  ['node_modules/tesseract.js/dist/tesseract.min.js', 'vendor/tesseract/tesseract.min.js'],
+  ['node_modules/tesseract.js/dist/worker.min.js', 'vendor/tesseract/worker.min.js'],
+  // All three LSTM cores ship: tesseract picks one at runtime from the device's
+  // SIMD support, and a missing variant would 404 on exactly the older hardware
+  // least able to recover from it. See specs/feature-content-edit-ocr-plan.md.
+  ['node_modules/tesseract.js-core/tesseract-core-lstm.wasm.js', 'vendor/tesseract-core/tesseract-core-lstm.wasm.js'],
+  ['node_modules/tesseract.js-core/tesseract-core-simd-lstm.wasm.js', 'vendor/tesseract-core/tesseract-core-simd-lstm.wasm.js'],
+  ['node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm.js', 'vendor/tesseract-core/tesseract-core-relaxedsimd-lstm.wasm.js']
 ];
 for (const [from, to] of VENDOR) {
   const src = path.join(ROOT, from);

@@ -605,6 +605,35 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 .scale-hint { font-size: 12px; color: var(--text-dim); margin: 6px 0 0; }
 .scale-apply { padding: 0 20px 6px; }
 
+/* ===================== OCR (text recognition) ===================== */
+#ocr-setup, #ocr-progress { padding: 0 20px 6px; }
+#ocr-setup .field-label { margin-top: var(--sp-4); }
+.ocr-scope { display: flex; gap: var(--sp-5); margin-bottom: var(--sp-3); }
+.ocr-scope label, .ocr-force {
+  display: flex; align-items: center; gap: var(--sp-2);
+  font-size: var(--fs-md); color: var(--text); cursor: pointer;
+}
+.ocr-force { margin-top: var(--sp-3); }
+.ocr-status {
+  font-size: var(--fs-md); color: var(--text);
+  margin: var(--sp-4) 0 var(--sp-3);
+  /* The page number changes every tick; a fixed line stops the dialog jumping. */
+  min-height: 1.4em;
+}
+.ocr-bar {
+  height: 6px; border-radius: var(--r-pill);
+  background: var(--bg-input); border: 1px solid var(--border);
+  overflow: hidden;
+}
+.ocr-bar-fill {
+  height: 100%; width: 0;
+  background: var(--accent);
+  transition: width var(--dur-med) var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ocr-bar-fill { transition: none; }
+}
+
 /* ===================== Measurements panel ===================== */
 #measure-panel, #markup-panel {
   position: absolute; top: var(--toolbar-h); right: 0; bottom: 0; width: 300px;

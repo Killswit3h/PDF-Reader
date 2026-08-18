@@ -59,6 +59,12 @@ App.state = {
   annoRedo: [],
   saveAnnots: false, // true = write real PDF annotations; false = flatten
 
+  // ---- OCR ----
+  // Recognition results per page: { [page]: { status, dpi, words:[{text,vx,vy,vw,vh,conf}] } }
+  // Geometry is in scale-1 viewport points like everything else. Populated by
+  // ocr.js; kept after a run so Track B can edit recognized words on a scan.
+  ocr: {},
+
   // Unsaved-changes flag — set on every edit (via App.History.snapshot), cleared
   // on save. Drives the "save before closing?" prompt in the main process.
   dirty: false
@@ -127,7 +133,12 @@ App.confirm = (message, opts = {}) => {
 // window.PDFJS_VENDOR, which we use to pick the right path.
 const VENDOR_LIBS = {
   // key: [ global the script defines, electron path, web/vendor path ]
-  forge: ['forge', '../../node_modules/node-forge/dist/forge.min.js', 'vendor/node-forge/forge.min.js']
+  forge: ['forge', '../../node_modules/node-forge/dist/forge.min.js', 'vendor/node-forge/forge.min.js'],
+  // OCR. Only the small UMD entry is deferred here; the WASM cores and the
+  // language data (the ~13 MB that makes recognition work offline) are fetched
+  // by tesseract's own worker from App.OCR_PATHS below, and only once the user
+  // actually runs recognition.
+  tesseract: ['Tesseract', '../../node_modules/tesseract.js/dist/tesseract.min.js', 'vendor/tesseract/tesseract.min.js']
 };
 const _libPromises = {};
 App.ensureLib = function (key) {

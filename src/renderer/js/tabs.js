@@ -109,6 +109,12 @@
 
   // Replace the active document's content in place (organizer rebuild). Keeps the
   // same tab rather than opening a new one.
+  // Re-capture the active tab's state into its session. replaceActive() already
+  // does this, but a caller that restores marks *after* the swap (ocr.js, which
+  // rehydrates placements/measurements/markups onto the recognized document)
+  // must snapshot again, or switching tabs would drop what it just restored.
+  T.snapshotActive = snapshotActive;
+
   T.replaceActive = async function (arrayBuffer, name, filePath) {
     if (activeId == null) return T.open(arrayBuffer, name, filePath);
     const ok = await App.Viewer._loadInto(arrayBuffer, name, filePath);

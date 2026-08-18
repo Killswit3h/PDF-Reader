@@ -176,6 +176,7 @@
         <button id="btn-document" class="tb-btn rail-btn" disabled title="Document tools"><span class="rail-ico" aria-hidden="true">📄</span><span class="rail-txt">Document</span><span class="rail-caret" aria-hidden="true">▾</span></button>
         <div id="document-menu" class="tb-menu hidden">
           <button data-doc="organize">🗂️ Organize Pages…</button>
+          <button data-doc="ocr">🔍 Recognize Text (OCR)…</button>
           <button data-doc="stamp">#️⃣ Numbering &amp; Stamps…</button>
           <button data-doc="chest">🧰 Tool Chest</button>
           <button data-doc="digisign">🔏 Digital Signature…</button>
@@ -437,6 +438,49 @@
       <div class="modal-foot">
         <button id="scale-cancel" class="tb-btn">Cancel</button>
         <button id="scale-apply" class="tb-btn primary">Apply scale</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ OCR (text recognition) modal ============ -->
+  <div id="ocr-modal" class="modal-backdrop hidden">
+    <div class="modal" style="width:520px" role="dialog" aria-modal="true" aria-labelledby="ocr-modal-title">
+      <div class="modal-head">
+        <h2 id="ocr-modal-title">Recognize Text (OCR)</h2>
+        <button id="ocr-close" class="modal-x" title="Close">✕</button>
+      </div>
+
+      <div id="ocr-setup">
+        <p class="scale-hint">
+          Reads the printed words on scanned pages and adds them to the document as
+          real text, so you can search, select and copy them. The page keeps its
+          exact appearance. Everything runs on this device.
+        </p>
+
+        <label class="field-label">Pages</label>
+        <div class="ocr-scope">
+          <label><input type="radio" name="ocr-scope" value="page" checked /> Current page</label>
+          <label><input type="radio" name="ocr-scope" value="all" /> All pages</label>
+        </div>
+
+        <label class="ocr-force">
+          <input id="ocr-force" type="checkbox" />
+          Re-recognize pages that already have text
+        </label>
+        <p class="scale-hint">
+          Off by default: pages that already carry text are left alone, because
+          recognizing them again would add a second, less accurate copy.
+        </p>
+      </div>
+
+      <div id="ocr-progress" class="hidden">
+        <p id="ocr-status" class="ocr-status" role="status" aria-live="polite">Starting…</p>
+        <div class="ocr-bar"><div id="ocr-bar-fill" class="ocr-bar-fill"></div></div>
+      </div>
+
+      <div class="modal-foot">
+        <button id="ocr-cancel" class="tb-btn">Cancel</button>
+        <button id="ocr-start" class="tb-btn primary">Start</button>
       </div>
     </div>
   </div>
@@ -888,6 +932,7 @@
   <script src="../shared/prefs.js"></script>
   <script src="../shared/digital-ids.js"></script>
   <script src="../shared/pdf-sign.js"></script>
+  <script src="../shared/ocr-layout.js"></script>
 
   <!-- ======= App modules ======= -->
   <script src="js/util.js"></script>
@@ -899,6 +944,7 @@
   <script src="js/measure.js"></script>
   <script src="js/markup.js"></script>
   <script src="js/organize.js"></script>
+  <script src="js/ocr.js"></script>
   <script src="js/docstamp.js"></script>
   <script src="js/toolchest.js"></script>
   <script src="js/print.js"></script>

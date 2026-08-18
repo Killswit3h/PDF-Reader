@@ -528,6 +528,7 @@
     App.state.annoUndo = [];
     App.state.annoRedo = [];
     App.state.flattenForms = false;
+    App.state.ocr = {}; // recognition results are per-document
     if (App.Snap) App.Snap.clear(); // page geometry is per-document; drop stale index
     if (App.History) App.History.reset();
     App.setMode && App.setMode(null);
