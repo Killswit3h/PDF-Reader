@@ -26,6 +26,7 @@
     "build:pwa": "node scripts/build-pwa.js",
     "verify:pwa": "npm run build:pwa && node scripts/verify-pwa.js",
     "verify:rotate": "npm run build:web && node scripts/verify-rotate.js",
+    "screenshots": "npm run build:web && node scripts/make-screenshots.js",
     "android:icons": "node build/make-android-icons.js android/app/src/main/res",
     "android:add": "npm run build:web && cap add android && npm run android:icons",
     "android:sync": "npm run build:web && cap sync android && npm run android:icons",
