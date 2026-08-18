@@ -10,7 +10,12 @@
     "url": "https://github.com/Killswit3h/PDF-Reader.git"
   },
   "scripts": {
+    "postinstall": "node scripts/electron-guard.js --fix",
+    "fix:electron": "node scripts/electron-guard.js --fix --force",
+    "prestart": "node scripts/electron-guard.js --ensure",
     "start": "electron .",
+    "predev": "node scripts/electron-guard.js --ensure",
+    "dev": "electron .",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node test/e2e/run.js",

@@ -321,8 +321,92 @@ npm install
 ## Run in development
 
 ```bash
-npm start
+npm start        # or: npm run dev
 ```
+
+## macOS: the Electron XProtect false positive
+
+**If you are reviewing this repo and wondering why an `npm install` here runs
+`codesign` — this section is the answer. Read it before assuming the worst.**
+
+### The problem
+
+`npm install` downloads a **prebuilt, unsigned (or ad-hoc signed) Electron.app**
+into `node_modules/electron/dist/`. Apple's **XProtect** scanner intermittently
+matches a malware signature against that binary, pops a
+*"Malware Blocked and Moved to Trash"* alert, and **deletes the bundle**.
+
+It is a **false positive** — it is the stock Electron binary from npm — but it
+breaks the dev loop, and it comes back every time `node_modules` is reinstalled,
+because a fresh install pulls down a fresh unsigned copy.
+
+The visible symptoms are a `dist/` directory that contains only `LICENSE`,
+`LICENSES.chromium.html`, and `version`, and an `npm start` that dies with a
+confusing `ENOENT` on the Electron executable.
+
+### The fix
+
+[`scripts/fix-electron-signing.sh`](scripts/fix-electron-signing.sh) does two
+things to the Electron bundle **inside this project's `node_modules`**:
+
+1. `xattr -cr` — clears the quarantine / provenance extended attributes.
+2. `codesign --force --sign -` — applies a stable **ad-hoc** signature (`-` is
+   the ad-hoc identity). No `--deep`; Apple deprecated it, and signing the
+   outer bundle re-seals it against its nested helpers anyway.
+
+Both operations are idempotent, so the script is safe to run repeatedly. It
+always exits `0` so it can never break an install, and it is a silent no-op
+when `uname` is not `Darwin`.
+
+It finds the bundle by asking the `electron` package where its executable is
+(`require('electron')` returns that path) and walking back to the enclosing
+`.app`, then also globs for any `*/electron/dist/Electron.app` under
+`node_modules` so nested, hoisted, and workspace installs are covered.
+
+### What it deliberately does *not* do
+
+This is a narrow, local mitigation. The script does **not**:
+
+- change SIP, run `spctl --master-disable`, or touch any Gatekeeper setting;
+- use `sudo`, or write anything outside this project directory;
+- disable or weaken any other macOS security control;
+- add an npm dependency.
+
+The only thing it modifies is the locally-downloaded Electron binary used for
+development. It has nothing to do with release builds — those are signed
+separately by [`build/mac-adhoc-sign.js`](build/mac-adhoc-sign.js) via
+electron-builder's `afterPack` hook.
+
+### When it runs
+
+| Hook | Command | Notes |
+|---|---|---|
+| `postinstall` | `node scripts/electron-guard.js --fix` | after every `npm install`; no-op off macOS and in CI |
+| `prestart` / `predev` | `node scripts/electron-guard.js --ensure` | repairs *then* preflights, before Electron launches |
+| manual | `npm run fix:electron` | the escape hatch, when you just want it fixed now |
+
+[`scripts/electron-guard.js`](scripts/electron-guard.js) is a small
+cross-platform shim: npm runs lifecycle scripts through `cmd.exe` on Windows,
+where `bash` and `uname` do not exist, so the shell script cannot be invoked
+from `package.json` directly. The shim is the platform gate, and it never
+propagates a failure — an install can't be broken by it.
+
+Its `--preflight` mode also checks that the Electron binary is actually on disk
+before `npm start` launches it, so a trashed bundle produces:
+
+```
+The Electron binary is missing:
+    …/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron
+
+On macOS this is almost always Apple's XProtect scanner false-positiving on
+the unsigned Electron binary in node_modules and moving it to the Trash.
+
+Repair it with:
+
+    npm install && npm run fix:electron
+```
+
+instead of a raw `ENOENT`.
 
 ## Testing
 
