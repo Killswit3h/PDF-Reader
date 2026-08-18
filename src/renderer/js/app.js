@@ -38,12 +38,21 @@
     // whenever no drawing/placement tool is armed, so clicking anything on the
     // page selects it (to move, resize, delete, or nudge).
     const selBtn = App.$('#btn-select');
-    if (selBtn) selBtn.classList.toggle('armed', !mode);
-    App.$('#btn-sign').classList.toggle('armed', mode === 'signature');
-    App.$('#btn-initials').classList.toggle('armed', mode === 'initials');
-    App.$('#btn-date').classList.toggle('armed', mode === 'date');
-    App.$('#btn-measure').classList.toggle('armed', mode === 'measure');
-    App.$('#btn-markup').classList.toggle('armed', mode === 'markup');
+    // `armed` was class-only, so assistive tech was told nothing about which
+    // tool is active — the state was purely visual. aria-pressed makes these
+    // read as toggle buttons, which is what they are.
+    const arm = (sel, on) => {
+      const el = typeof sel === 'string' ? App.$(sel) : sel;
+      if (!el) return;
+      el.classList.toggle('armed', !!on);
+      el.setAttribute('aria-pressed', on ? 'true' : 'false');
+    };
+    arm(selBtn, !mode);
+    arm('#btn-sign', mode === 'signature');
+    arm('#btn-initials', mode === 'initials');
+    arm('#btn-date', mode === 'date');
+    arm('#btn-measure', mode === 'measure');
+    arm('#btn-markup', mode === 'markup');
     // Keep the right-hand markup rail's per-tool highlight in step.
     if (App.MarkupRail) App.MarkupRail.sync();
 
@@ -740,6 +749,7 @@
           else if (mk && textTool) on = (mk === textTool);
           else if (mr === 'select') on = !App.state.mode && !textTool;
           b.classList.toggle('armed', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
       }
     };
@@ -1101,6 +1111,8 @@
     // install (→ welcome tour); an existing user updating in already has settings
     // (→ "what's new"). Passed to App.Tour.maybeAutoStart at the end of boot.
     const freshInstall = !!(App.Prefs && Object.keys(App.Prefs.all()).length === 0);
+    // Install the dialog focus traps before any module can open a dialog.
+    if (App.initFocusTraps) App.initFocusTraps();
     setupTheme();
     // Stamp today's date into the empty-state title block.
     const tbDate = App.$('#tb-date');

@@ -1091,6 +1091,10 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
    It was the most visibly unstyled element in the app, and it decides whether a
    saved file can be reopened with its markups still editable — so it reads as a
    deliberate setting now, not an afterthought. */
+/* Panel titles are real headings now (they were <span>), so they need the
+   heading's default margins removed to sit where the span did. */
+.mp-title { margin: 0; font-size: var(--fs-md); font-weight: 600; color: var(--text); }
+
 .mkp-opt {
   display: flex; align-items: flex-start; gap: var(--sp-2);
   padding: var(--sp-3); margin: 0 var(--sp-3) var(--sp-2);
