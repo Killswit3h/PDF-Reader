@@ -95,12 +95,23 @@
     eventBus.on('pagesinit', () => {
       // On a tab switch we restore the saved zoom + page; on a fresh open we
       // fit to width. `_restore` is set by Viewer._showActive() before setDocument.
-      const r = Viewer._restore; Viewer._restore = null;
+      // A tab switch supplies _restore directly. A fresh open has none, so fall
+      // back to what this document was left at last session — previously zoom
+      // and page were reset on every open and survived only a tab switch, so
+      // relaunching dropped a 200-page plan set to page 1 at fit-width.
+      const r = Viewer._restore || Viewer._savedDocState(); Viewer._restore = null;
       if (r) {
-        try { if (r.scaleValue) pdfViewer.currentScaleValue = r.scaleValue; } catch (_) { /* ignore */ }
+        const scale = r.scaleValue || r.scale;
+        try { if (scale) pdfViewer.currentScaleValue = scale; } catch (_) { /* ignore */ }
         if (r.page) { try { pdfViewer.currentPageNumber = r.page; } catch (_) { /* ignore */ } }
       } else {
         pdfViewer.currentScaleValue = 'page-width';
+      }
+      // Page scales are per-document and normally live in the saved sidecar; a
+      // plan set calibrated but not yet saved used to lose that on reopen.
+      if (r && r.scales && !Object.keys(App.state.scales || {}).length) {
+        App.state.scales = r.scales;
+        if (App.Measure && App.Measure.renderPanel) App.Measure.renderPanel();
       }
       App.state.zoom = cssScale();
       updateZoomLabel();
@@ -574,6 +585,9 @@
   };
 
   Viewer._clearState = function () {
+    // Capture where the user was before the state is torn down — this runs on
+    // close, on the last tab closing, and before loading a different document.
+    Viewer.rememberDocState();
     App.state.pageEls = [];
     App.state.placements = [];
     App.state.selectedId = null;
@@ -774,6 +788,48 @@
 
   // trackScroll kept for boot compatibility; PDFViewer manages scrolling.
   Viewer.trackScroll = function () { Viewer.init(); };
+
+  // ---- Per-document view state ----
+  // Remembering the zoom and page you left a drawing at is the difference
+  // between reopening a plan set and finding your place in it again.
+  Viewer._docKey = function () {
+    if (!App.DocState || !App.Prefs) return null;
+    return App.DocState.makeDocKey({
+      path: App.state.filePath,
+      name: App.state.fileName,
+      size: App.state.pdfBytes ? App.state.pdfBytes.byteLength : null
+    });
+  };
+
+  Viewer._savedDocState = function () {
+    try {
+      if (!App.Prefs.get('restoreDocState', true)) return null;
+      const key = Viewer._docKey();
+      if (!key) return null;
+      return App.DocState.readDocState(App.Prefs.get('docState', {}), key);
+    } catch (_) { return null; }
+  };
+
+  // Called on close, on tab switch and before quit. Deliberately tolerant: this
+  // is a convenience, and it must never be the reason a document fails to close.
+  Viewer.rememberDocState = function () {
+    try {
+      if (!App.Prefs || !App.DocState) return;
+      if (!App.Prefs.get('restoreDocState', true)) return;
+      const key = Viewer._docKey();
+      if (!key || !App.state.pdfDoc) return;
+      const patch = {
+        page: App.state.currentPage,
+        scale: (pdfViewer && pdfViewer.currentScaleValue) || undefined
+      };
+      // Scale calibration lives in the sidecar on save; keeping a copy here
+      // means reopening an unsaved plan set does not silently lose it.
+      if (App.state.scales && Object.keys(App.state.scales).length) patch.scales = App.state.scales;
+      const next = App.DocState.writeDocState(
+        App.Prefs.get('docState', {}), key, patch, Date.now());
+      App.Prefs.set('docState', next);
+    } catch (_) { /* never block a close on a preference write */ }
+  };
 
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {

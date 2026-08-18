@@ -2459,6 +2459,71 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_SETTINGS: preferences must have one home, must actually stick, and
+      // must not change behaviour for anyone who never opens the dialog. Also
+      // proves a document's page/zoom is remembered and restored, which is what
+      // "reopen where I left it" means.
+      if (process.env.SMOKE_SETTINGS) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=()=>new Promise(r=>setTimeout(r,120));
+
+              // Defaults must match today's behaviour for a fresh install.
+              const defRestore=App.Settings.get('restoreDocState');
+              const defUpdates=App.Settings.get('updateCheck');
+
+              // The dialog opens and is a real dialog.
+              App.Settings.open(); await tick();
+              const opened=!$('#settings-modal').classList.contains('hidden');
+              const isDialog=$('#settings-modal .modal').getAttribute('role')==='dialog';
+
+              // Toggling a control persists AND drives the original buried
+              // control, so the two can never disagree.
+              const ft=$('#set-measureFeetInches');
+              const before=!!ft.checked;
+              ft.checked=!before; ft.dispatchEvent(new Event('change',{bubbles:true}));
+              await tick();
+              const stored=App.Prefs.get('measureFeetInches')===!before;
+              const mirrored=$('#measure-ftin').checked===!before;
+              ft.checked=before; ft.dispatchEvent(new Event('change',{bubbles:true}));
+              await tick();
+
+              // Theme goes through the same path as the toolbar toggle.
+              const th=$('#set-theme');
+              th.value='light'; th.dispatchEvent(new Event('change',{bubbles:true}));
+              await tick();
+              const themeApplied=document.documentElement.dataset.theme==='light'
+                && App.Prefs.get('theme')==='light';
+              th.value='dark'; th.dispatchEvent(new Event('change',{bubbles:true}));
+              await tick();
+
+              $('#settings-done').click(); await tick();
+              const closed=$('#settings-modal').classList.contains('hidden');
+
+              // Per-document view state round-trips through the bounded store.
+              App.Viewer.rememberDocState();
+              const key=App.Viewer._docKey();
+              const saved=App.DocState.readDocState(App.Prefs.get('docState',{}),key);
+              const remembered=!!(saved&&saved.page);
+
+              // The store stays bounded, so it cannot grow until writes fail.
+              let m={};
+              for(let i=0;i<App.DocState.LIMIT+5;i++) m=App.DocState.writeDocState(m,'k'+i,{page:1},i+1);
+              const bounded=Object.keys(m).length===App.DocState.LIMIT;
+
+              return JSON.stringify({defRestore,defUpdates,opened,isDialog,stored,mirrored,
+                themeApplied,closed,remembered,bounded});
+            })()`, true);
+            console.log('[settings] ' + r);
+          } catch (e) { console.log('[settings] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       setTimeout(() => { console.log('[smoke] done'); app.quit(); },
         parseInt(process.env.SMOKE_MS || '4000', 10));
     });

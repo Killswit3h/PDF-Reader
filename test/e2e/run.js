@@ -409,6 +409,26 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'settings — one home for preferences, and documents reopen where you left them',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_SETTINGS: '1' }, [SAMPLE]), 'settings');
+      // A fresh install must behave exactly as it did before this existed.
+      check(j.defRestore === true, 'restoreDocState did not default to on');
+      check(j.defUpdates === true, 'updateCheck did not default to on');
+      check(j.opened === true, 'Settings did not open');
+      check(j.isDialog === true, 'Settings is not marked up as a dialog');
+      check(j.stored === true, 'a Settings change was not persisted');
+      // Each control writes the same pref its original buried home does; if they
+      // drift, the app shows two different answers for one setting.
+      check(j.mirrored === true, 'Settings did not sync the original control');
+      check(j.themeApplied === true, 'theme change did not apply and persist');
+      check(j.closed === true, 'Done did not close Settings');
+      check(j.remembered === true, 'document page/zoom was not remembered');
+      // Unbounded growth would eventually make every preference write fail.
+      check(j.bounded === true, 'the per-document store is not bounded');
+    }
+  },
+  {
     name: 'mobile parity — find has a button, undo is reachable, marquee takes touch',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MOBILE: '1' }, [SAMPLE]), 'mobile');
