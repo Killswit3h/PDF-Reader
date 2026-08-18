@@ -380,8 +380,15 @@ Then the re-parsed page does not draw that image.
   present the editable objects within 1 s.
 
 **Size**
-- NFR-6: The bundled OCR assets shall add no more than 12 MB to any platform
-  build.
+- NFR-6: The bundled OCR assets shall add no more than 15 MB to any platform
+  build. **Measured at implementation: 14.3 MB** — 12 MB of WASM cores, 2.1 MB of
+  English language data, 0.2 MB of library.
+
+  *Revised from an estimated 12 MB.* Tesseract selects one of three LSTM cores at
+  runtime from the device's SIMD support (relaxed-SIMD, SIMD, or plain), and
+  requests it by name. Shipping only the two modern variants would save 3.7 MB but
+  404 on exactly the older Android hardware least able to recover from it — the
+  worst outcome for an app whose promise is that it works offline. All three ship.
 
 **Correctness / safety**
 - NFR-7: No code path in this feature shall make a network request.
