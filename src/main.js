@@ -2341,6 +2341,69 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_A11Y: the app must be operable without a mouse. Proves every
+      // dialog is a real dialog, that Tab is trapped inside an open one instead
+      // of walking into the toolbar behind the scrim, that focus returns to the
+      // control that opened it, that armed tools report aria-pressed, and that
+      // panel rows are reachable and activatable from the keyboard.
+      if (process.env.SMOKE_A11Y) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=()=>new Promise(r=>setTimeout(r,100));
+
+              // 1. Dialog semantics across every modal.
+              const backs=[...document.querySelectorAll('.modal-backdrop')];
+              const badDialogs=backs.filter(b=>{const d=b.querySelector('.modal');
+                if(!d)return true;const l=d.getAttribute('aria-labelledby');
+                return d.getAttribute('role')!=='dialog'||d.getAttribute('aria-modal')!=='true'
+                  ||!l||!document.getElementById(l);}).length;
+
+              // 2. Trap + restore on a real dialog.
+              const opener=$('#btn-help'); opener.focus();
+              const modal=$('#shortcuts-modal');
+              modal.classList.remove('hidden'); await tick();
+              const dlg=modal.querySelector('.modal');
+              const movedIn=dlg.contains(document.activeElement);
+              const items=App.focusablesIn(dlg);
+              let wrapped=false;
+              if(items.length){ items[items.length-1].focus();
+                dlg.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true}));
+                await tick(); wrapped=document.activeElement===items[0]; }
+              modal.classList.add('hidden'); await tick();
+              const restored=document.activeElement===opener;
+
+              // 3. Armed tools expose aria-pressed, not just a class.
+              App.setMode('markup'); await tick();
+              const pressedOn=$('#btn-markup').getAttribute('aria-pressed')==='true';
+              App.setMode(null); await tick();
+              const pressedOff=$('#btn-markup').getAttribute('aria-pressed')==='false';
+
+              // 4. Panel rows are focusable and Enter-activatable.
+              App.Markup.setTool('rect');
+              App.state.annotations.push({id:9001,page:1,type:'rect',
+                pts:[{vx:40,vy:40},{vx:120,vy:100}],style:{stroke:'#e5473b',width:2,opacity:1}});
+              App.MarkupPanel.render(); await tick();
+              const row=document.querySelector('#markup-panel .mp-row');
+              const rowRole=row?row.getAttribute('role'):'';
+              const rowTab=row?row.tabIndex:-1;
+              let rowActivates=false;
+              if(row){ row.focus();
+                row.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+                await tick(); rowActivates=App.state.annoSelectedId===9001; }
+
+              return JSON.stringify({badDialogs,dialogCount:backs.length,movedIn,wrapped,
+                restored,pressedOn,pressedOff,rowRole,rowTab,rowActivates});
+            })()`, true);
+            console.log('[a11y] ' + r);
+          } catch (e) { console.log('[a11y] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       setTimeout(() => { console.log('[smoke] done'); app.quit(); },
         parseInt(process.env.SMOKE_MS || '4000', 10));
     });

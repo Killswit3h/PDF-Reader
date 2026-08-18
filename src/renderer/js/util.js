@@ -144,6 +144,94 @@ App.clearToasts = () => {
   if (el) el.classList.add('hidden');
 };
 
+// -------- Focus management --------
+// Before this the app had no focus trap anywhere and exactly one focus restore
+// in the whole codebase. Tab from the last field of any of the eleven dialogs
+// walked straight into the toolbar behind the scrim, and closing one dropped
+// focus on <body>, so a keyboard user lost their place every time.
+//
+// One helper, called from every open and close path, because a trap that works
+// in some dialogs and not others is worse than none — keyboard users learn to
+// distrust it.
+const FOCUSABLE = [
+  'a[href]', 'button:not([disabled])', 'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])', 'textarea:not([disabled])', '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])'
+].join(',');
+
+// Visible focusable descendants, in DOM order.
+App.focusablesIn = (root) => Array.from(root.querySelectorAll(FOCUSABLE))
+  .filter((el) => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+
+const traps = new Map();
+
+// Trap Tab inside `root` until App.releaseFocus(root). `returnTo` defaults to
+// whatever had focus when the trap was installed, which is almost always the
+// control that opened the surface.
+App.trapFocus = (root, returnTo) => {
+  if (!root || traps.has(root)) return;
+  const previous = returnTo || document.activeElement;
+  const onKey = (e) => {
+    if (e.key !== 'Tab') return;
+    const items = App.focusablesIn(root);
+    if (!items.length) { e.preventDefault(); return; }
+    const first = items[0];
+    const last = items[items.length - 1];
+    // Focus may sit outside the trap (e.g. on <body> right after opening).
+    if (!root.contains(document.activeElement)) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus();
+      return;
+    }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  };
+  root.addEventListener('keydown', onKey);
+  traps.set(root, { onKey, previous });
+
+  // Move focus in only if it is not already inside — several dialogs focus a
+  // specific field themselves (the signature name, the find input, a password).
+  if (!root.contains(document.activeElement)) {
+    const items = App.focusablesIn(root);
+    if (items.length) items[0].focus();
+  }
+};
+
+// Remove the trap and hand focus back to whatever opened the surface.
+App.releaseFocus = (root) => {
+  const t = traps.get(root);
+  if (!t) return;
+  root.removeEventListener('keydown', t.onKey);
+  traps.delete(root);
+  const back = t.previous;
+  if (back && document.contains(back) && typeof back.focus === 'function') {
+    // Only restore if focus is still inside the surface being closed; if the
+    // user has since clicked elsewhere, respect that.
+    if (!document.activeElement || root.contains(document.activeElement) ||
+        document.activeElement === document.body) {
+      back.focus();
+    }
+  }
+};
+
+// Watch every .modal-backdrop and every side panel: when `hidden` goes away the
+// surface is open, when it comes back it is closed. Wiring this to the class
+// rather than to ~30 call sites means a dialog opened from anywhere — including
+// code added later — gets the trap for free.
+App.initFocusTraps = () => {
+  const surfaces = Array.from(document.querySelectorAll('.modal-backdrop'));
+  const sync = (el) => {
+    const open = !el.classList.contains('hidden');
+    if (open) App.trapFocus(el.querySelector('.modal') || el);
+    else App.releaseFocus(el.querySelector('.modal') || el);
+  };
+  surfaces.forEach((el) => {
+    new MutationObserver(() => sync(el))
+      .observe(el, { attributes: true, attributeFilter: ['class'] });
+    sync(el);
+  });
+};
+
 // -------- Confirm dialog (Promise<boolean>) --------
 // Themed replacement for window.confirm(); resolves false on Cancel/Esc.
 App.confirm = (message, opts = {}) => {

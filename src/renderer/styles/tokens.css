@@ -33,6 +33,14 @@
   --toolbar-h: 52px;
   --tab-h: 34px;       /* document tab strip; was referenced as a fallback before it existed */
   --rail-w: 146px;
+  /* ---- Breakpoint ladder ----
+   * Two widths, documented, so layout rules stop disagreeing with each other:
+   *   <= 560px  very narrow: two-column dialog bodies collapse to one
+   *   <= 820px  phone/tablet: rails reflow, panels become sheets, split stacks
+   * (CSS cannot use a custom property in a media query, so these are written
+   * literally at each @media — this comment is the single source of truth.)
+   * Previously split view stacked at 720 while everything else switched at 820. */
+
   --grid-size: 16px;   /* fine graph-paper pitch */
   --grid-major: 96px;  /* heavy line every 6 squares */
 

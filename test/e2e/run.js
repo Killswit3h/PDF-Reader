@@ -409,6 +409,23 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'a11y — dialogs trap focus, restore it, and tools report pressed state',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_A11Y: '1' }, [SAMPLE]), 'a11y');
+      check(j.dialogCount >= 11, `only ${j.dialogCount} dialogs found`);
+      check(j.badDialogs === 0, `${j.badDialogs} modals lack role/aria-modal/aria-labelledby`);
+      // Tab used to walk straight out of a dialog into the toolbar behind it.
+      check(j.movedIn === true, 'opening a dialog did not move focus into it');
+      check(j.wrapped === true, 'Tab escaped the dialog instead of cycling inside it');
+      check(j.restored === true, 'closing a dialog did not restore focus to its opener');
+      check(j.pressedOn === true && j.pressedOff === true,
+        'armed tools do not report aria-pressed');
+      check(j.rowRole === 'option', `panel row role was "${j.rowRole}"`);
+      check(j.rowTab === 0, 'panel row is not reachable by keyboard');
+      check(j.rowActivates === true, 'Enter on a focused panel row did nothing');
+    }
+  },
+  {
     name: 'failure path — errors survive, stamps undo, dirty reaches the title',
     run: () => {
       const j = tagJson(runApp({ SMOKE_FAILPATH: '1' }, [SAMPLE]), 'failpath');
