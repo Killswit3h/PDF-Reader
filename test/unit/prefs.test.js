@@ -44,4 +44,54 @@ describe('Prefs', () => {
     createPrefs(store).set('theme', 'light');
     expect(createPrefs(store).get('theme')).toBe('light');
   });
+
+  // A full or blocked localStorage used to fail silently at every call site, so
+  // the app simply stopped remembering anything with nothing said.
+  describe('write failures', () => {
+    function failingStore() {
+      const inner = memoryStore();
+      return {
+        getItem: inner.getItem,
+        removeItem: inner.removeItem,
+        setItem: () => { throw new Error('QuotaExceededError'); }
+      };
+    }
+
+    it('reports the first write failure', () => {
+      let calls = 0;
+      const p = createPrefs(failingStore(), () => { calls++; });
+      p.set('theme', 'light');
+      expect(calls).toBe(1);
+    });
+
+    it('reports it only once per session, however many writes fail', () => {
+      let calls = 0;
+      const p = createPrefs(failingStore(), () => { calls++; });
+      p.set('theme', 'light');
+      p.set('snap', true);
+      p.merge({ a: 1, b: 2 });
+      expect(calls).toBe(1);
+    });
+
+    it('still does not throw when a write fails', () => {
+      const p = createPrefs(failingStore(), () => {});
+      expect(() => p.set('theme', 'light')).not.toThrow();
+      expect(p.set('theme', 'light')).toBe('light');
+    });
+
+    it('tolerates a handler that itself throws', () => {
+      const p = createPrefs(failingStore(), () => { throw new Error('handler blew up'); });
+      expect(() => p.set('theme', 'light')).not.toThrow();
+    });
+
+    it('works with no handler supplied at all', () => {
+      const p = createPrefs(failingStore());
+      expect(() => p.set('theme', 'light')).not.toThrow();
+    });
+
+    it('canPersist reflects whether the store accepts writes', () => {
+      expect(createPrefs(memoryStore()).canPersist()).toBe(true);
+      expect(createPrefs(failingStore(), () => {}).canPersist()).toBe(false);
+    });
+  });
 });

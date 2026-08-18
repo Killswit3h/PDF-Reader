@@ -409,6 +409,42 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'a11y — dialogs trap focus, restore it, and tools report pressed state',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_A11Y: '1' }, [SAMPLE]), 'a11y');
+      check(j.dialogCount >= 11, `only ${j.dialogCount} dialogs found`);
+      check(j.badDialogs === 0, `${j.badDialogs} modals lack role/aria-modal/aria-labelledby`);
+      // Tab used to walk straight out of a dialog into the toolbar behind it.
+      check(j.movedIn === true, 'opening a dialog did not move focus into it');
+      check(j.wrapped === true, 'Tab escaped the dialog instead of cycling inside it');
+      check(j.restored === true, 'closing a dialog did not restore focus to its opener');
+      check(j.pressedOn === true && j.pressedOff === true,
+        'armed tools do not report aria-pressed');
+      check(j.rowRole === 'option', `panel row role was "${j.rowRole}"`);
+      check(j.rowTab === 0, 'panel row is not reachable by keyboard');
+      check(j.rowActivates === true, 'Enter on a focused panel row did nothing');
+    }
+  },
+  {
+    name: 'failure path — errors survive, stamps undo, dirty reaches the title',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_FAILPATH: '1' }, [SAMPLE]), 'failpath');
+      // The toast was a single slot with one shared timer, so a routine success
+      // could erase an error the user had not read.
+      check(j.errorStillShowing === true, 'a success toast overwrote an unread error');
+      check(j.liveAssertive === true, 'error toast was not announced assertively');
+      check(j.firstIsA === true, 'queued toasts did not show in order');
+      // Applying stamps neither entered history nor marked the file dirty.
+      check(j.dirtyBefore === false, 'document started dirty; test cannot prove anything');
+      check(j.dirtyAfterStamp === true, 'a stamp change did not mark the document dirty');
+      check(j.stampUndone === true, 'undo did not restore the previous stamp configuration');
+      // With one document open the tab bar is hidden, so the title is the only
+      // place an unsaved-changes indicator can appear.
+      check(j.titleMarked === true, 'window title showed no unsaved-changes marker');
+      check(j.titleClean === true, 'unsaved-changes marker stayed after saving');
+    }
+  },
+  {
     name: 'sharp zoom — page past the old 16.7M cap renders crisp, not downscaled',
     run: () => {
       const j = tagJson(runApp({ SMOKE_SHARP: '1' }, [SAMPLE]), 'sharp');

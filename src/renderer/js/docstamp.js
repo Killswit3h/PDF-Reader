@@ -191,6 +191,10 @@
     b('#ds-close', closeModal);
     b('#ds-cancel', closeModal);
     b('#ds-apply', () => {
+      // Before this, applying a whole watermark/Bates configuration neither
+      // entered the undo history nor set dirty — so it could not be undone, and
+      // closing the tab discarded it with no "unsaved changes" prompt.
+      if (App.History) App.History.snapshot();
       readForm();
       App.state.flattenForms = App.$('#ds-flatten') ? App.$('#ds-flatten').checked : false;
       closeModal();
@@ -198,7 +202,13 @@
       if (App.state.pdfDoc) App.$('#btn-save').disabled = false;
       App.toast(D.hasAny() ? 'Stamps set — applied when you Save.' : 'Stamps cleared.', 'success', 3500);
     });
-    b('#ds-clear', () => {
+    b('#ds-clear', async () => {
+      if (D.hasAny()) {
+        const ok = await App.confirm('Clear all numbering, headers, footers and watermarks?',
+          { title: 'Clear stamps', okLabel: 'Clear', danger: true });
+        if (!ok) return;
+      }
+      if (App.History) App.History.snapshot();
       App.state.docStamp = def();
       if (App.Prefs) App.Prefs.set('docStamp', App.state.docStamp);
       fillForm();
