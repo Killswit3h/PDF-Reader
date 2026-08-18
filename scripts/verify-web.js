@@ -201,6 +201,70 @@ function serve(dir) {
         iconCount: document.querySelectorAll('svg.ico use').length
       };
     });
+    // ---- Accessibility (Track E) ----
+    // Checked against the live DOM: every dialog must be a real dialog, the
+    // focus trap must actually cycle, focus must come back to whatever opened
+    // the surface, and no interactive control may be left without a name.
+    result.a11y = await page.evaluate(async () => {
+      const $ = (s) => document.querySelector(s);
+      const tick = () => new Promise((r) => setTimeout(r, 120));
+
+      // 1. Dialog semantics on all eleven modals.
+      const backdrops = Array.from(document.querySelectorAll('.modal-backdrop'));
+      const badDialogs = backdrops.filter((b) => {
+        const d = b.querySelector('.modal');
+        if (!d) return true;
+        const labelId = d.getAttribute('aria-labelledby');
+        return d.getAttribute('role') !== 'dialog' ||
+               d.getAttribute('aria-modal') !== 'true' ||
+               !labelId || !document.getElementById(labelId);
+      }).map((b) => b.id);
+
+      // 2. Focus trap + restore, exercised on a real dialog.
+      const opener = $('#btn-help');
+      opener.focus();
+      const modal = $('#shortcuts-modal');
+      modal.classList.remove('hidden');
+      await tick();
+      const dlg = modal.querySelector('.modal');
+      const focusMovedIn = dlg.contains(document.activeElement);
+      // Tab from the last focusable must wrap to the first, not escape.
+      const items = App.focusablesIn(dlg);
+      let wrapped = false;
+      if (items.length) {
+        items[items.length - 1].focus();
+        dlg.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+        await tick();
+        wrapped = document.activeElement === items[0];
+      }
+      modal.classList.add('hidden');
+      await tick();
+      const focusRestored = document.activeElement === opener;
+
+      // 3. Every interactive control has an accessible name.
+      const unnamed = [];
+      document.querySelectorAll(
+        'button, input:not([type="hidden"]), select, textarea, [role="option"]'
+      ).forEach((el) => {
+        if (el.closest('#icon-sprite')) return;
+        const name = (el.getAttribute('aria-label') || '').trim() ||
+          (el.getAttribute('title') || '').trim() ||
+          (el.textContent || '').trim() ||
+          (el.labels && el.labels.length ? (el.labels[0].textContent || '').trim() : '') ||
+          (el.getAttribute('placeholder') || '').trim() ||
+          (el.getAttribute('aria-labelledby') &&
+            document.getElementById(el.getAttribute('aria-labelledby')) ? 'ref' : '');
+        if (!name) unnamed.push((el.id || el.className || el.tagName).toString().slice(0, 40));
+      });
+
+      // 4. Live regions exist for the things that change without a page move.
+      const live = ['#toast', '#zoom-label', '#find-count', '#mode-banner']
+        .filter((sel) => { const el = $(sel); return !el || !el.getAttribute('aria-live'); });
+
+      return { badDialogs, dialogCount: backdrops.length, focusMovedIn, wrapped,
+        focusRestored, unnamed, missingLive: live };
+    });
+
     // ---- Layout at every supported size (Track D) ----
     // These specific breakages recur, so they get an automated sweep rather than
     // a one-time fix: nothing may overflow the viewport horizontally, and a tall
@@ -261,17 +325,23 @@ function serve(dir) {
     !l.modalFits || !l.actionsReachable);
   const layoutOk = layout.length > 0 && layoutBad.length === 0;
 
+  const a = result.a11y || {};
+  const a11yOk = a.dialogCount > 0 && (a.badDialogs || []).length === 0 &&
+    a.focusMovedIn && a.wrapped && a.focusRestored &&
+    (a.unnamed || []).length === 0 && (a.missingLive || []).length === 0;
+
   const ic = result.icons || {};
   const iconsOk = ic.symbolCount > 0 && ic.iconCount > 0 &&
     (ic.emojiOffenders || []).length === 0 && (ic.missingSymbols || []).length === 0;
   const ok = !errors.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
-    dropdownsOk && iconsOk && layoutOk;
+    dropdownsOk && iconsOk && layoutOk && a11yOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
   if (!dropdownsOk) console.log('[verify-web] dropdown exclusivity FAILED:', JSON.stringify(d));
   if (!iconsOk) console.log('[verify-web] icon system FAILED:', JSON.stringify(ic, null, 2));
   if (!layoutOk) console.log('[verify-web] layout FAILED at:', JSON.stringify(layoutBad, null, 2));
+  if (!a11yOk) console.log('[verify-web] a11y FAILED:', JSON.stringify(a, null, 2));
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });
