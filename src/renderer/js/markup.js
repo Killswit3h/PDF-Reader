@@ -715,17 +715,29 @@
       ? all.filter((an) => an.type.includes(q) || (an.text || '').toLowerCase().includes(q) || ('p' + an.page).includes(q))
       : all;
     list.innerHTML = '';
-    if (!all.length) { list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">✏️</div>No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
+    if (!all.length) { list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">' + App.icon('pencil', 'ico-lg') + '</div>No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
     if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups match “' + esc(q) + '”.</div>'; return; }
     arr.forEach((an) => {
       const row = document.createElement('div');
+      // A clickable <div> with no role, no tab stop and no key handler made the
+      // whole panel pointer-only. option/listbox rather than button: these are a
+      // single-select set, and that is what a screen reader should hear.
       row.className = 'mp-row' + (an.id === App.state.annoSelectedId ? ' selected' : '');
+      row.setAttribute('role', 'option');
+      row.tabIndex = 0;
+      row.setAttribute('aria-selected', an.id === App.state.annoSelectedId ? 'true' : 'false');
       row.innerHTML =
         `<span class="mp-swatch" style="background:${an.style.stroke}"></span>` +
         `<span class="mp-type">${an.type}</span>` +
         `<span class="mp-val">${an.text ? esc(an.text) : ''}</span>` +
         `<span class="mp-pg">p${an.page}</span>` +
-        `<button class="mp-del" title="Delete">✕</button>`;
+        `<button class="mp-del" title="Delete" aria-label="Delete">${App.icon('trash')}</button>`;
+      // A tab stop that does nothing on Enter is worse than no tab stop.
+      row.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        row.click();
+      });
       row.addEventListener('click', (e) => {
         if (e.target.classList.contains('mp-del')) { K.remove(an.id); Panel.render(); return; }
         K.select(an.id);

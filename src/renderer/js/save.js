@@ -146,14 +146,19 @@
   // keyed by widget-annotation id) into `pdfDoc`'s AcroForm fields via pdf-lib,
   // resolving id -> field name through PDF.js's getFieldObjects(). Text, checkbox,
   // radio and dropdown/list fields are handled; anything unmapped is skipped.
+  // Returns { attempted, failed } so the caller can tell the user how many of
+  // their typed values did not make it into the saved file. Previously every
+  // failure here was swallowed at three separate levels, so a form could save
+  // with none of its values and no indication anything went wrong.
   async function applyFormEdits(pdfDoc) {
+    let attempted = 0, failed = 0;
     try {
       const src = App.state.pdfDoc;
       const store = src && src.annotationStorage;
       const all = store && store.getAll ? store.getAll() : null;
-      if (!all || !Object.keys(all).length) return;
+      if (!all || !Object.keys(all).length) return { attempted, failed };
       const fieldObjs = await src.getFieldObjects();
-      if (!fieldObjs) return;
+      if (!fieldObjs) return { attempted, failed };
       const idToName = {};
       for (const [name, arr] of Object.entries(fieldObjs)) {
         (arr || []).forEach((o) => { if (o && o.id != null) idToName[o.id] = name; });
@@ -164,8 +169,9 @@
         const name = idToName[id];
         if (!name || done.has(name) || !entry || !('value' in entry)) continue;
         done.add(name);
+        attempted++;
         let field;
-        try { field = form.getField(name); } catch (_) { continue; }
+        try { field = form.getField(name); } catch (_) { failed++; continue; }
         const v = entry.value;
         try {
           if (typeof field.setText === 'function') {
@@ -175,9 +181,15 @@
           } else if (typeof field.select === 'function' && v != null && v !== 'Off') {
             field.select(String(v));
           }
-        } catch (_) { /* field type/value mismatch — leave as-is */ }
+        } catch (_) { failed++; /* field type/value mismatch — leave as-is */ }
       }
-    } catch (_) { /* forms are optional */ }
+    } catch (_) {
+      // The whole block failed: every value the user typed is missing from the
+      // output. Report it as such rather than as "forms are optional".
+      if (attempted === 0) attempted = 1;
+      failed = attempted;
+    }
+    return { attempted, failed };
   }
 
   // Build the final PDF bytes with all placements flattened onto their pages.
@@ -194,7 +206,11 @@
       // pdf-lib so they persist in the saved file. (PDF.js's own saveDocument()
       // emits an incremental update that doesn't survive pdf-lib's full rewrite,
       // so we fill the fields directly instead.)
-      await applyFormEdits(pdfDoc);
+      const formResult = await applyFormEdits(pdfDoc);
+      if (formResult && formResult.failed) {
+        const n = formResult.failed;
+        App.toast(`${n} form field${n === 1 ? '' : 's'} could not be saved — check ${n === 1 ? 'its value' : 'their values'} in the saved file.`, 'error');
+      }
       const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
       // Text boxes can pick one of the three PDF standard-font families; embed
       // each lazily and map the annotation's fontFamily to the matching font so
@@ -429,7 +445,13 @@
 
       // Optional: flatten interactive form fields into static page content.
       if (App.state.flattenForms) {
-        try { pdfDoc.getForm().flatten(); } catch (_) { /* no form / nothing to flatten */ }
+        try {
+          pdfDoc.getForm().flatten();
+        } catch (e) {
+          // The user ticked "flatten form fields"; if it did not happen they are
+          // about to hand someone an editable form believing it is locked.
+          App.toast('Form fields could not be flattened — they are still editable in the saved file.', 'error');
+        }
       }
 
       // Document stamps: Bates/page numbering, header/footer, watermark. Drawn
@@ -457,7 +479,13 @@
             mimeType: 'application/pdf', description: 'FieldMark base document'
           });
         }
-      } catch (e) { if (window.console) console.warn('sidecar embed skipped:', e && e.message); }
+      } catch (e) {
+        if (window.console) console.warn('sidecar embed skipped:', e && e.message);
+        // Highest-severity silent failure in the app before this: the file saves
+        // fine and looks right, but reopening it gives flattened pixels instead
+        // of editable marks, with nothing to explain why.
+        App.toast('Saved, but markups were flattened — reopening this file will not restore them as editable.', 'error', 9000);
+      }
 
       return await pdfDoc.save();
   };
@@ -541,6 +569,7 @@
         }
       }
       if (saved) App.state.dirty = false; // changes are now on disk
+      if (saved && App.refreshDirtyIndicator) App.refreshDirtyIndicator();
     } catch (err) {
       console.error(err);
       App.toast('Failed to save the PDF. ' + (err.message || ''), 'error', 6000);

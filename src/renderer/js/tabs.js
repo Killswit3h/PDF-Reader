@@ -269,12 +269,12 @@
     const item = (label, fn, disabled) => {
       const b = document.createElement('button');
       b.className = 'tab-menu-item';
-      b.textContent = label;
+      b.innerHTML = label;   // label carries an App.icon() glyph ahead of its text
       if (disabled) b.disabled = true;
       else b.addEventListener('click', () => { closeTabMenu(); fn(); });
       menu.appendChild(b);
     };
-    item('🗔 Open in New Window', () => T.tearOff(id), !T.canTearOff());
+    item(App.icon('window') + 'Open in New Window', () => T.tearOff(id), !T.canTearOff());
     document.body.appendChild(menu);
     // Keep the menu on-screen (flip left/up near the edges).
     const r = menu.getBoundingClientRect();
@@ -355,7 +355,7 @@
         tab.appendChild(label);
         const close = document.createElement('button');
         close.className = 'tab-close';
-        close.textContent = '✕';
+        close.innerHTML = App.icon('close');
         close.title = 'Close tab';
         close.addEventListener('click', (e) => { e.stopPropagation(); requestClose(s.id); });
         tab.appendChild(close);

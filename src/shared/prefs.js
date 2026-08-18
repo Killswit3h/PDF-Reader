@@ -17,7 +17,12 @@
   } else {
     root.App = root.App || {};
     const store = (typeof localStorage !== 'undefined') ? localStorage : api.memoryStore();
-    root.App.Prefs = api.createPrefs(store);
+    root.App.Prefs = api.createPrefs(store, function () {
+      // App.toast may not exist yet if a preference is written during boot.
+      if (root.App && typeof root.App.toast === 'function') {
+        root.App.toast('Settings can\u2019t be saved on this device — your preferences won\u2019t be remembered next time.', 'error');
+      }
+    });
   }
 })(typeof self !== 'undefined' ? self : this, function () {
   const KEY = 'pdfsigner.prefs.v1';
@@ -32,12 +37,29 @@
     };
   }
 
-  function createPrefs(storage) {
+  // createPrefs(storage, onWriteError) — onWriteError is called at most once per
+  // session, the first time a write fails. Every caller in the app wraps
+  // Prefs.set in its own empty catch "for quota", which meant a full or blocked
+  // localStorage silently stopped remembering the user's theme, their drawn
+  // signature and their tool settings, forever, with nothing said. Reporting it
+  // once centrally beats fourteen call sites each staying quiet — and beats
+  // reporting it on every keystroke.
+  function createPrefs(storage, onWriteError) {
+    let warned = false;
     function readAll() {
       try { return JSON.parse(storage.getItem(KEY)) || {}; } catch (_) { return {}; }
     }
     function writeAll(obj) {
-      try { storage.setItem(KEY, JSON.stringify(obj)); } catch (_) { /* quota/denied: ignore */ }
+      try {
+        storage.setItem(KEY, JSON.stringify(obj));
+        return true;
+      } catch (e) {
+        if (!warned) {
+          warned = true;
+          if (typeof onWriteError === 'function') { try { onWriteError(e); } catch (_) { /* never throw from here */ } }
+        }
+        return false;
+      }
     }
     return {
       // Value for `key`, or `fallback` when unset.
@@ -52,6 +74,9 @@
         writeAll(all);
         return value;
       },
+      // True when the last write attempt succeeded; lets callers that care
+      // (Settings, in a later track) show inline state instead of a toast.
+      canPersist() { return writeAll(readAll()); },
       // Merge a patch of several keys at once.
       merge(patch) {
         const all = readAll();

@@ -38,9 +38,9 @@
     heading: 'What’s new',
     sub: 'A couple of additions to help you get up to speed faster:',
     items: [
-      { emoji: '🎓', title: 'Guided welcome tour',
+      { icon: 'tour', title: 'Guided welcome tour',
         body: 'New here? A quick, interactive walkthrough now points out the main tools. Replay it any time from the <b>Help (?)</b> menu.' },
-      { emoji: '⌨️', title: 'Keyboard shortcuts at a tap',
+      { icon: 'keyboard', title: 'Keyboard shortcuts at a tap',
         body: 'Press <kbd>?</kbd> (or <kbd>F1</kbd>) to toggle the full shortcut list — or open it from the new <b>Help (?)</b> menu in the top bar.' }
     ]
   };
@@ -52,52 +52,52 @@
   // centred card, so the tour never breaks on a narrow / mid-load layout.
   const STEPS = [
     {
-      sel: null, emoji: '👋',
+      sel: null, icon: 'tour',
       title: 'Welcome to FieldMark',
       body: 'Your offline PDF viewer for plans and drawings — view, measure, redline and sign, all on this device with nothing sent to the cloud. This quick tour points out the essentials. It takes about a minute.'
     },
     {
-      sel: '#btn-open', emoji: '📂', place: 'bottom',
+      sel: '#btn-open', icon: 'folder-open', place: 'bottom',
       title: 'Open a drawing',
       body: 'Start here to open a PDF — or just drag a <b>.pdf</b> straight onto the window. Recent files reopen fast.'
     },
     {
-      sel: '#btn-fit-width', emoji: '🔍', place: 'bottom',
+      sel: '#btn-fit-width', icon: 'fit-width', place: 'bottom',
       title: 'Zoom, fit &amp; rotate',
       body: 'Zoom in and out, fit the sheet to the window, drag a box to zoom into detail, and rotate the view. Tip: hold <kbd>Ctrl</kbd> and scroll to zoom right where your pointer is.'
     },
     {
-      sel: '#btn-select', emoji: '↖', place: 'right',
+      sel: '#btn-select', icon: 'cursor', place: 'right',
       title: 'Select &amp; edit anything',
       body: 'The resting tool. Click any markup, measurement or stamp to move, resize, nudge with the arrow keys, or delete it.'
     },
     {
-      sel: '#btn-sign', emoji: '✒️', place: 'right',
+      sel: '#btn-sign', icon: 'signature', place: 'right',
       title: 'Sign, initial &amp; date',
       body: 'Drop a saved signature or initials anywhere on the page, or stamp today’s date. Draw a signature once and reuse it — it stays on this device.'
     },
     {
-      sel: '#btn-measure', emoji: '📐', place: 'right',
+      sel: '#btn-measure', icon: 'measure', place: 'right',
       title: 'Measure &amp; take off',
       body: 'Set the drawing’s scale once, then measure lengths, perimeters, areas, angles and counts — with snapping and running totals for quantity take-offs.'
     },
     {
-      sel: '#btn-markup', emoji: '✏️', place: 'right',
+      sel: '#btn-markup', icon: 'pencil', place: 'right',
       title: 'Redline &amp; mark up',
       body: 'Arrows, boxes, clouds, freehand, text and callouts, plus highlight / underline / strikeout on real PDF text. Single keys arm each tool — press <kbd>B</kbd> for a box, <kbd>A</kbd> for an arrow.'
     },
     {
-      sel: '#btn-document', emoji: '📄', place: 'right',
+      sel: '#btn-document', icon: 'document', place: 'right',
       title: 'Organize &amp; compare',
       body: 'Reorder, rotate or delete pages, add page numbers and stamps, apply a digital signature, and compare or overlay two documents side by side.'
     },
     {
-      sel: '#btn-save', emoji: '💾', place: 'bottom',
+      sel: '#btn-save', icon: 'save', place: 'bottom',
       title: 'Save your work',
       body: 'Save writes your markups, measurements and signatures back into the PDF. Use <b>Save As…</b> to keep the original untouched.'
     },
     {
-      sel: '#btn-help', emoji: '🎓', place: 'bottom',
+      sel: '#btn-help', icon: 'tour', place: 'bottom',
       title: 'You’re all set!',
       body: 'That’s the whole toolkit. Open this Help menu any time to replay the tour, and press <kbd>?</kbd> to pop the full list of keyboard shortcuts. Happy marking up!'
     }
@@ -131,7 +131,7 @@
       '<div class="tour-backdrop"></div>',
       '<div class="tour-spot" aria-hidden="true"></div>',
       '<div class="tour-card" role="document">',
-      '  <button class="tour-x" type="button" aria-label="Close tour" title="Close">✕</button>',
+      '  <button class="tour-x" type="button" aria-label="Close tour" title="Close">' + App.icon('close') + '</button>',
       '  <div class="tour-emoji" aria-hidden="true"></div>',
       '  <h2 class="tour-title"></h2>',
       '  <p class="tour-body"></p>',
@@ -229,8 +229,10 @@
   function render() {
     build();
     const step = STEPS[idx];
-    root.emoji.textContent = step.emoji || '';
-    root.emoji.classList.toggle('hidden', !step.emoji);
+    // Each step shows the icon of the control it is pointing at, so the card and
+    // the spotlit button read as the same thing.
+    root.emoji.innerHTML = step.icon ? App.icon(step.icon, 'ico-lg') : '';
+    root.emoji.classList.toggle('hidden', !step.icon);
     root.title.innerHTML = step.title;
     root.body.innerHTML = localizeMods(step.body);
 
@@ -294,7 +296,7 @@
       li.className = 'wn-item';
       const em = document.createElement('span');
       em.className = 'wn-emoji'; em.setAttribute('aria-hidden', 'true');
-      em.textContent = it.emoji || '•';
+      em.innerHTML = App.icon(it.icon || 'check');
       const txt = document.createElement('div');
       txt.className = 'wn-text';
       const h = document.createElement('div');

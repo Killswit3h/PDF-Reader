@@ -2281,6 +2281,129 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_FAILPATH: the app must never lose the user's work quietly. Proves
+      // the toast queues instead of overwriting (an error is no longer erased by
+      // a success 200ms later), that document stamps are undoable and mark the
+      // file dirty, that editing a date placement is undoable, and that the
+      // unsaved-changes dot reaches the window title — which is the only
+      // indicator that exists when a single document is open, because the tab
+      // bar is hidden below two.
+      if (process.env.SMOKE_FAILPATH) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=(m)=>new Promise(r=>setTimeout(r,m||80));
+              const toastText=()=>$('#toast').textContent;
+              const toastVisible=()=>!$('#toast').classList.contains('hidden');
+
+              // 1. An error is not erased by a success queued right behind it.
+              App.clearToasts();
+              App.toast('first-error','error');
+              App.toast('second-success','success');
+              await tick(120);
+              const errorStillShowing = toastText()==='first-error' && toastVisible();
+              const liveAssertive = $('#toast').getAttribute('aria-live')==='assertive';
+
+              // 2. Queue drains in order rather than dropping messages.
+              App.clearToasts();
+              App.toast('a'); App.toast('b');
+              await tick(120);
+              const firstIsA = toastText()==='a';
+
+              // 3. Document stamps enter the undo history and mark the file dirty.
+              App.clearToasts();
+              App.History.reset();
+              const dirtyBefore = App.state.dirty;
+              App.state.docStamp = Object.assign({}, App.state.docStamp||{}, {watermark:{on:true,text:'DRAFT'}});
+              App.History.snapshot();
+              App.state.docStamp = Object.assign({}, App.state.docStamp, {watermark:{on:true,text:'VOID'}});
+              const dirtyAfterStamp = App.state.dirty;
+              App.History.undo();
+              await tick();
+              const stampUndone = !!(App.state.docStamp && App.state.docStamp.watermark
+                && App.state.docStamp.watermark.text==='DRAFT');
+
+              // 4. The dirty dot reaches the window title.
+              App.state.dirty = true; App.refreshDirtyIndicator();
+              const titleMarked = document.title.indexOf('\u2022')===0;
+              App.state.dirty = false; App.refreshDirtyIndicator();
+              const titleClean = document.title.indexOf('\u2022')!==0;
+
+              return JSON.stringify({errorStillShowing,liveAssertive,firstIsA,
+                dirtyBefore,dirtyAfterStamp,stampUndone,titleMarked,titleClean});
+            })()`, true);
+            console.log('[failpath] ' + r);
+          } catch (e) { console.log('[failpath] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_A11Y: the app must be operable without a mouse. Proves every
+      // dialog is a real dialog, that Tab is trapped inside an open one instead
+      // of walking into the toolbar behind the scrim, that focus returns to the
+      // control that opened it, that armed tools report aria-pressed, and that
+      // panel rows are reachable and activatable from the keyboard.
+      if (process.env.SMOKE_A11Y) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=()=>new Promise(r=>setTimeout(r,100));
+
+              // 1. Dialog semantics across every modal.
+              const backs=[...document.querySelectorAll('.modal-backdrop')];
+              const badDialogs=backs.filter(b=>{const d=b.querySelector('.modal');
+                if(!d)return true;const l=d.getAttribute('aria-labelledby');
+                return d.getAttribute('role')!=='dialog'||d.getAttribute('aria-modal')!=='true'
+                  ||!l||!document.getElementById(l);}).length;
+
+              // 2. Trap + restore on a real dialog.
+              const opener=$('#btn-help'); opener.focus();
+              const modal=$('#shortcuts-modal');
+              modal.classList.remove('hidden'); await tick();
+              const dlg=modal.querySelector('.modal');
+              const movedIn=dlg.contains(document.activeElement);
+              const items=App.focusablesIn(dlg);
+              let wrapped=false;
+              if(items.length){ items[items.length-1].focus();
+                dlg.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true}));
+                await tick(); wrapped=document.activeElement===items[0]; }
+              modal.classList.add('hidden'); await tick();
+              const restored=document.activeElement===opener;
+
+              // 3. Armed tools expose aria-pressed, not just a class.
+              App.setMode('markup'); await tick();
+              const pressedOn=$('#btn-markup').getAttribute('aria-pressed')==='true';
+              App.setMode(null); await tick();
+              const pressedOff=$('#btn-markup').getAttribute('aria-pressed')==='false';
+
+              // 4. Panel rows are focusable and Enter-activatable.
+              App.Markup.setTool('rect');
+              App.state.annotations.push({id:9001,page:1,type:'rect',
+                pts:[{vx:40,vy:40},{vx:120,vy:100}],style:{stroke:'#e5473b',width:2,opacity:1}});
+              App.MarkupPanel.render(); await tick();
+              const row=document.querySelector('#markup-panel .mp-row');
+              const rowRole=row?row.getAttribute('role'):'';
+              const rowTab=row?row.tabIndex:-1;
+              let rowActivates=false;
+              if(row){ row.focus();
+                row.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+                await tick(); rowActivates=App.state.annoSelectedId===9001; }
+
+              return JSON.stringify({badDialogs,dialogCount:backs.length,movedIn,wrapped,
+                restored,pressedOn,pressedOff,rowRole,rowTab,rowActivates});
+            })()`, true);
+            console.log('[a11y] ' + r);
+          } catch (e) { console.log('[a11y] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       setTimeout(() => { console.log('[smoke] done'); app.quit(); },
         parseInt(process.env.SMOKE_MS || '4000', 10));
     });
