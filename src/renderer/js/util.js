@@ -92,14 +92,56 @@ App.showLoading = (text) => {
 App.hideLoading = () => App.$('#loading').classList.add('hidden');
 
 // -------- Toast --------
+// A queue, not a single slot. The old version overwrote #toast's text and reset
+// one shared timer, so opening five files showed only the last "Opened X", and —
+// worse — a success message 200ms later erased an error the user had not read
+// yet. Errors are the whole point of this surface, so they outlive successes and
+// never get silently replaced.
+const toastQueue = [];
 let toastTimer = null;
-App.toast = (msg, kind = 'info', ms = 3200) => {
+let toastShowing = false;
+
+function nextToast() {
   const el = App.$('#toast');
+  if (!el) return;
+  if (!toastQueue.length) {
+    toastShowing = false;
+    el.classList.add('hidden');
+    return;
+  }
+  const { msg, kind, ms } = toastQueue.shift();
+  toastShowing = true;
   el.textContent = msg;
   el.className = kind === 'info' ? '' : kind;
+  // Errors are announced assertively so a screen reader interrupts; routine
+  // confirmations wait their turn.
+  el.setAttribute('aria-live', kind === 'error' ? 'assertive' : 'polite');
   el.classList.remove('hidden');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.add('hidden'), ms);
+  toastTimer = setTimeout(() => {
+    el.classList.add('hidden');
+    // Let the fade finish before the next message swaps in, so two toasts in a
+    // row read as two messages rather than one flickering box.
+    setTimeout(nextToast, 180);
+  }, ms);
+}
+
+// ms defaults by kind: an error the user must act on gets twice as long as a
+// routine "Saved".
+App.toast = (msg, kind = 'info', ms = null) => {
+  const dur = ms != null ? ms : (kind === 'error' ? 7000 : 3200);
+  toastQueue.push({ msg, kind, ms: dur });
+  if (!toastShowing) nextToast();
+};
+
+// Dismiss whatever is showing and drop anything queued behind it. Used when the
+// context that produced the messages goes away (document closed, modal cancelled).
+App.clearToasts = () => {
+  toastQueue.length = 0;
+  clearTimeout(toastTimer);
+  toastShowing = false;
+  const el = App.$('#toast');
+  if (el) el.classList.add('hidden');
 };
 
 // -------- Confirm dialog (Promise<boolean>) --------

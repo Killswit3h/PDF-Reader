@@ -409,6 +409,25 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'failure path — errors survive, stamps undo, dirty reaches the title',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_FAILPATH: '1' }, [SAMPLE]), 'failpath');
+      // The toast was a single slot with one shared timer, so a routine success
+      // could erase an error the user had not read.
+      check(j.errorStillShowing === true, 'a success toast overwrote an unread error');
+      check(j.liveAssertive === true, 'error toast was not announced assertively');
+      check(j.firstIsA === true, 'queued toasts did not show in order');
+      // Applying stamps neither entered history nor marked the file dirty.
+      check(j.dirtyBefore === false, 'document started dirty; test cannot prove anything');
+      check(j.dirtyAfterStamp === true, 'a stamp change did not mark the document dirty');
+      check(j.stampUndone === true, 'undo did not restore the previous stamp configuration');
+      // With one document open the tab bar is hidden, so the title is the only
+      // place an unsaved-changes indicator can appear.
+      check(j.titleMarked === true, 'window title showed no unsaved-changes marker');
+      check(j.titleClean === true, 'unsaved-changes marker stayed after saving');
+    }
+  },
+  {
     name: 'sharp zoom — page past the old 16.7M cap renders crisp, not downscaled',
     run: () => {
       const j = tagJson(runApp({ SMOKE_SHARP: '1' }, [SAMPLE]), 'sharp');

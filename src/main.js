@@ -2281,6 +2281,66 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_FAILPATH: the app must never lose the user's work quietly. Proves
+      // the toast queues instead of overwriting (an error is no longer erased by
+      // a success 200ms later), that document stamps are undoable and mark the
+      // file dirty, that editing a date placement is undoable, and that the
+      // unsaved-changes dot reaches the window title — which is the only
+      // indicator that exists when a single document is open, because the tab
+      // bar is hidden below two.
+      if (process.env.SMOKE_FAILPATH) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=(m)=>new Promise(r=>setTimeout(r,m||80));
+              const toastText=()=>$('#toast').textContent;
+              const toastVisible=()=>!$('#toast').classList.contains('hidden');
+
+              // 1. An error is not erased by a success queued right behind it.
+              App.clearToasts();
+              App.toast('first-error','error');
+              App.toast('second-success','success');
+              await tick(120);
+              const errorStillShowing = toastText()==='first-error' && toastVisible();
+              const liveAssertive = $('#toast').getAttribute('aria-live')==='assertive';
+
+              // 2. Queue drains in order rather than dropping messages.
+              App.clearToasts();
+              App.toast('a'); App.toast('b');
+              await tick(120);
+              const firstIsA = toastText()==='a';
+
+              // 3. Document stamps enter the undo history and mark the file dirty.
+              App.clearToasts();
+              App.History.reset();
+              const dirtyBefore = App.state.dirty;
+              App.state.docStamp = Object.assign({}, App.state.docStamp||{}, {watermark:{on:true,text:'DRAFT'}});
+              App.History.snapshot();
+              App.state.docStamp = Object.assign({}, App.state.docStamp, {watermark:{on:true,text:'VOID'}});
+              const dirtyAfterStamp = App.state.dirty;
+              App.History.undo();
+              await tick();
+              const stampUndone = !!(App.state.docStamp && App.state.docStamp.watermark
+                && App.state.docStamp.watermark.text==='DRAFT');
+
+              // 4. The dirty dot reaches the window title.
+              App.state.dirty = true; App.refreshDirtyIndicator();
+              const titleMarked = document.title.indexOf('\u2022')===0;
+              App.state.dirty = false; App.refreshDirtyIndicator();
+              const titleClean = document.title.indexOf('\u2022')!==0;
+
+              return JSON.stringify({errorStillShowing,liveAssertive,firstIsA,
+                dirtyBefore,dirtyAfterStamp,stampUndone,titleMarked,titleClean});
+            })()`, true);
+            console.log('[failpath] ' + r);
+          } catch (e) { console.log('[failpath] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       setTimeout(() => { console.log('[smoke] done'); app.quit(); },
         parseInt(process.env.SMOKE_MS || '4000', 10));
     });

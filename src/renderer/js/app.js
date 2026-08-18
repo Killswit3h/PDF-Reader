@@ -97,6 +97,16 @@
     const show = App.state.mode === 'markup' || App.state.annoSelectedId != null;
     App.$('#markup-props').classList.toggle('hidden', !show);
     document.body.classList.toggle('has-props', show);
+    App.refreshDirtyIndicator();
+  };
+
+  // The unsaved-changes dot lived only in the tab label, and the tab bar is
+  // hidden below two open documents — so with a single document, the state the
+  // close prompt depends on was shown nowhere at all. The window title is the
+  // one surface that is always visible, on every platform.
+  App.refreshDirtyIndicator = function () {
+    if (!App.state.fileName) { document.title = 'FieldMark'; return; }
+    document.title = `${App.state.dirty ? '• ' : ''}${App.state.fileName} — FieldMark`;
   };
 
   // ---------- Arm an image (signature/initials) ----------
@@ -175,11 +185,16 @@
   async function doPrint() {
     if (!App.state.pdfDoc) return;
     let bytes;
+    // buildBytes re-exports the whole document; on a large plan set this is
+    // seconds of work with nothing on screen, so the app looked frozen.
+    App.showLoading('Preparing print…');
     try {
       bytes = await App.Save.buildBytes();
     } catch (e) {
       App.toast('Could not prepare print: ' + (e && e.message ? e.message : e), 'error');
       return;
+    } finally {
+      App.hideLoading();
     }
     // Show the pages that will print (rendered from the exported bytes) and let
     // the user confirm, narrow to a page range, or back out before we hand
@@ -193,6 +208,10 @@
       // Narrow to the chosen pages AND rebuild each one at the chosen paper size,
       // scaled to fill it. Doing the geometry here rather than leaving it to the
       // platform is what fixes tabloid printing (see print.js).
+      // Rebuilding every sheet at the target paper size, then re-parsing the
+      // result to measure orientation, is two more full passes over the
+      // document. Both were silent.
+      App.showLoading('Laying out pages…');
       try {
         const built = await App.Print.buildPrintDoc(bytes, sel.pages, App.Print.paper ? App.Print.paper() : paperName);
         printBytes = built.bytes;
@@ -200,6 +219,8 @@
       } catch (e) {
         App.toast('Could not select those pages: ' + (e && e.message ? e.message : e), 'error');
         return;
+      } finally {
+        App.hideLoading();
       }
     }
     // Match the print job's orientation to the sheets. Chromium's print applies
@@ -208,7 +229,13 @@
     // the portrait paper's width — drawing in the top half, blank below. Measure
     // the pages that will actually print (PDF.js viewports bake in /Rotate) and
     // request the majority orientation.
-    const printOpts = (await computePrintOrientation(printBytes)) || {};
+    App.showLoading('Sending to printer…');
+    let printOpts;
+    try {
+      printOpts = (await computePrintOrientation(printBytes)) || {};
+    } finally {
+      App.hideLoading();
+    }
     // Tell the platform the exact page box too. Orientation alone was not enough:
     // without a pageSize the job's page box is the platform's guess, which is how
     // a tabloid sheet ended up around three-quarters size in a corner of the

@@ -343,6 +343,11 @@
   async function doSign(opts) {
     $('#dsig-go').disabled = true;
     setStatus('Building document…');
+    // setStatus writes into #dsig-status, which lives *inside* the modal. In
+    // "click to place" mode armPlaceOnPage() hides the modal before calling
+    // here, so signing — a build, a crypto pass and a disk write — happened with
+    // zero visible feedback. The overlay is the only surface guaranteed visible.
+    App.showLoading('Signing document…');
     try {
       // A signed document is final: build it flattened, with no editable sidecar
       // (an embedded editable copy would let a later edit break the signature).
@@ -385,6 +390,7 @@
         : msg;
       setStatus('Could not sign: ' + friendly, 'err'); reopenForRetry();
     } finally {
+      App.hideLoading();
       updateReady();
     }
   }
