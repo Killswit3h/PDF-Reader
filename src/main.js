@@ -2435,7 +2435,8 @@ function createWindow() {
               const pressedOff=$('#btn-markup').getAttribute('aria-pressed')==='false';
 
               // 4. Panel rows are focusable and Enter-activatable.
-              App.Markup.setTool('rect');
+              // (No tool needs arming here — the annotation is pushed directly
+              // below, which is all the panel needs to render a row.)
               App.state.annotations.push({id:9001,page:1,type:'rect',
                 pts:[{vx:40,vy:40},{vx:120,vy:100}],style:{stroke:'#e5473b',width:2,opacity:1}});
               App.MarkupPanel.render(); await tick();
