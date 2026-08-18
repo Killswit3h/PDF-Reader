@@ -1,14 +1,112 @@
+<div align="center">
+
+<img src="src/assets/logo.svg" alt="FieldMark logo" width="84" />
+
 # FieldMark
+
+### Open the plan set. Redline it. Measure it. Sign it. Nothing leaves your device.
+
+An **offline** PDF viewer, markup and take-off tool for **Windows · macOS · Android · iPad · the browser** — one renderer, every platform. No cloud, no login, no telemetry, no network access at runtime.
 
 <sub>(formerly *PDF Signer*)</sub>
 
-A simple, **offline** app (**Windows + macOS desktop**, and now **Android**) to
-open PDFs, **view** large plan sets fast, **mark them up** (arrows, shapes,
-clouds, ink, text, highlight), **measure by scale**, add a **signature /
-initials / date**, and save. Built with Electron on the desktop and
-[Capacitor](https://capacitorjs.com/) on Android, both driving the *same*
-renderer — the official PDF.js viewer (virtualized rendering) and pdf-lib
-(writing/exporting).
+[![Download for Windows](https://img.shields.io/badge/Download-Windows%20installer-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Killswit3h/PDF-Reader/releases/latest/download/Field-Mark-Setup.exe) [![Download for macOS](https://img.shields.io/badge/Download-macOS%20.dmg-000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Killswit3h/PDF-Reader/releases/latest) [![Download for Android](https://img.shields.io/badge/Download-Android%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Killswit3h/PDF-Reader/releases/latest/download/FieldMark.apk)
+
+![Offline — no network at runtime](https://img.shields.io/badge/offline-no%20network%20at%20runtime-2f6fed) ![No telemetry](https://img.shields.io/badge/telemetry-none-30a46c) ![Runs on Windows, macOS, Android, iPad and the web](https://img.shields.io/badge/platforms-Windows%20%C2%B7%20macOS%20%C2%B7%20Android%20%C2%B7%20iPad%20%C2%B7%20Web-6e56cf) ![License MIT](https://img.shields.io/badge/license-MIT-black)
+
+</div>
+
+![FieldMark showing a marked-up architectural sheet: a revision cloud and callout on the conference room, an area take-off on the open work area, and the measurement labels in real feet](docs/screenshots/hero.png)
+
+---
+
+## Why FieldMark
+
+- **It never phones home.** Rendering, measuring, signing, exporting — all of it
+  runs on the device. No account, no sync, no analytics, no runtime network
+  access. Even the handwriting fonts ship inside the app.
+- **Real take-off, not a ruler.** Calibrate a sheet by drawing a known length or
+  picking `1/8" = 1'-0"`, then get **length, perimeter, area, angle and count**
+  in real-world units — with per-segment breakdowns, feet-inches display,
+  snap-to-drawing geometry, running totals and CSV export.
+- **Your marks stay editable, even after saving.** A saved file carries an
+  editable copy of your markups, measurements and placements. Reopen it here and
+  every mark is live again; Adobe and Bluebeam still see a normal flattened PDF.
+- **The same app on every screen.** Desktop (Electron) and Android/iPad
+  (Capacitor WebView) run the **same** renderer — the official PDF.js viewer with
+  virtualized rendering, so a several-hundred-page plan set stays smooth even on
+  a phone.
+- **Two kinds of signature.** Stamp a cosmetic signature / initials / date, *or*
+  apply a real certificate-based **PKI / PAdES** signature with your own `.p12`
+  digital ID — tamper-evident, and still completely offline.
+
+## A look around
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**Redline like Bluebeam**
+
+Arrows, shapes, revision clouds, freehand ink, text, callouts, highlights — plus a properties bar, a filterable Markups list, and one-click tools on the right rail.
+
+![The markup tools: a red revision cloud and callout, a blue area box and note, an orange arrow and green freehand ink, with the Markups list panel open](docs/screenshots/markup.png)
+
+</td>
+<td width="50%" valign="top">
+
+**Measure by scale**
+
+Area, length, continuous runs, angles and counts in real units, with per-type totals and Export CSV.
+
+![The Measurements panel listing an area of 1,074.37 square feet, a 63.78 foot continuous run, a 26.89 foot length and a count of 6, with each measurement drawn on the plan](docs/screenshots/measure.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+**Sign it**
+
+Type your name in a handwriting font, or draw it. Place, drag, resize — then save.
+
+![The Add Signature dialog with a typed name rendered in the Dancing Script handwriting font and a live preview](docs/screenshots/signature.png)
+
+</td>
+<td width="50%" valign="top">
+
+**Rebuild the document**
+
+Reorder, rotate, delete, insert blank pages, merge another PDF, or extract a selection.
+
+![The Organize Pages panel showing thumbnails of three sheets with reorder, rotate and delete controls](docs/screenshots/organize.png)
+
+</td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td width="62%" valign="top">
+
+**Light and dark, remembered**
+
+A design-token theme system with a persisted toggle that follows your OS by default and applies before first paint — no flash.
+
+![The same drawing in FieldMark's light theme](docs/screenshots/theme-light.png)
+
+</td>
+<td width="38%" valign="top">
+
+**Built for the field**
+
+The Android and iPad builds run the desktop renderer verbatim in a WebView — same tools, thumb-friendly bottom bar.
+
+![FieldMark on a phone, showing the marked-up floor plan with a bottom tool bar](docs/screenshots/mobile.png)
+
+</td>
+</tr>
+</table>
 
 > **Android:** the entire UI + PDF engine is platform-neutral web code, so the
 > Android app reuses the desktop renderer verbatim inside a native WebView. The
@@ -16,6 +114,13 @@ renderer — the official PDF.js viewer (virtualized rendering) and pdf-lib
 > Android it's the system file picker plus the Capacitor Filesystem/Share
 > plugins (`src/renderer/js/platform-web.js`). See
 > [Build the Android app](#build-the-android-app-apk).
+
+> The screenshots above are captured from the running app by
+> [`scripts/make-screenshots.js`](scripts/make-screenshots.js) (`npm run
+> screenshots`) against a generated demo drawing — regenerate them whenever the
+> UI changes.
+
+---
 
 ## ⬇ Download
 
@@ -429,6 +534,11 @@ npm run verify    # both, in sequence — the pre-push gate
   zoom, virtualized rendering + find, all markup tools, page organize
   (reorder/rotate/delete/extract), numbering/watermark + form flatten, scaled
   measurements, editable annotations, overlay rendering, and PDF save/flatten.
+- **Screenshots** (`scripts/make-screenshots.js`, `npm run screenshots`) drive the
+  same `www/` bundle in headless Chromium to regenerate `docs/screenshots/`.
+  It needs the optional Playwright harness
+  (`npm i --no-save playwright && npx playwright install chromium`) and is not
+  part of the test gate — run it when the UI changes so the README stays honest.
 - CI (`.github/workflows/ci.yml`) runs the unit tests on Linux/Windows/macOS and
   the E2E suite headlessly (xvfb) on every push and PR; the release workflow
   gates every build on the same tests. A local `scripts/prepush.sh` runs
@@ -614,7 +724,10 @@ PDF Reader/
 ├─ scripts/
 │  ├─ prepush.sh           # local pre-push gate (npm run verify)
 │  ├─ build-web.js         # assemble the self-contained www/ bundle (Capacitor webDir)
-│  └─ verify-web.js        # drive www/ in headless Chromium (WebView-parity check)
+│  ├─ verify-web.js        # drive www/ in headless Chromium (WebView-parity check)
+│  └─ make-screenshots.js  # regenerate docs/screenshots/ from the running app
+├─ docs/
+│  └─ screenshots/         # README screenshots (generated, committed)
 ├─ build/
 │  ├─ icon.ico             # desktop app/installer icon (256x256)
 │  ├─ make-icon.js         # regenerates the desktop icon (pure Node)
@@ -728,4 +841,3 @@ or built-in form-field handling — all out of scope for this cosmetic signer.
 
 Application code: MIT. Bundled fonts: SIL Open Font License 1.1 (see
 `src/assets/fonts/`).
-# PDF-Reader
