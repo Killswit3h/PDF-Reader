@@ -107,6 +107,19 @@
     App.$('#markup-props').classList.toggle('hidden', !show);
     document.body.classList.toggle('has-props', show);
     App.refreshDirtyIndicator();
+    App.refreshUndoButtons();
+  };
+
+  // Undo/redo availability, mirrored onto the toolbar pair. Called from
+  // refreshChrome so it tracks every state change the app already announces.
+  App.refreshUndoButtons = function () {
+    const H = App.History;
+    if (!H) return;
+    const hasDoc = !!App.state.pdfDoc;
+    const u = App.$('#btn-undo');
+    const r = App.$('#btn-redo');
+    if (u) u.disabled = !hasDoc || !H.canUndo();
+    if (r) r.disabled = !hasDoc || !H.canRedo();
   };
 
   // The unsaved-changes dot lived only in the tab label, and the tab bar is
@@ -694,6 +707,13 @@
     });
     App.$('#mk-undo').addEventListener('click', () => App.Markup.undo());
     App.$('#mk-redo').addEventListener('click', () => App.Markup.redo());
+    // Toolbar undo/redo — the only pair that exists on a phone.
+    const tbUndo = App.$('#btn-undo');
+    const tbRedo = App.$('#btn-redo');
+    if (tbUndo) tbUndo.addEventListener('click', () => App.Markup.undo());
+    if (tbRedo) tbRedo.addEventListener('click', () => App.Markup.redo());
+    const findBtn = App.$('#btn-find');
+    if (findBtn) findBtn.addEventListener('click', () => App.Viewer.openFind());
   }
 
   // Right-hand markup rail (Bluebeam-style): a compact, always-visible strip of
@@ -791,6 +811,7 @@
         if (dd) dd.close();
         const h = b.dataset.help;
         if (h === 'tour' && App.Tour) App.Tour.start();
+        else if (h === 'settings' && App.Settings) App.Settings.open();
         else if (h === 'shortcuts') App.Shortcuts.open();
       });
     });
@@ -881,10 +902,16 @@
     applyTheme(current);
     App.$('#btn-theme').addEventListener('click', () => {
       const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-      applyTheme(next);
-      if (App.Prefs) App.Prefs.set('theme', next);
+      App.setTheme(next);
     });
   }
+
+  // One way to change the theme, used by the toolbar toggle and by Settings, so
+  // the two can never disagree about what is stored.
+  App.setTheme = function (next) {
+    applyTheme(next === 'light' ? 'light' : 'dark');
+    if (App.Prefs) App.Prefs.set('theme', next === 'light' ? 'light' : 'dark');
+  };
 
   // ---------- Updates ----------
   let latestUpdate = null;
@@ -980,8 +1007,12 @@
     });
 
     initVersionBadge();
-    // quiet check shortly after launch
-    setTimeout(() => checkForUpdates(false), 3000);
+    // Quiet check shortly after launch — but only if the user allows it. This
+    // is the one moment the app touches the network, and the product's core
+    // promise is that it works offline, so it has to be refusable. A manual
+    // check from the version badge or the menu still works either way.
+    const allowUpdateCheck = !App.Prefs || App.Prefs.get('updateCheck', true);
+    if (allowUpdateCheck) setTimeout(() => checkForUpdates(false), 3000);
   }
 
   // ---------- Keyboard shortcuts help ----------
@@ -1111,6 +1142,11 @@
     // install (→ welcome tour); an existing user updating in already has settings
     // (→ "what's new"). Passed to App.Tour.maybeAutoStart at the end of boot.
     const freshInstall = !!(App.Prefs && Object.keys(App.Prefs.all()).length === 0);
+    // Quitting does not go through _clearState, so capture the view state on the
+    // way out too. pagehide fires reliably on both Electron and the WebView.
+    window.addEventListener('pagehide', () => {
+      if (App.Viewer && App.Viewer.rememberDocState) App.Viewer.rememberDocState();
+    });
     // Install the dialog focus traps before any module can open a dialog.
     if (App.initFocusTraps) App.initFocusTraps();
     setupTheme();
@@ -1125,6 +1161,7 @@
     if (App.ToolChest) App.ToolChest.init();
     if (App.DigiSign) App.DigiSign.init();
     if (App.Compare) App.Compare.init();
+    if (App.Settings) App.Settings.init();
     if (App.Overlay) App.Overlay.init();
     if (App.SplitView) App.SplitView.init();
     if (App.TextCopy) App.TextCopy.init();

@@ -95,12 +95,23 @@
     eventBus.on('pagesinit', () => {
       // On a tab switch we restore the saved zoom + page; on a fresh open we
       // fit to width. `_restore` is set by Viewer._showActive() before setDocument.
-      const r = Viewer._restore; Viewer._restore = null;
+      // A tab switch supplies _restore directly. A fresh open has none, so fall
+      // back to what this document was left at last session — previously zoom
+      // and page were reset on every open and survived only a tab switch, so
+      // relaunching dropped a 200-page plan set to page 1 at fit-width.
+      const r = Viewer._restore || Viewer._savedDocState(); Viewer._restore = null;
       if (r) {
-        try { if (r.scaleValue) pdfViewer.currentScaleValue = r.scaleValue; } catch (_) { /* ignore */ }
+        const scale = r.scaleValue || r.scale;
+        try { if (scale) pdfViewer.currentScaleValue = scale; } catch (_) { /* ignore */ }
         if (r.page) { try { pdfViewer.currentPageNumber = r.page; } catch (_) { /* ignore */ } }
       } else {
         pdfViewer.currentScaleValue = 'page-width';
+      }
+      // Page scales are per-document and normally live in the saved sidecar; a
+      // plan set calibrated but not yet saved used to lose that on reopen.
+      if (r && r.scales && !Object.keys(App.state.scales || {}).length) {
+        App.state.scales = r.scales;
+        if (App.Measure && App.Measure.renderPanel) App.Measure.renderPanel();
       }
       App.state.zoom = cssScale();
       updateZoomLabel();
@@ -281,28 +292,45 @@
       b.style.height = Math.abs(y1 - y0) + 'px';
     };
 
-    const onMove = (e) => { if (dragging) { paint(e.clientX, e.clientY); e.preventDefault(); } };
+    // Pointer events, not mouse events. The marquee button ships in the mobile
+    // "⋯" sheet, so on a tablet it armed a mode that then did nothing at all —
+    // a control that is present and inert is worse than one that is absent.
+    let pid = null;
 
-    const onUp = (e) => {
-      if (!dragging) return;
-      dragging = false;
-      window.removeEventListener('mousemove', onMove, true);
-      window.removeEventListener('mouseup', onUp, true);
-      const b = box(); if (b) b.classList.add('hidden');
-      Viewer.zoomToRegion(x0, y0, e.clientX, e.clientY);
-      Viewer.setMarquee(false); // one-shot
+    const onMove = (e) => {
+      if (!dragging || (pid !== null && e.pointerId !== pid)) return;
+      paint(e.clientX, e.clientY);
+      e.preventDefault();
     };
 
-    container.addEventListener('mousedown', (e) => {
+    const finish = (e, apply) => {
+      if (!dragging || (pid !== null && e.pointerId !== pid)) return;
+      dragging = false; pid = null;
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onCancel, true);
+      const b = box(); if (b) b.classList.add('hidden');
+      if (apply) {
+        Viewer.zoomToRegion(x0, y0, e.clientX, e.clientY);
+        Viewer.setMarquee(false); // one-shot
+      }
+    };
+    const onUp = (e) => finish(e, true);
+    // A cancelled pointer (system gesture, palm rejection) must not zoom to a
+    // region the user never finished drawing.
+    const onCancel = (e) => finish(e, false);
+
+    container.addEventListener('pointerdown', (e) => {
       if (!App.state.marquee) return;
-      if (e.button !== 0) return;          // left button only
+      if (e.pointerType === 'mouse' && e.button !== 0) return;  // left button only
       if (!App.state.pdfDoc) return;
-      dragging = true;
+      dragging = true; pid = e.pointerId;
       x0 = e.clientX; y0 = e.clientY;
       const b = box();
       if (b) { paint(x0, y0); b.classList.remove('hidden'); }
-      window.addEventListener('mousemove', onMove, true);
-      window.addEventListener('mouseup', onUp, true);
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onCancel, true);
       e.preventDefault();
     });
   }
@@ -557,6 +585,9 @@
   };
 
   Viewer._clearState = function () {
+    // Capture where the user was before the state is torn down — this runs on
+    // close, on the last tab closing, and before loading a different document.
+    Viewer.rememberDocState();
     App.state.pageEls = [];
     App.state.placements = [];
     App.state.selectedId = null;
@@ -758,13 +789,58 @@
   // trackScroll kept for boot compatibility; PDFViewer manages scrolling.
   Viewer.trackScroll = function () { Viewer.init(); };
 
+  // ---- Per-document view state ----
+  // Remembering the zoom and page you left a drawing at is the difference
+  // between reopening a plan set and finding your place in it again.
+  Viewer._docKey = function () {
+    if (!App.DocState || !App.Prefs) return null;
+    return App.DocState.makeDocKey({
+      path: App.state.filePath,
+      name: App.state.fileName,
+      size: App.state.pdfBytes ? App.state.pdfBytes.byteLength : null
+    });
+  };
+
+  Viewer._savedDocState = function () {
+    try {
+      if (!App.Prefs.get('restoreDocState', true)) return null;
+      const key = Viewer._docKey();
+      if (!key) return null;
+      return App.DocState.readDocState(App.Prefs.get('docState', {}), key);
+    } catch (_) { return null; }
+  };
+
+  // Called on close, on tab switch and before quit. Deliberately tolerant: this
+  // is a convenience, and it must never be the reason a document fails to close.
+  Viewer.rememberDocState = function () {
+    try {
+      if (!App.Prefs || !App.DocState) return;
+      if (!App.Prefs.get('restoreDocState', true)) return;
+      const key = Viewer._docKey();
+      if (!key || !App.state.pdfDoc) return;
+      const patch = {
+        page: App.state.currentPage,
+        scale: (pdfViewer && pdfViewer.currentScaleValue) || undefined
+      };
+      // Scale calibration lives in the sidecar on save; keeping a copy here
+      // means reopening an unsaved plan set does not silently lose it.
+      if (App.state.scales && Object.keys(App.state.scales).length) patch.scales = App.state.scales;
+      const next = App.DocState.writeDocState(
+        App.Prefs.get('docState', {}), key, patch, Date.now());
+      App.Prefs.set('docState', next);
+    } catch (_) { /* never block a close on a preference write */ }
+  };
+
   // ---- Enable/disable toolbar controls ----
   Viewer._updateControls = function (enabled) {
     ['#btn-select', '#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
      '#btn-document',
      '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-marquee', '#btn-rotate', '#btn-prev', '#btn-next',
-     '#btn-save', '#btn-save-as', '#page-input']
+     '#btn-find', '#btn-save', '#btn-save-as', '#page-input']
       .forEach((s) => { const el = App.$(s); if (el) el.disabled = !enabled; });
+    // Undo/redo track history depth rather than merely "a document is open" —
+    // an enabled button that does nothing is its own kind of broken.
+    if (App.refreshUndoButtons) App.refreshUndoButtons();
     // Marquee zoom is a transient mode — never carry it across a doc close or a
     // tab switch (each tab restores its own state; the crosshair must not linger).
     if (Viewer.setMarquee) Viewer.setMarquee(false);

@@ -148,6 +148,9 @@
       <button id="btn-fit-width" class="tb-btn" data-overflow disabled title="Fit to width"><svg class="ico" aria-hidden="true"><use href="#i-fit-width"/></svg>Fit</button>
       <button id="btn-marquee" class="tb-btn icon" data-overflow disabled title="Marquee zoom — drag a box to zoom into that area (Z)" aria-label="Marquee zoom"><svg class="ico" aria-hidden="true"><use href="#i-marquee"/></svg></button>
       <button id="btn-rotate" class="tb-btn icon" data-overflow disabled title="Rotate view 90° (R)" aria-label="Rotate view"><svg class="ico" aria-hidden="true"><use href="#i-rotate"/></svg></button>
+      <!-- Find had no button anywhere: it was reachable only via Ctrl+F or the
+           desktop View menu, which means it did not exist at all on Android. -->
+      <button id="btn-find" class="tb-btn icon" data-overflow disabled title="Find in document (Ctrl+F)" aria-label="Find in document"><svg class="ico" aria-hidden="true"><use href="#i-search"/></svg></button>
     </div>
 
     <div class="tb-sep"></div>
@@ -166,6 +169,11 @@
     <div class="tb-group g-save">
       <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)"><svg class="ico" aria-hidden="true"><use href="#i-save"/></svg>Save</button>
       <button id="btn-save-as" class="tb-btn" data-overflow disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
+      <!-- Always-available undo/redo. The markup rail is display:none below
+           820px and #markup-props only appears in markup mode, so on a phone
+           there was previously no way to undo anything at all. -->
+      <button id="btn-undo" class="tb-btn icon" disabled title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg></button>
+      <button id="btn-redo" class="tb-btn icon" data-overflow disabled title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><svg class="ico" aria-hidden="true"><use href="#i-redo"/></svg></button>
     </div>
 
     <div class="tb-sep"></div>
@@ -176,6 +184,8 @@
         <button id="btn-help" class="tb-btn icon ghost" title="Help — tour &amp; keyboard shortcuts (?)" aria-label="Help" aria-haspopup="true" aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-help"/></svg></button>
         <div id="help-menu" class="tb-menu hidden">
           <button data-help="tour"><svg class="ico" aria-hidden="true"><use href="#i-tour"/></svg>Take a quick tour</button>
+          <button data-help="settings"><svg class="ico" aria-hidden="true"><use href="#i-toolbox"/></svg>Settings…</button>
+          <div class="tb-menu-sep"></div>
           <button data-help="shortcuts"><svg class="ico" aria-hidden="true"><use href="#i-keyboard"/></svg>Keyboard shortcuts<span class="mk-key">?</span></button>
         </div>
       </div>
@@ -761,6 +771,87 @@
   </div>
 
   <!-- ============ Keyboard shortcuts help ============ -->
+  <!-- ============ Settings ============
+       Every preference used to live inside the tool it belonged to, so there was
+       no way to see how the app was configured without already knowing where
+       each switch lived. These controls write the same prefs keys their original
+       homes do and push the change back through them, so the two stay in sync. -->
+  <div id="settings-modal" class="modal-backdrop hidden">
+    <div class="modal" style="width:520px" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal-head">
+        <h2 id="settings-title">Settings</h2>
+        <button id="settings-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+      <div class="set-body">
+        <p id="set-persist-note" class="set-note hidden">
+          This device can’t store settings, so changes won’t be remembered next time.
+        </p>
+
+        <fieldset class="set-sec">
+          <legend>Appearance</legend>
+          <label class="set-row" for="set-theme">
+            <span class="set-label">Theme</span>
+            <select id="set-theme">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset class="set-sec">
+          <legend>Measuring</legend>
+          <label class="set-row" for="set-measureFeetInches">
+            <input id="set-measureFeetInches" type="checkbox" />
+            <span class="set-label">Show imperial lengths as feet-inches
+              <span class="set-hint">e.g. 24′-6″ instead of 24.5 ft</span></span>
+          </label>
+          <label class="set-row" for="set-measureContentSnap">
+            <input id="set-measureContentSnap" type="checkbox" />
+            <span class="set-label">Snap to the drawing’s own geometry
+              <span class="set-hint">Lines, corners and endpoints in the PDF</span></span>
+          </label>
+        </fieldset>
+
+        <fieldset class="set-sec">
+          <legend>Markup</legend>
+          <label class="set-row" for="set-snap">
+            <input id="set-snap" type="checkbox" />
+            <span class="set-label">Snap to nearby vertices while drawing</span>
+          </label>
+          <label class="set-row" for="set-saveAnnots">
+            <input id="set-saveAnnots" type="checkbox" />
+            <span class="set-label">Save markups as editable PDF annotations
+              <span class="set-hint">Off flattens them into the page on save</span></span>
+          </label>
+        </fieldset>
+
+        <fieldset class="set-sec">
+          <legend>Documents</legend>
+          <label class="set-row" for="set-restoreDocState">
+            <input id="set-restoreDocState" type="checkbox" />
+            <span class="set-label">Reopen documents where I left them
+              <span class="set-hint">Remembers page, zoom and scale for the last 50 files</span></span>
+          </label>
+        </fieldset>
+
+        <fieldset class="set-sec">
+          <legend>Updates</legend>
+          <label class="set-row" for="set-updateCheck">
+            <input id="set-updateCheck" type="checkbox" />
+            <span class="set-label">Check for updates on launch
+              <span class="set-hint">The only time this app touches the network. Turn it
+                off to keep it completely offline.</span></span>
+          </label>
+        </fieldset>
+      </div>
+      <div class="modal-foot">
+        <button id="settings-reset" class="tb-btn">Reset to defaults</button>
+        <span class="tb-spacer"></span>
+        <button id="settings-done" class="tb-btn primary">Done</button>
+      </div>
+    </div>
+  </div>
+
   <div id="shortcuts-modal" class="modal-backdrop hidden">
     <div class="modal" style="width:600px" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
       <div class="modal-head">
@@ -989,6 +1080,7 @@
   <script src="../shared/date-util.js"></script>
   <script src="../shared/print-layout.js"></script>
   <script src="../shared/prefs.js"></script>
+  <script src="../shared/doc-state.js"></script>
   <script src="../shared/digital-ids.js"></script>
   <script src="../shared/pdf-sign.js"></script>
 
@@ -1013,6 +1105,7 @@
   <script src="js/miniviewer.js"></script>
   <script src="js/splitview.js"></script>
   <script src="js/textcopy.js"></script>
+  <script src="js/settings.js"></script>
   <script src="js/tour.js"></script>
   <script src="js/app.js"></script>
 </body>

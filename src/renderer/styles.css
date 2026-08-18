@@ -199,6 +199,10 @@ body.has-tabs #viewerContainer { top: var(--tab-h); }
    drag rubber-bands cleanly instead of selecting text or hitting a tool. */
 body.marquee-active #viewerContainer,
 body.marquee-active #viewerContainer * { cursor: crosshair !important; }
+/* While the marquee is armed the drag belongs to the marquee, not to the
+   scroller — without this a touch drag pans the document instead of drawing the
+   zoom box. Scoped to the armed state so normal scrolling is untouched. */
+body.marquee-active #viewerContainer { touch-action: none; }
 body.marquee-active #viewerContainer .page * { pointer-events: none; }
 #marquee-box {
   position: fixed; z-index: var(--z-float); pointer-events: none;
@@ -1095,6 +1099,31 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
    heading's default margins removed to sit where the span did. */
 .mp-title { margin: 0; font-size: var(--fs-md); font-weight: 600; color: var(--text); }
 
+/* ---- Settings dialog ---- */
+.set-body { padding: var(--sp-4) var(--sp-5); overflow-y: auto; min-height: 0; }
+.set-sec {
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: var(--sp-3); margin: 0 0 var(--sp-3);
+}
+.set-sec legend {
+  padding: 0 var(--sp-1); font-size: var(--fs-xs); font-weight: 600;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint);
+}
+.set-row {
+  display: flex; align-items: flex-start; gap: var(--sp-2);
+  padding: var(--sp-2) 0; cursor: pointer; font-size: var(--fs-md); color: var(--text);
+}
+.set-row + .set-row { border-top: 1px solid var(--border); }
+.set-row input[type="checkbox"] { flex: none; margin-top: 2px; }
+.set-row select { margin-left: auto; }
+.set-label { display: flex; flex-direction: column; gap: 2px; }
+.set-hint { font-size: var(--fs-sm); color: var(--text-dim); line-height: 1.4; }
+.set-note {
+  margin: 0 0 var(--sp-3); padding: var(--sp-2) var(--sp-3);
+  background: var(--accent-quiet); border: 1px solid var(--accent);
+  border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--text);
+}
+
 .mkp-opt {
   display: flex; align-items: flex-start; gap: var(--sp-2);
   padding: var(--sp-3); margin: 0 var(--sp-3) var(--sp-2);
@@ -1384,6 +1413,20 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
 
 /* ---- Touch-target sizing: any coarse pointer (phones AND tablets) ---- */
 @media (pointer: coarse) {
+  /* Touch targets on the in-canvas handles were 8-22px, well under the 44-48px
+     these same media queries cite Material/WHCAG for. The hit area grows via a
+     transparent ::after; the painted handle keeps its size so drawings do not
+     become chunky and desktop precision is untouched. */
+  .placed .del-btn, .placed .resize-handle { position: relative; }
+  .placed .del-btn::after, .placed .resize-handle::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    width: 44px; height: 44px; transform: translate(-50%, -50%);
+  }
+  /* SVG handles cannot use ::after; widen their stroke-based hit area instead. */
+  .markup-svg .handle, .measure-layer .m-handle {
+    stroke-width: 14; stroke: transparent; paint-order: stroke fill;
+  }
+  .markup-svg .hit { stroke-width: 24; }
   .tb-btn { min-height: 40px; }
   .tb-btn.icon { min-width: 40px; }
   #page-input { height: 38px; }
@@ -1475,7 +1518,12 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
   #tool-rail .rail-label, #tool-rail .rail-sep, #tool-rail .rail-toggle { display: none; }
   /* Promote the two rail groups' children to equal-width bottom-bar items. */
   #tool-rail .rail-group { display: contents; }
-  #tool-rail .rail-btn, #tool-rail .tb-dropdown { flex: 1 1 0; min-width: 0; }
+  /* Seven cells at flex:1 across a 320px screen is 45px each — under the 48px
+     this block's own comment cites Material 3 for. min-width holds the floor and
+     the bar scrolls horizontally rather than shrinking cells below it. */
+  #tool-rail .rail-btn, #tool-rail .tb-dropdown { flex: 1 1 0; min-width: 48px; }
+  #tool-rail { overflow-x: auto; scrollbar-width: none; }
+  #tool-rail::-webkit-scrollbar { display: none; }
   #tool-rail .tb-dropdown { display: flex; }
   /* Each tool becomes a flat, equal-width tab cell: icon over a truncating
      label. No borders/background so the row reads as one bottom bar; the armed

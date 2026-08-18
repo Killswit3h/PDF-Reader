@@ -2404,6 +2404,126 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_MOBILE: Android runs this renderer verbatim, so anything that only
+      // works with a mouse, or is hidden at phone width, is broken in the
+      // shipped app. Undo was unreachable on a phone entirely (the markup rail
+      // is display:none below 820px and #markup-props only shows in markup
+      // mode), and Find had no button anywhere.
+      if (process.env.SMOKE_MOBILE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=()=>new Promise(r=>setTimeout(r,100));
+
+              // Find is now a real control, not a keyboard-only feature.
+              const findExists=!!$('#btn-find');
+              $('#btn-find').click(); await tick();
+              const findOpened=!$('#find-bar').classList.contains('hidden');
+              $('#find-close').click(); await tick();
+
+              // Undo reflects history depth and actually undoes.
+              App.History.reset(); App.refreshChrome(); await tick();
+              const undoOffAtRest=$('#btn-undo').disabled;
+              App.History.snapshot();
+              App.state.annotations.push({id:7701,page:1,type:'rect',
+                pts:[{vx:20,vy:20},{vx:90,vy:70}],style:{stroke:'#e5473b',width:2,opacity:1}});
+              App.refreshChrome(); await tick();
+              const undoOnAfterEdit=!$('#btn-undo').disabled;
+              $('#btn-undo').click(); await tick();
+              const undoWorked=!App.state.annotations.some(a=>a.id===7701);
+
+              // Marquee zoom ships in the mobile sheet, so it must track a
+              // pointer drag rather than mouse-only events.
+              App.Viewer.setMarquee(true); await tick();
+              const vc=$('#viewerContainer');
+              const touchAction=getComputedStyle(vc).touchAction;
+              vc.dispatchEvent(new PointerEvent('pointerdown',
+                {pointerId:1,clientX:120,clientY:220,bubbles:true,isPrimary:true}));
+              window.dispatchEvent(new PointerEvent('pointermove',
+                {pointerId:1,clientX:300,clientY:380,bubbles:true}));
+              const marqueeTracked=!$('#marquee-box').classList.contains('hidden');
+              window.dispatchEvent(new PointerEvent('pointercancel',{pointerId:1,bubbles:true}));
+              await tick();
+              const cancelLeftClean=$('#marquee-box').classList.contains('hidden');
+              App.Viewer.setMarquee(false);
+
+              return JSON.stringify({findExists,findOpened,undoOffAtRest,undoOnAfterEdit,
+                undoWorked,touchAction,marqueeTracked,cancelLeftClean});
+            })()`, true);
+            console.log('[mobile] ' + r);
+          } catch (e) { console.log('[mobile] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_SETTINGS: preferences must have one home, must actually stick, and
+      // must not change behaviour for anyone who never opens the dialog. Also
+      // proves a document's page/zoom is remembered and restored, which is what
+      // "reopen where I left it" means.
+      if (process.env.SMOKE_SETTINGS) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,400));
+              const $=(s)=>document.querySelector(s);
+              const tick=()=>new Promise(r=>setTimeout(r,120));
+
+              // Defaults must match today's behaviour for a fresh install.
+              const defRestore=App.Settings.get('restoreDocState');
+              const defUpdates=App.Settings.get('updateCheck');
+
+              // The dialog opens and is a real dialog.
+              App.Settings.open(); await tick();
+              const opened=!$('#settings-modal').classList.contains('hidden');
+              const isDialog=$('#settings-modal .modal').getAttribute('role')==='dialog';
+
+              // Toggling a control persists AND drives the original buried
+              // control, so the two can never disagree.
+              const ft=$('#set-measureFeetInches');
+              const before=!!ft.checked;
+              ft.checked=!before; ft.dispatchEvent(new Event('change',{bubbles:true}));
+              await tick();
+              const stored=App.Prefs.get('measureFeetInches')===!before;
+              const mirrored=$('#measure-ftin').checked===!before;
+              ft.checked=before; ft.dispatchEvent(new Event('change',{bubbles:true}));
+              await tick();
+
+              // Theme goes through the same path as the toolbar toggle.
+              const th=$('#set-theme');
+              th.value='light'; th.dispatchEvent(new Event('change',{bubbles:true}));
+              await tick();
+              const themeApplied=document.documentElement.dataset.theme==='light'
+                && App.Prefs.get('theme')==='light';
+              th.value='dark'; th.dispatchEvent(new Event('change',{bubbles:true}));
+              await tick();
+
+              $('#settings-done').click(); await tick();
+              const closed=$('#settings-modal').classList.contains('hidden');
+
+              // Per-document view state round-trips through the bounded store.
+              App.Viewer.rememberDocState();
+              const key=App.Viewer._docKey();
+              const saved=App.DocState.readDocState(App.Prefs.get('docState',{}),key);
+              const remembered=!!(saved&&saved.page);
+
+              // The store stays bounded, so it cannot grow until writes fail.
+              let m={};
+              for(let i=0;i<App.DocState.LIMIT+5;i++) m=App.DocState.writeDocState(m,'k'+i,{page:1},i+1);
+              const bounded=Object.keys(m).length===App.DocState.LIMIT;
+
+              return JSON.stringify({defRestore,defUpdates,opened,isDialog,stored,mirrored,
+                themeApplied,closed,remembered,bounded});
+            })()`, true);
+            console.log('[settings] ' + r);
+          } catch (e) { console.log('[settings] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       setTimeout(() => { console.log('[smoke] done'); app.quit(); },
         parseInt(process.env.SMOKE_MS || '4000', 10));
     });

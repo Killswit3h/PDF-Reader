@@ -60,6 +60,7 @@
       redo = [];
       App.state.dirty = true; // unsaved edits exist (drives save-on-close prompt)
       if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
+      if (App.refreshUndoButtons) App.refreshUndoButtons();
     },
     undo() {
       if (!undo.length) return;
@@ -67,6 +68,7 @@
       apply(undo.pop());
       App.state.dirty = true;
       if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
+      if (App.refreshUndoButtons) App.refreshUndoButtons();
     },
     redo() {
       if (!redo.length) return;
@@ -74,9 +76,12 @@
       apply(redo.pop());
       App.state.dirty = true;
       if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
+      if (App.refreshUndoButtons) App.refreshUndoButtons();
     },
     // Drop all history (e.g. when a new document loads).
-    reset() { undo = []; redo = []; App.state.dirty = false; if (App.refreshDirtyIndicator) App.refreshDirtyIndicator(); },
+    reset() { undo = []; redo = []; App.state.dirty = false;
+      if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
+      if (App.refreshUndoButtons) App.refreshUndoButtons(); },
     canUndo() { return undo.length > 0; },
     canRedo() { return redo.length > 0; },
     // Save/restore the stacks so each open tab keeps its own undo history.
