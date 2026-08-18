@@ -143,6 +143,25 @@
     return { canvas, scale, v1 };
   }
 
+  // Tesseract 6+ returns only `text` from recognize() by default — the per-word
+  // boxes we need live in the block tree, and only when explicitly requested
+  // (see the `{ blocks: true }` output flag below). Older builds put them in a
+  // flat `data.words`, so accept either shape.
+  function collectWords(res) {
+    const data = (res && res.data) || {};
+    if (Array.isArray(data.words) && data.words.length) return data.words;
+    const out = [];
+    for (const b of data.blocks || []) {
+      for (const p of b.paragraphs || []) {
+        for (const l of p.lines || []) {
+          for (const w of l.words || []) out.push(w);
+        }
+      }
+    }
+    return out;
+  }
+  O._collectWords = collectWords;
+
   // ---- The run ---------------------------------------------------------------
   /**
    * Recognize text across the selected pages and swap the recognized document in.
@@ -194,13 +213,15 @@
           const { canvas, scale, v1 } = await rasterize(pageNum);
           if (cancelled) { summary.cancelled = true; break; }
 
-          const res = await worker.recognize(canvas);
+          // `{ blocks: true }` is required: without it tesseract 6+ returns the
+          // page text but no word boxes, and there is nothing to position.
+          const res = await worker.recognize(canvas, {}, { blocks: true });
           // Free the raster immediately; a D-size page is a very large bitmap and
           // holding several would be the difference between finishing and being
           // killed on a tablet.
           canvas.width = canvas.height = 0;
 
-          const raw = (res && res.data && res.data.words) || [];
+          const raw = collectWords(res);
           const words = [];
           for (const w of raw) {
             if (!LO().usableWord(w)) continue;
