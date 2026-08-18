@@ -388,6 +388,63 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'dropdowns — only one rail/header flyout is ever open at a time',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_DROPDOWN: '1' }, [SAMPLE]), 'dropdown');
+      check(j.s1.measure === true && !j.s1.markup && !j.s1.doc, 'Measure menu did not open alone');
+      check(j.aria1 === 'true', 'trigger did not report aria-expanded=true when open');
+      // The reported bug: opening Markup left the Measure flyout stacked behind it.
+      check(j.s2.markup === true, 'Markup menu did not open');
+      check(j.s2.measure === false, 'Measure menu stayed open behind the Markup menu');
+      check(j.s3.doc === true && !j.s3.measure && !j.s3.markup, 'Document menu did not replace the others');
+      check(j.s3b.help === true && j.s3b.doc === false, 'Help menu did not close the Document menu');
+      check(j.selfOpen === true && j.selfClosed === true, 'self-click no longer toggles a menu shut');
+      check(j.ariaOff === 'false', 'trigger did not report aria-expanded=false when closed');
+      check(j.stickyOpen === true, 'ticking Snap wrongly closed the Measure menu');
+      check(j.escClosed === true, 'Esc did not close the open menu');
+      check(j.modeKept === true, 'Esc on an open menu also disarmed the active tool');
+      check(j.focusBack === true, 'Esc did not return focus to the trigger');
+      check(j.outsideClosed === true, 'clicking the page did not dismiss the menu');
+      check(j.maxOpen <= 1, `${j.maxOpen} menus were open at once (expected at most 1)`);
+    }
+  },
+  {
+    name: 'a11y — dialogs trap focus, restore it, and tools report pressed state',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_A11Y: '1' }, [SAMPLE]), 'a11y');
+      check(j.dialogCount >= 11, `only ${j.dialogCount} dialogs found`);
+      check(j.badDialogs === 0, `${j.badDialogs} modals lack role/aria-modal/aria-labelledby`);
+      // Tab used to walk straight out of a dialog into the toolbar behind it.
+      check(j.movedIn === true, 'opening a dialog did not move focus into it');
+      check(j.wrapped === true, 'Tab escaped the dialog instead of cycling inside it');
+      check(j.restored === true, 'closing a dialog did not restore focus to its opener');
+      check(j.pressedOn === true && j.pressedOff === true,
+        'armed tools do not report aria-pressed');
+      check(j.rowRole === 'option', `panel row role was "${j.rowRole}"`);
+      check(j.rowTab === 0, 'panel row is not reachable by keyboard');
+      check(j.rowActivates === true, 'Enter on a focused panel row did nothing');
+    }
+  },
+  {
+    name: 'failure path — errors survive, stamps undo, dirty reaches the title',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_FAILPATH: '1' }, [SAMPLE]), 'failpath');
+      // The toast was a single slot with one shared timer, so a routine success
+      // could erase an error the user had not read.
+      check(j.errorStillShowing === true, 'a success toast overwrote an unread error');
+      check(j.liveAssertive === true, 'error toast was not announced assertively');
+      check(j.firstIsA === true, 'queued toasts did not show in order');
+      // Applying stamps neither entered history nor marked the file dirty.
+      check(j.dirtyBefore === false, 'document started dirty; test cannot prove anything');
+      check(j.dirtyAfterStamp === true, 'a stamp change did not mark the document dirty');
+      check(j.stampUndone === true, 'undo did not restore the previous stamp configuration');
+      // With one document open the tab bar is hidden, so the title is the only
+      // place an unsaved-changes indicator can appear.
+      check(j.titleMarked === true, 'window title showed no unsaved-changes marker');
+      check(j.titleClean === true, 'unsaved-changes marker stayed after saving');
+    }
+  },
+  {
     name: 'sharp zoom — page past the old 16.7M cap renders crisp, not downscaled',
     run: () => {
       const j = tagJson(runApp({ SMOKE_SHARP: '1' }, [SAMPLE]), 'sharp');

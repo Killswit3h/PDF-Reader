@@ -548,19 +548,28 @@
       : all;
     list.innerHTML = '';
     if (!all.length) {
-      list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">📐</div>No measurements yet.<br>Use the Measure menu to add some.</div>';
+      list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">' + App.icon('measure', 'ico-lg') + '</div>No measurements yet.<br>Use the Measure menu to add some.</div>';
     } else if (!ms.length) {
       list.innerHTML = '<div class="mp-empty">No measurements match this filter.</div>';
     } else {
       ms.forEach((m) => {
         const row = document.createElement('div');
         row.className = 'mp-row' + (m.id === App.state.measureSelectedId ? ' selected' : '');
+        row.setAttribute('role', 'option');
+        row.tabIndex = 0;
+        row.setAttribute('aria-selected', m.id === App.state.measureSelectedId ? 'true' : 'false');
         row.innerHTML =
           `<span class="mp-swatch" style="background:${colorOf(m)}"></span>` +
           `<span class="mp-type">${m.type}</span>` +
           `<span class="mp-val">${m.label}</span>` +
           `<span class="mp-pg">p${m.page}</span>` +
-          `<button class="mp-del" title="Delete">✕</button>`;
+          `<button class="mp-del" title="Delete" aria-label="Delete">${App.icon('trash')}</button>`;
+        // A tab stop that does nothing on Enter is worse than no tab stop.
+        row.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          row.click();
+        });
         row.addEventListener('click', (e) => {
           if (e.target.classList.contains('mp-del')) { M.remove(m.id); return; }
           M.select(m.id, true); // panel pick: scroll the shape's page into view

@@ -26,3 +26,6 @@ build/ios-export/
 # Python bytecode from the ui-ux-pro-max design engine (.claude/skills/…/scripts/).
 __pycache__/
 *.pyc
+
+# Local agent worktrees — checkouts, never part of the repo.
+.claude/worktrees/

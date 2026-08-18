@@ -22,14 +22,48 @@
   /* Drafting instruments have tight, precise corners — small radii on purpose. */
   --r-sm: 4px;  --r-md: 6px;  --r-lg: 9px;  --r-pill: 999px;
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;  --sp-4: 16px;  --sp-5: 24px;  --sp-6: 32px;
-  --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px; --fs-lg: 15px; --fs-xl: 18px; --fs-2xl: 24px;
+  /* One ladder, eight steps. The app had 22 distinct sizes including 9.5, 10.5
+   * and 11.5 — fractional values that land on half device-pixels at Android's
+   * 1.0 density and render soft. */
+  --fs-2xs: 10px; --fs-xs: 11px; --fs-sm: 12px; --fs-md: 13px;
+  --fs-lg: 15px; --fs-xl: 18px; --fs-2xl: 24px; --fs-display: 30px;
   --dur-fast: 0.1s; --dur-med: 0.2s;
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   --toolbar-h: 52px;
-  --rail-w: 130px;
+  --tab-h: 34px;       /* document tab strip; was referenced as a fallback before it existed */
+  --rail-w: 146px;
+  /* ---- Breakpoint ladder ----
+   * Two widths, documented, so layout rules stop disagreeing with each other:
+   *   <= 560px  very narrow: two-column dialog bodies collapse to one
+   *   <= 820px  phone/tablet: rails reflow, panels become sheets, split stacks
+   * (CSS cannot use a custom property in a media query, so these are written
+   * literally at each @media — this comment is the single source of truth.)
+   * Previously split view stacked at 720 while everything else switched at 820. */
+
   --grid-size: 16px;   /* fine graph-paper pitch */
   --grid-major: 96px;  /* heavy line every 6 squares */
+
+  /* ---- Stacking tiers ----
+   * Every z-index in the app comes from here. The app previously had 24 ad-hoc
+   * values between 1 and 200, three of them on static elements where z-index
+   * does nothing, and two ties whose winner was decided by source order.
+   *
+   * Read top to bottom as "what is allowed to cover what".
+   * An element that sets one of these MUST also be positioned. */
+  --z-page:     1;    /* in-page furniture: handles, badges, ticks           */
+  --z-overlay:  10;   /* draw layers pinned over a page                      */
+  --z-chrome:   20;   /* toolbar, rails, tab bar, side panels                */
+  --z-float:    30;   /* floating tools: find bar, marquee box, copy button  */
+  --z-flyout:   40;   /* menus opened from chrome — must cover those tools:
+                         the Help menu sits directly above the find bar, and
+                         at the old values it opened behind it              */
+  --z-scrim:    50;   /* full-window scrims: drag-over, loading              */
+  --z-modal:    100;  /* modal backdrops and their dialogs                   */
+  --z-toast:    150;  /* above modals on purpose: a save that fails while a
+                         dialog is open must still be seen, and at 70 the
+                         toast rendered behind the modal scrim              */
+  --z-tour:     200;  /* the guided tour spotlights the modal layer itself   */
 }
 
 /* ===================== DARK — "drafting table at night" ===================== */
@@ -62,7 +96,10 @@ html[data-theme="dark"] {
   --grid-fine:  rgba(96, 148, 190, 0.07);
   --grid-heavy: rgba(96, 148, 190, 0.13);
 
-  --focus-ring: rgba(95, 176, 238, 0.55);
+  --focus-ring: rgba(120, 190, 245, 0.80);  /* >=3:1 on --bg-surface */
+
+  --scrim:       rgba(6, 12, 20, 0.66);   /* full-window dim behind a modal/overlay */
+  --scrim-heavy: rgba(6, 12, 20, 0.78);
 
   --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.5);
   --shadow-2: 0 8px 22px rgba(0, 0, 0, 0.55);
@@ -102,7 +139,10 @@ html[data-theme="light"] {
   --grid-fine:  rgba(40, 90, 140, 0.06);
   --grid-heavy: rgba(40, 90, 140, 0.11);
 
-  --focus-ring: rgba(30, 111, 184, 0.42);
+  --focus-ring: rgba(23, 90, 151, 0.85);   /* >=3:1 on --bg-surface; 0.42 alpha was ~1.9:1 */
+
+  --scrim:       rgba(22, 35, 47, 0.42);  /* lighter: a 0.6 black scrim reads as a bug on vellum */
+  --scrim-heavy: rgba(22, 35, 47, 0.55);
 
   --shadow-1: 0 1px 2px rgba(16, 32, 48, 0.10);
   --shadow-2: 0 8px 22px rgba(16, 32, 48, 0.13);
@@ -112,7 +152,13 @@ html[data-theme="light"] {
   color-scheme: light;
 }
 
-/* Respect the OS reduced-motion setting. */
+/* Respect the OS reduced-motion setting.
+ *
+ * The blanket rule kills decorative motion, but it also froze the loading
+ * spinner to a single static frame — which reads as a hung app rather than a
+ * calm one. A spinner communicates liveness, not decoration, so it is exempt
+ * and simply runs slower. */
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+  .spinner { animation-duration: 1.4s !important; animation-iteration-count: infinite !important; }
 }

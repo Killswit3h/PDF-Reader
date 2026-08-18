@@ -147,10 +147,15 @@
     const res = await window.api.openPdfDialog();
     if (!res) return;
     if (!res.ok) { App.toast('Could not read the comparison file: ' + (res.error || ''), 'error'); return; }
+    // Parsing and rendering the second document is the slow part, and it ran
+    // with no indication anything was happening.
+    App.showLoading('Loading comparison document…');
     try {
       await C.compareData(res.data, res.name);
     } catch (e) {
       App.toast('Could not open the comparison file: ' + (e && e.message), 'error', 5000);
+    } finally {
+      App.hideLoading();
     }
   };
 

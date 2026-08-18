@@ -408,7 +408,14 @@
       const data = JSON.parse(new TextDecoder().decode(modelEntry.content));
       const baseEntry = att[App.SIDECAR.BASE];
       return { data, base: baseEntry && baseEntry.content ? baseEntry.content : null };
-    } catch (_) { return null; }
+    } catch (e) {
+      // A sidecar was present but unreadable. Returning null quietly downgrades
+      // the document to a flattened open, so the user sees their markups baked
+      // into the page and cannot edit them, with no explanation.
+      if (window.console) console.warn('sidecar unreadable:', e && e.message);
+      App.toast('This file has FieldMark markups, but they could not be read — opening it flattened.', 'error', 8000);
+      return null;
+    }
   };
 
   // Restore the in-app marks from a serialized model onto fresh state. Called
@@ -434,15 +441,49 @@
 
   // Show the document currently in App.state (its pdfDoc/arrays) in the viewer.
   // `restore` = { scaleValue, page } to reapply on a tab switch (else fit-width).
+  // PDF.js keeps interactive AcroForm edits in the document's annotationStorage
+  // and never touches App.state, so typing into a form field left `dirty` false.
+  // The close and quit guards both read `dirty`, which meant a filled-in form
+  // could be closed with no "unsaved changes" prompt and the typing was gone.
+  //
+  // annotationStorage exposes a modified callback; wire it to the same flag every
+  // other edit sets. Guarded because the hook name has moved between PDF.js
+  // versions and a missing hook must not break opening a document.
+  function watchFormEdits(doc) {
+    try {
+      const store = doc && doc.annotationStorage;
+      if (!store) return;
+      const mark = () => {
+        App.state.dirty = true;
+        const save = App.$('#btn-save');
+        if (save && App.state.pdfDoc) save.disabled = false;
+        if (App.refreshChrome) App.refreshChrome();
+      };
+      if (typeof store.onSetModified === 'function' || 'onSetModified' in store) {
+        const prev = store.onSetModified;
+        store.onSetModified = function () {
+          if (typeof prev === 'function') { try { prev.apply(this, arguments); } catch (_) { /* keep ours */ } }
+          mark();
+        };
+      } else if (typeof store.setValue === 'function') {
+        // Older builds: wrap setValue, which every widget edit funnels through.
+        const setValue = store.setValue.bind(store);
+        store.setValue = function () { const r = setValue.apply(null, arguments); mark(); return r; };
+      }
+    } catch (_) { /* forms stay optional */ }
+  }
+
   Viewer._showActive = function (restore) {
     Viewer.init();
     Viewer._restore = restore || null;
     App.state.pageEls = [];
     App.$('#empty-state').classList.add('hidden');
     App.$('#viewerContainer').classList.add('active');
-    document.title = `${App.state.fileName || 'PDF'} — FieldMark`;
+    if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
+    else document.title = `${App.state.fileName || 'PDF'} — FieldMark`;
     pdfViewer.setDocument(App.state.pdfDoc);
     linkService.setDocument(App.state.pdfDoc, null);
+    watchFormEdits(App.state.pdfDoc);
     if (App.Measure) App.Measure.renderPanel();
   };
 
