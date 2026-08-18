@@ -143,7 +143,7 @@
 
     <div class="tb-group">
       <button id="btn-zoom-out" class="tb-btn icon" disabled title="Zoom out (−)" aria-label="Zoom out"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button>
-      <span id="zoom-label" class="tb-readout">100%</span>
+      <span id="zoom-label" class="tb-readout" role="status" aria-live="polite" aria-label="Zoom level">100%</span>
       <button id="btn-zoom-in" class="tb-btn icon" disabled title="Zoom in (+)" aria-label="Zoom in"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg></button>
       <button id="btn-fit-width" class="tb-btn" data-overflow disabled title="Fit to width"><svg class="ico" aria-hidden="true"><use href="#i-fit-width"/></svg>Fit</button>
       <button id="btn-marquee" class="tb-btn icon" data-overflow disabled title="Marquee zoom — drag a box to zoom into that area (Z)" aria-label="Marquee zoom"><svg class="ico" aria-hidden="true"><use href="#i-marquee"/></svg></button>
@@ -155,8 +155,8 @@
     <div class="tb-group" data-overflow>
       <button id="btn-prev" class="tb-btn icon" disabled title="Previous page" aria-label="Previous page"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></button>
       <span class="tb-readout">
-        <input id="page-input" type="number" min="1" value="1" disabled />
-        / <span id="page-total">0</span>
+        <input id="page-input" type="number" min="1" value="1" disabled aria-label="Page number" />
+        / <span id="page-total" aria-label="Total pages">0</span>
       </span>
       <button id="btn-next" class="tb-btn icon" disabled title="Next page" aria-label="Next page"><svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
     </div>
@@ -292,7 +292,7 @@
   </aside>
 
   <!-- ============ Status / mode banner ============ -->
-  <div id="mode-banner" class="hidden">
+  <div id="mode-banner" class="hidden" role="status" aria-live="polite">
     <span id="mode-banner-text"></span>
     <button id="mode-finish" class="link-btn hidden"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Finish shape</button>
     <button id="mode-cancel" class="link-btn">Cancel</button>
@@ -310,22 +310,22 @@
         <button type="button" class="mk-sw" data-color="#2f6fed" style="background:#2f6fed" title="Blue" aria-label="Blue"></button>
         <button type="button" class="mk-sw" data-color="#1a1a1a" style="background:#1a1a1a" title="Black" aria-label="Black"></button>
       </div>
-      <label class="mk-custom" title="Custom color (color wheel)"><input id="mk-stroke" type="color" value="#e5484d" /></label>
+      <label class="mk-custom" title="Custom color (color wheel)"><input id="mk-stroke" type="color" value="#e5484d" aria-label="Custom line colour" /></label>
     </div>
-    <label class="mk-prop"><input id="mk-fill-on" type="checkbox" /> Fill <input id="mk-fill" type="color" value="#ffcc00" /></label>
-    <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" /></label>
-    <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" /></label>
+    <label class="mk-prop"><input id="mk-fill-on" type="checkbox" aria-label="Enable fill" /> Fill <input id="mk-fill" type="color" value="#ffcc00" aria-label="Fill colour" /></label>
+    <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" aria-label="Line width" /></label>
+    <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" aria-label="Opacity" /></label>
     <label class="mk-prop mk-font-only" title="Text font">Font
-      <select id="mk-font-family">
+      <select id="mk-font-family" aria-label="Text font">
         <option value="Helvetica">Helvetica</option>
         <option value="Times">Times</option>
         <option value="Courier">Courier</option>
       </select>
     </label>
     <label class="mk-prop mk-font-only" title="Text size (points)">Size
-      <input id="mk-font-size" type="number" min="6" max="120" step="1" value="14" />
+      <input id="mk-font-size" type="number" min="6" max="120" step="1" value="14" aria-label="Text size in points" />
     </label>
-    <label class="mk-prop" title="Snap to nearby vertices while dragging"><input id="mk-snap" type="checkbox" checked /> Snap</label>
+    <label class="mk-prop" title="Snap to nearby vertices while dragging"><input id="mk-snap" type="checkbox" checked aria-label="Snap to nearby vertices" /> Snap</label>
     <span class="mk-spacer"></span>
     <button id="mk-undo" class="tb-btn" title="Undo (Ctrl+Z)"><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg>Undo</button>
     <button id="mk-redo" class="tb-btn" title="Redo (Ctrl+Y)"><svg class="ico" aria-hidden="true"><use href="#i-redo"/></svg>Redo</button>
@@ -412,7 +412,7 @@
          View is on; the left viewer shrinks to make room. -->
     <div id="split-pane" class="hidden">
       <div id="split-head">
-        <select id="split-pick" title="Choose the document for this pane"></select>
+        <select id="split-pick" aria-label="Document shown in the side pane" title="Choose the document for this pane"></select>
         <span class="split-spacer"></span>
         <button id="split-zoom-out" class="tb-btn icon" title="Zoom out" aria-label="Zoom out"><svg class="ico" aria-hidden="true"><use href="#i-minus"/></svg></button>
         <button id="split-fit" class="tb-btn icon" title="Fit width" aria-label="Fit width"><svg class="ico" aria-hidden="true"><use href="#i-fit-width"/></svg></button>
@@ -425,8 +425,8 @@
 
   <!-- Find bar (Ctrl+F) -->
   <div id="find-bar" class="hidden">
-    <input id="find-input" type="text" placeholder="Find in document…" />
-    <span id="find-count" class="find-count"></span>
+    <input id="find-input" type="text" placeholder="Find in document…" aria-label="Find in document" />
+    <span id="find-count" class="find-count" role="status" aria-live="polite" aria-label="Search results"></span>
     <button id="find-prev" class="tb-btn icon" title="Previous" aria-label="Previous match"><svg class="ico" aria-hidden="true"><use href="#i-chevron-up"/></svg></button>
     <button id="find-next" class="tb-btn icon" title="Next" aria-label="Next match"><svg class="ico" aria-hidden="true"><use href="#i-chevron-down"/></svg></button>
     <button id="find-close" class="tb-btn icon" title="Close" aria-label="Close find"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
@@ -439,14 +439,14 @@
   <button id="copy-fab" class="hidden" title="Copy selected text (Ctrl/Cmd+C)"><svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg> Copy</button>
 
   <!-- Loading spinner -->
-  <div id="loading" class="hidden"><div class="spinner"></div><span id="loading-text">Loading…</span></div>
+  <div id="loading" class="hidden" role="status" aria-live="polite"><div class="spinner"></div><span id="loading-text">Loading…</span></div>
 
   <!-- Toast messages -->
-  <div id="toast" class="hidden"></div>
+  <div id="toast" class="hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <!-- ============ Signature creation modal ============ -->
   <div id="sig-modal" class="modal-backdrop hidden">
-    <div class="modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sig-modal-title">
       <div class="modal-head">
         <h2 id="sig-modal-title">Add Signature</h2>
         <button id="sig-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
@@ -489,7 +489,7 @@
 
   <!-- ============ Scale / calibration modal ============ -->
   <div id="scale-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:560px">
+    <div class="modal" style="width:560px" role="dialog" aria-modal="true" aria-labelledby="scale-modal-title">
       <div class="modal-head">
         <h2 id="scale-modal-title">Set Scale</h2>
         <button id="scale-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
@@ -503,13 +503,13 @@
       <!-- Enter-scale panel -->
       <div class="scale-panel" data-spanel="enter">
         <label class="field-label">Common presets</label>
-        <select id="scale-preset"><option value="">— choose a preset —</option></select>
+        <select id="scale-preset" aria-label="Common scale presets"><option value="">— choose a preset —</option></select>
         <div class="scale-eq">
-          <input id="enter-draw-val" type="number" step="any" value="1" />
-          <select id="enter-draw-unit" class="unit-sel"></select>
+          <input id="enter-draw-val" type="number" step="any" value="1" aria-label="Drawing length" />
+          <select id="enter-draw-unit" class="unit-sel" aria-label="Drawing length unit"></select>
           <span class="eq">=</span>
-          <input id="enter-real-val" type="number" step="any" value="1" />
-          <select id="enter-real-unit" class="unit-sel"></select>
+          <input id="enter-real-val" type="number" step="any" value="1" aria-label="Real-world length" />
+          <select id="enter-real-unit" class="unit-sel" aria-label="Real-world length unit"></select>
         </div>
         <p class="scale-hint">On the drawing, the left length equals the right real-world length.</p>
       </div>
@@ -523,8 +523,8 @@
           <div class="scale-eq">
             <span id="calib-drawn" class="calib-drawn">—</span>
             <span class="eq">=</span>
-            <input id="calib-real-val" type="number" step="any" value="1" />
-            <select id="calib-real-unit" class="unit-sel"></select>
+            <input id="calib-real-val" type="number" step="any" value="1" aria-label="Real-world length of the measured line" />
+            <select id="calib-real-unit" class="unit-sel" aria-label="Real-world length unit"></select>
           </div>
         </div>
       </div>
@@ -545,12 +545,12 @@
   </div>
 
   <!-- ============ Markups List panel ============ -->
-  <aside id="markup-panel" class="hidden">
+  <aside id="markup-panel" class="hidden" aria-labelledby="markup-panel-title">
     <div class="mp-head">
-      <span>Markups</span>
+      <h2 id="markup-panel-title" class="mp-title">Markups</h2>
       <button id="mkp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
-    <input id="mkp-filter" class="mp-filter" type="text" placeholder="Filter markups…" />
+    <input id="mkp-filter" aria-label="Filter markups" class="mp-filter" type="text" placeholder="Filter markups…" />
     <div id="mkp-list" class="mp-list"></div>
     <label class="mkp-opt"><input id="mkp-annots" type="checkbox" /> Save markups as editable PDF annotations (else flatten)</label>
     <div class="mp-foot">
@@ -560,12 +560,12 @@
   </aside>
 
   <!-- ============ Measurements panel ============ -->
-  <aside id="measure-panel" class="hidden">
+  <aside id="measure-panel" class="hidden" aria-labelledby="measure-panel-title">
     <div class="mp-head">
-      <span>Measurements</span>
+      <h2 id="measure-panel-title" class="mp-title">Measurements</h2>
       <button id="mp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
-    <input id="mp-filter" class="mp-filter" type="text" placeholder="Filter measurements…" />
+    <input id="mp-filter" aria-label="Filter measurements" class="mp-filter" type="text" placeholder="Filter measurements…" />
     <div id="mp-props" class="mp-props hidden">
       <span class="mp-props-title">Selected line</span>
       <label class="mp-prop" title="Line color for the selected measurement">
@@ -587,9 +587,9 @@
   </aside>
 
   <!-- ============ Page Organizer panel ============ -->
-  <aside id="organize-panel" class="hidden">
+  <aside id="organize-panel" class="hidden" aria-labelledby="organize-panel-title">
     <div class="mp-head">
-      <span>Organize Pages</span>
+      <h2 id="organize-panel-title" class="mp-title">Organize Pages</h2>
       <button id="org-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="org-toolbar">
@@ -607,9 +607,9 @@
   </aside>
 
   <!-- ============ Tool Chest panel ============ -->
-  <aside id="toolchest-panel" class="hidden">
+  <aside id="toolchest-panel" class="hidden" aria-labelledby="toolchest-panel-title">
     <div class="mp-head">
-      <span>Tool Chest</span>
+      <h2 id="toolchest-panel-title" class="mp-title">Tool Chest</h2>
       <button id="tc-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <div class="org-toolbar">
@@ -621,9 +621,9 @@
 
   <!-- ============ Print preview modal ============ -->
   <div id="printprev-modal" class="modal-backdrop hidden">
-    <div class="modal pp-modal">
+    <div class="modal pp-modal" role="dialog" aria-modal="true" aria-labelledby="printprev-title">
       <div class="modal-head">
-        <h2>Print preview</h2>
+        <h2 id="printprev-title">Print preview</h2>
         <button id="pp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="pp-toolbar">
@@ -654,9 +654,9 @@
 
   <!-- ============ Document stamps modal (Bates / header-footer / watermark) ============ -->
   <div id="docstamp-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:600px">
+    <div class="modal" style="width:600px" role="dialog" aria-modal="true" aria-labelledby="docstamp-title">
       <div class="modal-head">
-        <h2>Numbering &amp; Stamps</h2>
+        <h2 id="docstamp-title">Numbering &amp; Stamps</h2>
         <button id="ds-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="ds-body">
@@ -732,7 +732,7 @@
 
   <!-- ============ Update modal ============ -->
   <div id="update-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:520px">
+    <div class="modal" style="width:520px" role="dialog" aria-modal="true" aria-labelledby="upd-title">
       <div class="modal-head">
         <h2 id="upd-title">Update available</h2>
         <button id="upd-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
@@ -750,7 +750,7 @@
 
   <!-- ============ Confirm dialog (destructive actions) ============ -->
   <div id="confirm-modal" class="modal-backdrop hidden">
-    <div class="modal confirm">
+    <div class="modal confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div class="modal-head"><h2 id="confirm-title">Confirm</h2></div>
       <div class="confirm-body"><p id="confirm-msg"></p></div>
       <div class="modal-foot">
@@ -762,9 +762,9 @@
 
   <!-- ============ Keyboard shortcuts help ============ -->
   <div id="shortcuts-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:600px">
+    <div class="modal" style="width:600px" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
       <div class="modal-head">
-        <h2>Keyboard shortcuts</h2>
+        <h2 id="shortcuts-title">Keyboard shortcuts</h2>
         <button id="sc-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <!-- Rows are rendered by app.js so the modifier key matches the OS (⌘/Ctrl). -->
@@ -780,7 +780,7 @@
        "here's what changed" so an update doesn't restart the first-run tour.
        The heading + highlights are filled in by tour.js from its NOTES data. -->
   <div id="whatsnew-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:520px">
+    <div class="modal" style="width:520px" role="dialog" aria-modal="true" aria-labelledby="wn-title">
       <div class="modal-head">
         <h2 id="wn-title">What’s new</h2>
         <button id="wn-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
@@ -798,9 +798,9 @@
 
   <!-- ============ Digital signature (PKI / PAdES) ============ -->
   <div id="digisign-modal" class="modal-backdrop hidden">
-    <div class="modal" style="width:520px">
+    <div class="modal" style="width:520px" role="dialog" aria-modal="true" aria-labelledby="digisign-title">
       <div class="modal-head">
-        <h2>Digital signature</h2>
+        <h2 id="digisign-title">Digital signature</h2>
         <button id="dsig-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="dsig-body">
@@ -893,9 +893,9 @@
 
   <!-- ============ Document compare modal ============ -->
   <div id="compare-modal" class="modal-backdrop hidden">
-    <div class="modal cmp-modal">
+    <div class="modal cmp-modal" role="dialog" aria-modal="true" aria-labelledby="compare-title">
       <div class="modal-head">
-        <h2>Compare Documents</h2>
+        <h2 id="compare-title">Compare Documents</h2>
         <button id="cmp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="cmp-bar">
@@ -930,9 +930,9 @@
        document is tinted its own color and multiply-blended, so shared lines
        read dark and each revision's unique content shows in its own color. -->
   <div id="overlay-modal" class="modal-backdrop hidden">
-    <div class="modal ovl-modal">
+    <div class="modal ovl-modal" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
       <div class="modal-head">
-        <h2>Overlay Documents</h2>
+        <h2 id="overlay-title">Overlay Documents</h2>
         <button id="ovl-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="ovl-bar">

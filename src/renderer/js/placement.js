@@ -308,6 +308,10 @@
       textEl.removeAttribute('contenteditable');
       textEl.style.outline = 'none';
       const val = textEl.textContent.trim() || App.todayFormatted();
+      if (val === p.text) return;          // nothing typed; don't spend an undo step
+      // Editing the date text was the one placement mutation that took no
+      // snapshot: it could not be undone and never marked the document dirty.
+      if (App.History) App.History.snapshot();
       p.text = val;
       p.vw = measureTextPt(p.text, p.fontPt);
       const el = elFor(p.id);

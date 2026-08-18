@@ -13,9 +13,12 @@
  * snapshots (capped at 60) are cheap and dead simple to reason about.
  */
 (function () {
+  // docStamp is in here so applying Bates numbering / a watermark is undoable
+  // and, via snapshot(), marks the document dirty. It is per-document state that
+  // changes the saved output, exactly like the other keys.
   const KEYS = [
     'placements', 'measurements', 'viewports', 'scales', 'annotations',
-    'selectedId', 'measureSelectedId', 'annoSelectedId'
+    'selectedId', 'measureSelectedId', 'annoSelectedId', 'docStamp'
   ];
   const CAP = 60;
   let undo = [];
@@ -39,6 +42,10 @@
     if (App.Measure) { App.Measure.repositionAll(); App.Measure.renderPanel(); }
     if (App.Markup) App.Markup.repositionAll();
     if (App.MarkupPanel) App.MarkupPanel.render();
+    // docStamp is part of the snapshot now, so its on-page preview has to be
+    // redrawn too — otherwise undo restores the config but the page still shows
+    // the old watermark.
+    if (App.DocStamp) App.DocStamp.repositionAll();
     if (App.refreshChrome) App.refreshChrome();
     // Saving is meaningful whenever anything exists.
     const save = App.$('#btn-save');
@@ -52,21 +59,24 @@
       if (undo.length > CAP) undo.shift();
       redo = [];
       App.state.dirty = true; // unsaved edits exist (drives save-on-close prompt)
+      if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
     },
     undo() {
       if (!undo.length) return;
       redo.push(capture());
       apply(undo.pop());
       App.state.dirty = true;
+      if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
     },
     redo() {
       if (!redo.length) return;
       undo.push(capture());
       apply(redo.pop());
       App.state.dirty = true;
+      if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
     },
     // Drop all history (e.g. when a new document loads).
-    reset() { undo = []; redo = []; App.state.dirty = false; },
+    reset() { undo = []; redo = []; App.state.dirty = false; if (App.refreshDirtyIndicator) App.refreshDirtyIndicator(); },
     canUndo() { return undo.length > 0; },
     canRedo() { return redo.length > 0; },
     // Save/restore the stacks so each open tab keeps its own undo history.
