@@ -23,7 +23,13 @@ const { createStore } = require('./desktop-store');
 // saved signature, preferences, recent files and window bounds. Pin userData to
 // the original location so an in-place update keeps all of it. Must run before
 // the app is ready (and before anything below reads userData).
-try { app.setPath('userData', path.join(app.getPath('appData'), 'PDF Signer')); } catch (_) { /* fall back to default */ }
+// Skipped under the e2e harness: run.js gives each spawn its own
+// --user-data-dir so scenarios can't collide, and pinning userData here would
+// override that and drag every spawn back onto the installed app's profile —
+// and therefore onto its single-instance lock (see gotLock below).
+if (!process.env.SMOKE_TEST) {
+  try { app.setPath('userData', path.join(app.getPath('appData'), 'PDF Signer')); } catch (_) { /* fall back to default */ }
+}
 
 // Persisted desktop-only state (window bounds + recent files). Skipped under the
 // e2e smoke harness so scenarios run against deterministic default bounds.
@@ -2484,9 +2490,15 @@ function createWindow() {
   });
 }
 
-// Enforce a single instance so "Open with" reuses the running window.
-const gotLock = app.requestSingleInstanceLock();
+// Enforce a single instance so "Open with" reuses the running window. The e2e
+// harness opts out: every scenario is its own short-lived instance, and losing
+// the lock to an installed FieldMark the developer happens to have open would
+// quit it before it printed anything — which surfaces as all 55 scenarios
+// failing with empty output and no stated reason.
+const gotLock = process.env.SMOKE_TEST ? true : app.requestSingleInstanceLock();
 if (!gotLock) {
+  // Say so on the way out; a silent exit(0) is indistinguishable from a crash.
+  console.log('[single-instance] another instance holds the lock — handing the file off to it and exiting.');
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
