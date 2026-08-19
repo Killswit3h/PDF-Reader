@@ -78,11 +78,10 @@ const TOOLS = [
   { type: 'highlight', expect: 'Ink', pts: [{ vx: 60, vy: 430 }, { vx: 200, vy: 430 }] },
   { type: 'text', expect: 'FreeText', pts: [{ vx: 60, vy: 460 }, { vx: 220, vy: 504 }], text: 'Editable note' },
   { type: 'callout', expect: 'FreeText', pts: [{ vx: 240, vy: 460 }, { vx: 400, vy: 504 }, { vx: 450, vy: 540 }], text: 'Callout' },
-  // Quad-based text markups: currently drawn into page content, not emitted as
-  // Highlight/Underline/StrikeOut annotations. See docs/tool-parity.md.
-  { type: 'texthighlight', expect: null, quads: [{ x: 60, y: 560, w: 120, h: 14 }] },
-  { type: 'underline', expect: null, quads: [{ x: 60, y: 590, w: 120, h: 14 }] },
-  { type: 'strikeout', expect: null, quads: [{ x: 60, y: 620, w: 120, h: 14 }] }
+  // Quad-based text markups, exported with a generated /AP appearance stream.
+  { type: 'texthighlight', expect: 'Highlight', quads: [{ x: 60, y: 560, w: 120, h: 14 }] },
+  { type: 'underline', expect: 'Underline', quads: [{ x: 60, y: 590, w: 120, h: 14 }] },
+  { type: 'strikeout', expect: 'StrikeOut', quads: [{ x: 60, y: 620, w: 120, h: 14 }] }
 ];
 
 (async () => {
@@ -156,6 +155,50 @@ const TOOLS = [
 
       return { annCount: A.annotations.length, bytesLen, err, b64out, flatLen, flatErr };
     }, { b64: pdfB64, tools: TOOLS });
+
+    // A correct subtype is not enough: a text markup whose /AP is missing or
+    // malformed parses perfectly and renders as NOTHING in viewers that don't
+    // synthesise appearances. Render the exported page twice — annotations on,
+    // then off — and require the pixels inside each markup's own rect to
+    // actually differ. That is the difference between "a Highlight exists" and
+    // "the user can see their highlight".
+    if (out.b64out) {
+      out.render = await page.evaluate(async (b64) => {
+        const bin = atob(b64);
+        const u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const doc = await pdfjsLib.getDocument({ data: u8 }).promise;
+        const p = await doc.getPage(1);
+        const scale = 2;
+        const vp = p.getViewport({ scale });
+        const draw = async (mode) => {
+          const c = document.createElement('canvas');
+          c.width = vp.width; c.height = vp.height;
+          const g = c.getContext('2d');
+          g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+          await p.render({ canvasContext: g, viewport: vp, annotationMode: mode }).promise;
+          return g.getImageData(0, 0, c.width, c.height).data;
+        };
+        const on = await draw(pdfjsLib.AnnotationMode.ENABLE);
+        const off = await draw(pdfjsLib.AnnotationMode.DISABLE);
+        const want = { Highlight: 0, Underline: 0, StrikeOut: 0 };
+        for (const a of await p.getAnnotations()) {
+          if (!(a.subtype in want)) continue;
+          const [x0, y0, x1, y1] = vp.convertToViewportRectangle(a.rect);
+          const lo = { x: Math.max(0, Math.floor(Math.min(x0, x1))), y: Math.max(0, Math.floor(Math.min(y0, y1))) };
+          const hi = { x: Math.min(vp.width, Math.ceil(Math.max(x0, x1))), y: Math.min(vp.height, Math.ceil(Math.max(y0, y1))) };
+          let diff = 0;
+          for (let py = lo.y; py < hi.y; py++) {
+            for (let px = lo.x; px < hi.x; px++) {
+              const i = (py * Math.floor(vp.width) + px) * 4;
+              if (on[i] !== off[i] || on[i + 1] !== off[i + 1] || on[i + 2] !== off[i + 2]) diff++;
+            }
+          }
+          want[a.subtype] = Math.max(want[a.subtype], diff);
+        }
+        return want;
+      }, out.b64out);
+    }
   } catch (e) {
     errors.push('harness: ' + e.message);
   } finally {
@@ -196,12 +239,22 @@ const TOOLS = [
 
   console.log(`[verify-tools] ${TOOLS.length} tools exported; annotations on page 1: ${JSON.stringify(found)}`);
   console.log(rows.join('\n'));
-  console.log(`  --  flattened by design (no annotation object): ${flattened.join(', ')}`);
-  console.log(`      ^ interop gap vs Bluebeam/Acrobat — see docs/tool-parity.md`);
+  if (flattened.length) {
+    console.log(`  --  flattened by design (no annotation object): ${flattened.join(', ')}`);
+    console.log(`      ^ interop gap vs Bluebeam/Acrobat — see docs/tool-parity.md`);
+  }
   if (parseErr) console.log('[verify-tools] re-parse failed: ' + parseErr);
   if (errors.length) console.log('[verify-tools] page errors:\n' + errors.join('\n'));
 
-  const ok = !errors.length && !parseErr && bad === 0 &&
+  // Visibility: every text markup must change real pixels when annotations are
+  // rendered. A generous floor — a thin underline over a short quad is only a
+  // few dozen pixels — but zero means the mark is invisible.
+  const rend = out.render || {};
+  const invisible = Object.keys(rend).filter((k) => !(rend[k] > 20));
+  console.log(`  --  appearance streams render (changed pixels): ${JSON.stringify(rend)}`);
+  if (invisible.length) console.log(`  FAIL  invisible text markup: ${invisible.join(', ')}`);
+
+  const ok = !errors.length && !parseErr && bad === 0 && invisible.length === 0 &&
     out.annCount === TOOLS.length && out.bytesLen > 0 && out.flatLen > 0;
   console.log(ok ? '\n[verify-tools] PASS — every tool exports the object it claims.'
     : '\n[verify-tools] FAIL');

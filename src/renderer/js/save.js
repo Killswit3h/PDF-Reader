@@ -144,6 +144,102 @@
     annots.push(ref);
   }
 
+  // Append an annotation reference to a page's /Annots, creating the array on
+  // first use. Shared by the annotation writers below.
+  function pushAnnot(pdfDoc, page, dict) {
+    const { PDFName } = window.PDFLib;
+    const ref = pdfDoc.context.register(dict);
+    let annots = page.node.Annots();
+    if (!annots) { annots = pdfDoc.context.obj([]); page.node.set(PDFName.of('Annots'), annots); }
+    annots.push(ref);
+  }
+
+  // Quad-based text markups (highlight / underline / strikeout) as REAL
+  // annotations. These are the subtypes Acrobat and Bluebeam create for the
+  // same three tools, so exporting them keeps the mark selectable,
+  // recolourable, repliable and listed in the other tool's markup panel —
+  // instead of baked into the page content where nothing can touch it.
+  //
+  // Every one carries a generated /AP appearance stream. Without /AP the viewer
+  // has to synthesise the appearance itself: Acrobat does, plenty of others do
+  // not, and the mark would render as nothing in some of the very software this
+  // is meant to interoperate with. Verified rendering pixel-wise through pdf.js.
+  function writeTextMarkupAnnot(pdfDoc, page, an, vp) {
+    const { PDFName, PDFArray, PDFNumber, PDFString, PDFRawStream } = window.PDFLib;
+    const ctx = pdfDoc.context;
+    const s = an.style || {};
+    const quads = an.quads || [];
+    const SUB = { texthighlight: 'Highlight', underline: 'Underline', strikeout: 'StrikeOut' };
+    const subtype = SUB[an.type];
+    if (!subtype || !quads.length) return;
+
+    const col = hexArr(s.stroke || '#ffd400');
+    const numArr = (arr) => { const a = PDFArray.withContext(ctx); arr.forEach((n) => a.push(PDFNumber.of(n))); return a; };
+
+    // Map each viewport quad to an axis-aligned box in PDF user space. Page
+    // rotation is always a multiple of 90 degrees, so an axis-aligned quad stays
+    // axis-aligned and min/max of the two mapped corners is exact.
+    const boxes = quads.map((q) => {
+      const a0 = vp.convertToPdfPoint(q.x, q.y);
+      const a1 = vp.convertToPdfPoint(q.x + q.w, q.y + q.h);
+      return {
+        x: Math.min(a0[0], a1[0]), y: Math.min(a0[1], a1[1]),
+        w: Math.abs(a1[0] - a0[0]), h: Math.abs(a1[1] - a0[1])
+      };
+    });
+
+    let rx0 = Infinity, ry0 = Infinity, rx1 = -Infinity, ry1 = -Infinity;
+    for (const b of boxes) {
+      if (b.x < rx0) rx0 = b.x;
+      if (b.y < ry0) ry0 = b.y;
+      if (b.x + b.w > rx1) rx1 = b.x + b.w;
+      if (b.y + b.h > ry1) ry1 = b.y + b.h;
+    }
+    const rect = [rx0 - 1, ry0 - 1, rx1 + 1, ry1 + 1];
+
+    // /QuadPoints runs upper-left, upper-right, lower-left, lower-right per
+    // quad — the order Acrobat writes and every real viewer expects, whatever
+    // the spec's own prose says about counter-clockwise ordering.
+    const qp = [];
+    boxes.forEach((b) => {
+      qp.push(b.x, b.y + b.h, b.x + b.w, b.y + b.h, b.x, b.y, b.x + b.w, b.y);
+    });
+
+    const lw = Math.max(1, s.width || 1.5);
+    const c3 = `${col[0].toFixed(3)} ${col[1].toFixed(3)} ${col[2].toFixed(3)}`;
+    let ops, resources;
+    if (an.type === 'texthighlight') {
+      // Multiply keeps the text underneath readable the way a real highlighter
+      // does; a plain opaque fill would bury it.
+      ops = ['/GS0 gs', `${c3} rg`].concat(boxes.map((b) => `${b.x} ${b.y} ${b.w} ${b.h} re f`));
+      resources = ctx.obj({ ExtGState: ctx.obj({ GS0: ctx.obj({ Type: 'ExtGState', BM: 'Multiply', ca: 1 }) }) });
+    } else {
+      ops = [`${c3} RG`, `${lw} w`].concat(boxes.map((b) => {
+        const yy = an.type === 'underline' ? b.y + lw : b.y + b.h / 2;
+        return `${b.x} ${yy} m ${b.x + b.w} ${yy} l S`;
+      }));
+      resources = ctx.obj({});
+    }
+
+    const apDict = ctx.obj({
+      Type: 'XObject', Subtype: 'Form',
+      BBox: numArr(rect), Matrix: numArr([1, 0, 0, 1, 0, 0]), Resources: resources
+    });
+    const apRef = ctx.register(PDFRawStream.of(apDict, new TextEncoder().encode(ops.join('\n'))));
+
+    const d = ctx.obj({});
+    const set = (k, v) => d.set(PDFName.of(k), v);
+    set('Type', PDFName.of('Annot'));
+    set('Subtype', PDFName.of(subtype));
+    set('Rect', numArr(rect));
+    set('QuadPoints', numArr(qp));
+    set('C', numArr(col));
+    set('F', PDFNumber.of(4));                       // Print
+    set('AP', ctx.obj({ N: apRef }));
+    if (an.text) set('Contents', PDFString.of(an.text));
+    pushAnnot(pdfDoc, page, d);
+  }
+
   function drawArrowPdf(page, from, to, color, width) {
     const ang = Math.atan2(to[1] - from[1], to[0] - from[0]);
     const len = 10 + width * 2;
@@ -348,9 +444,12 @@
         const vp = App.state.baseViewports[an.page - 1];
         if (!vp) continue;
         const page = pdfDoc.getPage(an.page - 1);
-        // Text markups (highlight/underline/strikeout) are quad-based; always
-        // flatten-draw them (writeRealAnnot doesn't handle these types).
+        // Text markups (highlight/underline/strikeout) are quad-based, so they
+        // take the QuadPoints writer rather than writeRealAnnot. With editable
+        // annotations on they export as real Highlight/Underline/StrikeOut
+        // objects; otherwise they flatten into page content as before.
         if (an.type === 'texthighlight' || an.type === 'underline' || an.type === 'strikeout') {
+          if (App.state.saveAnnots) { writeTextMarkupAnnot(pdfDoc, page, an, vp); continue; }
           const tcol = hexRgb((an.style && an.style.stroke) || '#ffd400');
           (an.quads || []).forEach((q) => {
             const a0 = vp.convertToPdfPoint(q.x, q.y);
