@@ -23,6 +23,7 @@
     "fixtures": "node test/fixtures/make-fixtures.js",
     "build:web": "node scripts/build-web.js",
     "verify:web": "npm run build:web && node scripts/verify-web.js",
+    "verify:tools": "npm run build:web && node scripts/verify-tools.js",
     "build:pwa": "node scripts/build-pwa.js",
     "verify:pwa": "npm run build:pwa && node scripts/verify-pwa.js",
     "verify:rotate": "npm run build:web && node scripts/verify-rotate.js",
