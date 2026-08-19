@@ -61,8 +61,18 @@
     // Freehand ink/highlight export the same curve-fit points the screen shows.
     const src = (App.Markup && App.Markup.smoothStroke) ? App.Markup.smoothStroke(an) : an.pts;
     const P = src.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
-    const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
-    const rect = [Math.min(...xs) - 2, Math.min(...ys) - 2, Math.max(...xs) + 2, Math.max(...ys) + 2];
+    // Loop rather than Math.min(...xs): a long freehand stroke can exceed the
+    // engine's argument limit and spreading it throws RangeError — which would
+    // fail the whole save, losing the user's work. See Geom.bbox for the twin.
+    if (!P.length) return;
+    let rx0 = Infinity, ry0 = Infinity, rx1 = -Infinity, ry1 = -Infinity;
+    for (const p of P) {
+      if (p[0] < rx0) rx0 = p[0];
+      if (p[0] > rx1) rx1 = p[0];
+      if (p[1] < ry0) ry0 = p[1];
+      if (p[1] > ry1) ry1 = p[1];
+    }
+    const rect = [rx0 - 2, ry0 - 2, rx1 + 2, ry1 + 2];
     const col = hexArr(s.stroke || '#e5484d');
     // Highlighter exports as a wide Ink stroke; everything else uses its style width.
     const hlWidth = (App.Markup && App.Markup.highlightWidth) ? App.Markup.highlightWidth(s) : Math.max(10, (s.width || 2) * 6);
