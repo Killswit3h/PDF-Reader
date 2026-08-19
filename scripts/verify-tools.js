@@ -84,6 +84,20 @@ const TOOLS = [
   { type: 'strikeout', expect: 'StrikeOut', quads: [{ x: 60, y: 620, w: 120, h: 14 }] }
 ];
 
+/*
+ * Measurement matrix. `it` is the /IT dimension intent the annotation must
+ * carry; `measure` is whether it must hold a /Measure dictionary. Angle and
+ * count are scale-independent — degrees and tallies — so they keep live
+ * geometry but no calibration.
+ */
+const MEASURES = [
+  { type: 'length', it: 'LineDimension', measure: true, pts: [{ vx: 400, vy: 60 }, { vx: 520, vy: 60 }] },
+  { type: 'perimeter', it: 'PolyLineDimension', measure: true, pts: [{ vx: 400, vy: 100 }, { vx: 520, vy: 100 }, { vx: 520, vy: 160 }] },
+  { type: 'area', it: 'PolygonDimension', measure: true, pts: [{ vx: 400, vy: 200 }, { vx: 520, vy: 200 }, { vx: 520, vy: 280 }] },
+  { type: 'angle', it: null, measure: false, pts: [{ vx: 400, vy: 320 }, { vx: 400, vy: 380 }, { vx: 470, vy: 380 }] },
+  { type: 'count', it: null, measure: false, pts: [{ vx: 400, vy: 420 }, { vx: 430, vy: 420 }, { vx: 460, vy: 420 }] }
+];
+
 (async () => {
   if (!fs.existsSync(path.join(WWW, 'index.html'))) {
     console.error('[verify-tools] no www/ bundle — run `npm run build:web` first.');
@@ -116,7 +130,7 @@ const TOOLS = [
     await page.waitForFunction('window.App && App.Viewer && App.Save && window.api', null, { timeout: 20000 });
 
     const pdfB64 = fs.readFileSync(path.join(ROOT, 'test/fixtures/sample.pdf')).toString('base64');
-    out = await page.evaluate(async ({ b64, tools }) => {
+    out = await page.evaluate(async ({ b64, tools, measures }) => {
       const bin = atob(b64);
       const u8 = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
@@ -137,6 +151,19 @@ const TOOLS = [
         A.annotations.push(an);
       }
 
+      // A calibrated page scale, so measurements have a real factor to encode.
+      // 1 inch of paper = 20 ft, i.e. 20/72 real feet per PDF user-space unit.
+      A.scales = A.scales || {};
+      A.scales[1] = { factor: 20 / 72, unit: 'ft' };
+      for (const mm of measures) {
+        A.measureSeq = (A.measureSeq || 0) + 1;
+        A.measurements.push({
+          id: A.measureSeq, page: 1, type: mm.type, pts: mm.pts,
+          value: 1, unit: 'ft', color: '#2f6fed', width: 1.4,
+          label: `${mm.type} 1.00 ft`
+        });
+      }
+
       // Export with editable annotations ON — the interop mode.
       A.saveAnnots = true;
       let b64out = '', err = '', bytesLen = 0;
@@ -153,8 +180,11 @@ const TOOLS = [
       let flatLen = 0, flatErr = '';
       try { flatLen = (await App.Save.buildBytes()).length; } catch (e) { flatErr = e.message; }
 
-      return { annCount: A.annotations.length, bytesLen, err, b64out, flatLen, flatErr };
-    }, { b64: pdfB64, tools: TOOLS });
+      return {
+        annCount: A.annotations.length, measCount: A.measurements.length,
+        bytesLen, err, b64out, flatLen, flatErr
+      };
+    }, { b64: pdfB64, tools: TOOLS, measures: MEASURES });
 
     // A correct subtype is not enough: a text markup whose /AP is missing or
     // malformed parses perfectly and renders as NOTHING in viewers that don't
@@ -224,6 +254,43 @@ const TOOLS = [
     } catch (e) { parseErr = e.message; }
   }
 
+  // pdf.js does not surface /Measure or /IT, so read the raw annotation
+  // dictionaries. This is what proves a measurement exported as a *calibrated*
+  // dimension rather than merely a polyline that happens to look right.
+  const dicts = [];
+  let structErr = '';
+  if (out.b64out) {
+    try {
+      const { PDFDocument, PDFName } = require(path.join(ROOT, 'node_modules/pdf-lib/cjs/index.js'));
+      const doc = await PDFDocument.load(Buffer.from(out.b64out, 'base64'), { updateMetadata: false });
+      const arr = doc.getPage(0).node.Annots();
+      const nm = (d, k) => { const v = d.get(PDFName.of(k)); return v ? String(v).replace(/^\//, '') : null; };
+      for (let i = 0; arr && i < arr.size(); i++) {
+        const a = arr.lookup(i);
+        // Resolve AP -> /N -> /Resources -> /Font -> /Helv. A measurement label
+        // is drawn with a Tj against that name; if the reference does not
+        // resolve to a real font the label silently renders as nothing while
+        // everything else about the annotation still looks correct.
+        let labelFont = null;
+        try {
+          const ap = a.get(PDFName.of('AP'));
+          const n = ap && doc.context.lookup(ap.get(PDFName.of('N')));
+          const res = n && doc.context.lookup(n.dict.get(PDFName.of('Resources')));
+          const fonts = res && doc.context.lookup(res.get(PDFName.of('Font')));
+          const helv = fonts && doc.context.lookup(fonts.get(PDFName.of('Helv')));
+          if (helv) labelFont = String(helv.get(PDFName.of('BaseFont')) || 'present').replace(/^\//, '');
+        } catch (_) { /* leave null */ }
+        dicts.push({
+          subtype: nm(a, 'Subtype'),
+          it: nm(a, 'IT'),
+          measure: !!a.get(PDFName.of('Measure')),
+          ap: !!a.get(PDFName.of('AP')),
+          labelFont
+        });
+      }
+    } catch (e) { structErr = e.message; }
+  }
+
   // Expected subtype counts from the matrix.
   const want = {};
   for (const t of TOOLS) if (t.expect) want[t.expect] = (want[t.expect] || 0) + 1;
@@ -254,8 +321,29 @@ const TOOLS = [
   console.log(`  --  appearance streams render (changed pixels): ${JSON.stringify(rend)}`);
   if (invisible.length) console.log(`  FAIL  invisible text markup: ${invisible.join(', ')}`);
 
-  const ok = !errors.length && !parseErr && bad === 0 && invisible.length === 0 &&
-    out.annCount === TOOLS.length && out.bytesLen > 0 && out.flatLen > 0;
+  // ---- measurements: dimension intent + calibration ----
+  // A polyline that merely looks right is not a takeoff. What makes it one is
+  // /IT naming it a dimension and /Measure carrying the calibration, so the
+  // recipient can read the scaled value and keep measuring on it.
+  const mrows = [];
+  let mbad = 0;
+  for (const mm of MEASURES) {
+    if (!mm.it) continue;                       // angle/count are scale-independent
+    const hit = dicts.find((d) => d.it === mm.it);
+    const okM = !!hit && hit.measure === mm.measure && hit.ap && !!hit.labelFont;
+    if (!okM) mbad++;
+    mrows.push(`  ${okM ? 'OK  ' : 'FAIL'}  ${mm.type.padEnd(10)} /IT ${(mm.it || '-').padEnd(19)}` +
+      ` measure=${hit ? hit.measure : 'ABSENT'} ap=${hit ? hit.ap : 'ABSENT'}` +
+      ` labelFont=${hit ? (hit.labelFont || 'UNRESOLVED') : 'ABSENT'}`);
+  }
+  console.log(`[verify-tools] ${out.measCount} measurements exported`);
+  console.log(mrows.join('\n'));
+  if (structErr) console.log('[verify-tools] structural read failed: ' + structErr);
+
+  const ok = !errors.length && !parseErr && !structErr && bad === 0 &&
+    invisible.length === 0 && mbad === 0 &&
+    out.annCount === TOOLS.length && out.measCount === MEASURES.length &&
+    out.bytesLen > 0 && out.flatLen > 0;
   console.log(ok ? '\n[verify-tools] PASS — every tool exports the object it claims.'
     : '\n[verify-tools] FAIL');
   process.exit(ok ? 0 : 1);

@@ -11,12 +11,15 @@ markup list. Anything we draw into the page content stream instead is flattened
 pixels — visually identical, permanently dead.
 
 `npm run verify:tools` is the automated gate on this. It drives every tool
-through the real renderer, exports, re-parses with PDF.js, and asserts the
-annotation subtype each tool produced. The table below is that script's contract.
+through the real renderer, exports, re-parses the bytes, and asserts the
+annotation each tool produced — subtype, dimension intent, calibration,
+appearance stream, and for text markups that the mark actually changes pixels.
+The tables below are that script's contract.
 
 ## Markup tools — export status
 
-Verified by `scripts/verify-tools.js` on the built bundle.
+All fourteen export as live annotations when "save editable annotations" is on.
+Flattening still happens when the setting is off, unchanged.
 
 | Tool | PDF subtype exported | Live in Revu / Acrobat |
 |---|---|---|
@@ -31,121 +34,101 @@ Verified by `scripts/verify-tools.js` on the built bundle.
 | highlight (freehand) | `Ink`, wide `/BS`, `CA 0.35` | yes |
 | text | `FreeText` | yes |
 | callout | `FreeText` + `/IT FreeTextCallout` | yes |
-| **texthighlight** | **none — flattened** | **no** |
-| **underline** | **none — flattened** | **no** |
-| **strikeout** | **none — flattened** | **no** |
+| texthighlight | `Highlight` + `/QuadPoints` + `/AP` | yes |
+| underline | `Underline` + `/QuadPoints` + `/AP` | yes |
+| strikeout | `StrikeOut` + `/QuadPoints` + `/AP` | yes |
 
-Eleven of fourteen already round-trip correctly. That is a stronger starting
-position than it looks: the shape, freehand and text tools are the ones most used
-on plan sheets, and they are already interoperable.
+## Measure tools — export status
 
-### Gap 1 — quad-based text markups are flattened (highest priority)
+| Tool | Subtype | `/IT` | `/Measure` |
+|---|---|---|---|
+| length | `Line` | `LineDimension` | yes |
+| perimeter | `PolyLine` | `PolyLineDimension` | yes |
+| continuous | `PolyLine` | `PolyLineDimension` | yes |
+| area | `Polygon` | `PolygonDimension` | yes |
+| angle | `PolyLine` | — | no — degrees, no scale applies |
+| count | `Polygon` | — | no — a tally, no scale applies |
 
-`save.js` short-circuits `texthighlight`, `underline` and `strikeout` before the
-`writeRealAnnot` path and draws them as rectangles and lines into page content,
-regardless of the "save editable annotations" setting.
+Every measurement carries an `/AP` appearance stream reproducing the strokes and
+the rotation-corrected label exactly as the flattened path drew them, so the
+visual result is unchanged while the geometry, calibration and value become
+machine-readable.
 
-PDF defines dedicated text-markup subtypes for exactly these three — `/Highlight`,
-`/Underline`, `/StrikeOut` (plus `/Squiggly`, which we do not offer) — positioned
-by a `/QuadPoints` array rather than a rect. Acrobat and Revu both create and
-consume them, and both list them in the markup/comments panel.
+## Closed: quad-based text markups
 
-Consequence today: a reviewer who highlights text in FieldMark and sends the PDF
-to a colleague on Revu gets a yellow box the colleague cannot select, cannot
-change, cannot reply to, and which never appears in a markup summary.
+Highlight, underline and strikeout used to be drawn straight into page content
+regardless of the editable-annotations setting. A reviewer who highlighted text
+and sent the PDF to a colleague on Revu gave them a coloured box they could not
+select, recolour, reply to, or find in a markup summary.
 
-**Fix shape.** Add a `writeTextMarkupAnnot` alongside `writeRealAnnot`, emitting
-the correct subtype with `/QuadPoints` per quad and a `/Rect` spanning them.
-Quad corner order must be upper-left, upper-right, lower-left, lower-right —
-what Acrobat writes and what every real viewer expects, notwithstanding the
-spec's own wording.
+They now export as the three PDF text-markup subtypes Acrobat and Revu create for
+the same actions, positioned by `/QuadPoints`. Quad corner order is upper-left,
+upper-right, lower-left, lower-right — the order Acrobat writes and every real
+viewer expects, whatever the spec's own prose says about counter-clockwise.
 
-**Do not ship it without an appearance stream.** Text-markup annotations with no
-`/AP` rely on the viewer to synthesise one. Acrobat does; many viewers, including
-some PDF.js configurations, do not — so a naive implementation risks highlights
-that are *invisible* in the very tools we are trying to interoperate with. The
-annotation must carry a generated `/AP` form XObject. This is why the change is
-specified here rather than implemented blind: it needs visual confirmation in
-real Acrobat and real Revu, which requires a desktop session.
+**The `/AP` is the load-bearing part.** A text markup with no appearance stream
+relies on the viewer to synthesise one. Acrobat does; plenty do not. Shipping
+without it would have produced highlights that are *invisible* in some of the
+software this exists to interoperate with — which is why it was specified rather
+than implemented on the first pass. It is now generated, with highlight fills
+under a `Multiply` blend so the text underneath stays readable, and
+`verify:tools` renders the exported page with annotations on and off and requires
+the pixels inside each markup's rect to differ. A missing or malformed `/AP`
+fails the gate instead of shipping an invisible mark.
 
-### Gap 2 — measurements carry no `/Measure` dictionary
+## Closed: measurements carry their calibration
 
-Every measurement (length, perimeter, area, angle, count) is drawn into page
-content. Nothing about the scale survives the export.
+Measurements used to be drawn into page content with nothing about the scale
+surviving. They were pictures of numbers: a Revu user receiving a takeoff could
+not verify it, adjust it, extend it, or pull it into a quantity summary.
 
-Revu and Acrobat both persist measurement scale inside the annotation, so a
-measurement stays a measurement after a round-trip — the recipient can click it
-and see the calibrated value, and can keep measuring on the same scale. PDF
-provides `/Measure` (a viewport-level dictionary carrying the unit conversion) for
-this.
+Each measurement now exports as a dimension annotation carrying a `/Measure`
+dictionary (ISO 32000 §12.9) — `/Subtype /RL` rectilinear, an `/R` ratio string,
+and `/X` `/D` `/A` number formats. `/X` holds the conversion from PDF user-space
+units into the calibrated unit, which is exactly the factor the app already
+tracks; `/D` and `/A` then read in those same units.
 
-Consequence: our measurements are pictures of numbers. A Revu user receiving our
-takeoff cannot verify, adjust, or extend it, and cannot pull it into a quantity
-summary. For a takeoff product this is the difference between "a PDF with
-numbers on it" and "a takeoff."
+The scale is resolved through `Measure.scaleFor()`, the same function the
+on-screen label uses, so a region scale still beats the page scale and the
+exported calibration can never disagree with the number the user is looking at.
 
-**Fix shape.** Emit measurements as `Line` / `PolyLine` / `Polygon` annotations
-carrying `/IT` (`LineDimension`, `PolyLineDimension`, `PolygonDimension`), an
-`/RC` rich-content label, and a page `/VP` viewport whose `/Measure` dictionary
-encodes the calibration we already hold in `App.state` scale. Count tools map to
-individual stamp-like annotations grouped by a shared subject.
+## Still open
 
-This is the single highest-value item in this document for a construction
-audience, and the largest. It should be its own spec and its own branch.
+- **`/Squiggly`.** Acrobat and Revu offer a wavy text underline; we have no such
+  tool. Now trivial — same quad path as underline with a different subtype and
+  appearance.
+- **Per-region scale UI.** Revu supports different scales on different regions of
+  one sheet, common when a detail sits on a plan. The plumbing exists —
+  `computeValue` takes an explicit scale and `scaleFor` already prefers a region
+  — but there is no UI to define regions beyond the existing viewport tool.
+- **Volume / depth.** Revu carries a depth on area measurements to produce
+  volume. No equivalent here.
+- **Quantity export.** `Measure.exportCsv` exists, but there is no export of
+  measurement data *into the PDF* as a summary the way Revu produces takeoff
+  reports.
 
-### Gap 3 — no `/Squiggly`
-
-Acrobat and Revu offer a squiggly (wavy) text underline; we do not. Low priority,
-trivial once Gap 1's quad infrastructure exists — it is the same code path with a
-different subtype name.
-
-## Measure tools — behavioural parity
-
-Calibration in Revu follows a pattern we already match: pick two points whose real
-distance is known, type that distance, and the scale applies to subsequent
-measurements. Our `calibrate` tool and `ratioToFactor` implement the same model,
-and `measure-math.js` keeps the arithmetic pure and unit-tested.
-
-Where we are already good:
-
-- **Feet-inches formatting.** `formatFeetInches` rounds in exact 1/denominator
-  ticks and carries into feet, so 11.99" rolls to the next foot instead of
-  printing as 11 63/64". Fractions reduce (8/16 → 1/2). This matches architectural
-  convention and is covered by 11 tests.
-- **Per-segment breakdown.** `segmentLengths` returns each leg of a polyline and
-  closes the loop for areas, so the parts sum to the perimeter.
-- **Scale-independent tools.** Angle and count correctly ignore scale.
-
-Where the gap is behavioural rather than structural:
-
-- **Per-region scale.** Revu supports different scales on different regions of one
-  sheet (common when a detail sits on a plan). The code already threads a
-  `scale` argument through `computeValue` rather than reading global state,
-  specifically so page-vs-region resolution is possible — the plumbing is there,
-  the UI is what is missing.
-- **Volume / depth.** Revu carries a depth on area measurements to produce volume.
-  We have no equivalent.
-- **Quantity export.** Revu exports takeoff quantities to CSV/Excel. We have no
-  export of measurement data at all — only the visual.
-
-## Correctness fixes already landed on this branch
+## Correctness fixes landed alongside
 
 - `Geom.bbox` and `save.js` derived bounding boxes with `Math.min(...points)`.
   Past ~124,900 points the spread exceeds the engine's argument limit and throws
   `RangeError`. Ink points are throttled to 1.2 units apart, so sustained
-  hatching on a large sheet reaches it. In `bbox` that broke drawing; in `save.js`
-  it failed the **entire export**, losing the user's work. Both now scan with a
-  loop, with a 250k-point regression test.
+  hatching on a large sheet reaches it. In `bbox` that broke drawing; in
+  `save.js` it failed the **entire export**, losing the user's work. Both now
+  scan with a loop, with a 250k-point regression test.
 - `Geom.centroid` returned `{NaN, NaN}` for an empty set, which flowed into
   measurement label placement. Now returns the origin.
+- The e2e suite could not run at all on a machine with FieldMark installed and
+  open: `main.js` pinned `userData` over the per-spawn `--user-data-dir`, so
+  every scenario collided with the installed app's single-instance lock and quit
+  with exit 0 and no output. Both are now skipped under `SMOKE_TEST`.
 
-## Suggested order of work
+## Verification
 
-1. **Gap 1** (text markups as real annotations, with `/AP`) — contained, high
-   visible payoff, unblocks Gap 3.
-2. **Gap 2** (measurement annotations with `/Measure`) — largest, and the one
-   that makes takeoffs genuinely interoperable.
-3. Per-region scale UI, then volume, then quantity export.
+```bash
+npm run verify        # 307 unit tests + 55 headless-Electron e2e scenarios
+npm run verify:web    # the www/ bundle in real Chromium (Android WebView parity)
+npm run verify:tools  # per-tool export contract — the tables above
+```
 
 ## Sources
 
