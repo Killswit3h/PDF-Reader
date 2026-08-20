@@ -256,6 +256,47 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'interop — every markup + measure tool exports as a live annotation',
+    run: async () => {
+      const outFile = path.join(os.tmpdir(), `fieldmark-interop-${process.pid}.pdf`);
+      try {
+        const out = runApp({ SMOKE_INTEROP: outFile }, [SAMPLE]);
+        const j = tagJson(out, 'interop');
+        check(j.err === '', `buildBytes error: ${j.err}`);
+        check(j.annCount === 14, `markup annotations ${j.annCount} != 14`);
+        check(j.measCount === 5, `measurements ${j.measCount} != 5`);
+        check(j.bytesLen > 0, 'no PDF bytes produced');
+        check(fs.existsSync(outFile), 'interop sample PDF not written');
+        const buf = fs.readFileSync(outFile);
+        check(buf.slice(0, 5).toString() === '%PDF-', 'interop sample is not a PDF');
+        // What makes this file worth opening in Revu: quad-based text markups,
+        // a dimension intent, and a calibration dictionary. Read them from the
+        // parsed structure — pdf-lib writes compressed object streams, so these
+        // names are not plain text in the bytes.
+        const { PDFDocument, PDFName } = require('pdf-lib');
+        const doc = await PDFDocument.load(buf, { updateMetadata: false });
+        const annots = doc.getPage(0).node.Annots();
+        check(!!annots, 'exported PDF has no /Annots on page 1');
+        const subtypes = [];
+        let dimensions = 0, calibrated = 0;
+        for (let i = 0; i < annots.size(); i++) {
+          const a = annots.lookup(i);
+          const st = a.get(PDFName.of('Subtype'));
+          if (st) subtypes.push(String(st).replace(/^\//, ''));
+          if (a.get(PDFName.of('IT'))) dimensions++;
+          if (a.get(PDFName.of('Measure'))) calibrated++;
+        }
+        for (const want of ['Highlight', 'Underline', 'StrikeOut', 'Square', 'Circle', 'Ink', 'FreeText']) {
+          check(subtypes.includes(want), `exported PDF carries no ${want} annotation`);
+        }
+        check(dimensions >= 3, `dimension annotations ${dimensions} < 3`);
+        check(calibrated >= 3, `calibrated (/Measure) annotations ${calibrated} < 3`);
+      } finally {
+        try { fs.unlinkSync(outFile); } catch (_) { /* ignore */ }
+      }
+    }
+  },
+  {
     name: 'select — Select tool disarms drawing tools and enables item selection',
     run: () => {
       const j = tagJson(runApp({ SMOKE_SELECT: '1' }, [SAMPLE]), 'select');
@@ -787,12 +828,14 @@ const SCENARIOS = [
   }
 ];
 
-(function main() {
+// Scenarios may be sync or async — awaiting a sync one's undefined is harmless,
+// and a few need to parse an exported PDF, which is promise-based.
+(async function main() {
   console.log(`E2E smoke suite — ${SCENARIOS.length} scenarios (electron: ${path.basename(electronPath)})\n`);
   for (const sc of SCENARIOS) {
     const t0 = Date.now();
     try {
-      sc.run();
+      await sc.run();
       passed++;
       console.log(`  ✓ ${sc.name}  (${Date.now() - t0}ms)`);
     } catch (e) {
