@@ -1186,6 +1186,13 @@
     App.$('#btn-fit-width').addEventListener('click', () => App.Viewer.fitWidth());
     App.$('#btn-marquee').addEventListener('click', () => App.Viewer.toggleMarquee());
     App.$('#btn-rotate').addEventListener('click', () => App.Viewer.rotate(90));
+    // Bookmark the page you are on; the shelf lists every bookmark the document
+    // carries, including any that arrived with the file.
+    App.$('#btn-bookmark').addEventListener('click', () => App.Bookmarks.toggle());
+    const bmDd = registerDropdown(App.$('#btn-bookmarks'), App.$('#bookmark-menu'));
+    App.$('#btn-bookmarks').addEventListener('click', () => {
+      if (bmDd && bmDd.isOpen()) App.Bookmarks.renderShelf();
+    });
     App.$('#btn-prev').addEventListener('click', () => App.Viewer.prev());
     App.$('#btn-next').addEventListener('click', () => App.Viewer.next());
     App.$('#page-input').addEventListener('change', (e) =>

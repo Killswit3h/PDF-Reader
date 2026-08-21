@@ -2210,6 +2210,81 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_BOOKMARK: real PDF outline entries -- toggle, the button following
+      // the page, the shelf, and the two failures that matter: bookmarks that
+      // reach other viewers but vanish on reopening here, and a save that
+      // damages an outline the document already carried.
+      if (process.env.SMOKE_BOOKMARK) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,700));
+              const A = App.state, BM = App.Bookmarks;
+              const btn = document.querySelector('#btn-bookmark');
+              const lit = () => btn.classList.contains('armed');
+
+              // A bookmark that arrived with the file, which must survive intact.
+              A.bookmarks = [{ title: 'Client Index', page: 2, mine: false, items: [] }];
+
+              // AC-1: toggle on the current page
+              A.currentPage = 3;
+              BM.refreshButton();
+              const litBefore = lit();
+              BM.toggle();
+              const litAfterAdd = lit(), dirtyAfter = A.dirty;
+
+              // AC-2: the button follows the page
+              A.currentPage = 4; BM.refreshButton();
+              const litOnOther = lit();
+              A.currentPage = 3; BM.refreshButton();
+              const litBack = lit();
+
+              // AC-3 / AC-8: the shelf lists ours AND the document's own
+              BM.renderShelf();
+              const rows = Array.from(document.querySelectorAll('#bookmark-list .bm-row'));
+              const shelf = rows.map(r => r.querySelector('.bm-title').textContent);
+              const foreignRows = rows.filter(r => r.classList.contains('bm-foreign')).length;
+
+              // Save, then reparse the bytes to prove the outline reached the file
+              const bytes = await App.Save.buildBytes();
+              const doc2 = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+              const out2 = await doc2.getOutline();
+              const titles2 = (out2 || []).map(o => o.title);
+              // AC-4: our entry resolves to the page we bookmarked
+              let destPage = null;
+              for (const o of (out2 || [])) {
+                if (o.title !== 'Page 3') continue;
+                const d = typeof o.dest === 'string' ? await doc2.getDestination(o.dest) : o.dest;
+                if (Array.isArray(d) && d.length) destPage = (await doc2.getPageIndex(d[0])) + 1;
+              }
+
+              // AC-7: reopen through the tab path -- the base swap is where an
+              // outline written only into the flattened output disappears.
+              const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength);
+              await App.Viewer.load(buf, 'bm.pdf', null);
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,700));
+              const reRows = App.flattenOutline(App.state.bookmarks || []);
+              App.state.currentPage = 3;
+              BM.refreshButton();
+
+              return JSON.stringify({
+                litBefore, litAfterAdd, dirtyAfter, litOnOther, litBack,
+                shelf, foreignRows,
+                titles2, destPage,
+                reTitles: reRows.map(r => r.title),
+                rePages: reRows.map(r => r.page),
+                reMine: reRows.filter(r => r.mine).map(r => r.page),
+                reLit: lit()
+              });
+            })()`, true);
+            console.log('[bookmark] ' + r);
+          } catch (e) { console.log('[bookmark] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SELECT) {
         setTimeout(async () => {
           try {

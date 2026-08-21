@@ -1879,3 +1879,19 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 .ovl-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ovl-layer input[type="range"] { width: 90px; }
 .ovl-spacer { flex: 1; }
+
+/* ---- Bookmark shelf ---- */
+#bookmark-menu { min-width: 240px; max-height: 340px; overflow-y: auto; }
+.tb-menu-title { padding: 8px 10px 6px; font-size: var(--fs-sm); color: var(--text-dim);
+  font-weight: 600; letter-spacing: 0.02em; }
+.bm-row { display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 7px 10px; background: none; border: none; cursor: pointer;
+  color: var(--text); font-size: var(--fs-md); text-align: left; }
+.bm-row:hover { background: var(--accent-quiet); }
+.bm-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.bm-page { flex: none; color: var(--text-dim); font-size: var(--fs-sm); }
+/* Bookmarks that arrived with the document, rather than ones made here. */
+.bm-foreign .bm-title { font-style: italic; color: var(--text-dim); }
+.bm-empty { padding: 12px 10px; color: var(--text-dim); font-size: var(--fs-sm);
+  line-height: 1.4; }

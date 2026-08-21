@@ -57,6 +57,7 @@
       mode: null, placements: [], selectedId: null, placementSeq: 0,
       scales: {}, viewports: {}, measurements: [], measureSeq: 0, viewportSeq: 0, measureSelectedId: null,
       annotations: [], annoSeq: 0, annoSelectedId: null, annoUndo: [], annoRedo: [], saveAnnots: true, flattenForms: false,
+      bookmarks: [],
       dirty: false, docStamp: null
     };
   }
@@ -108,6 +109,11 @@
       // Requires the base: without it the visible page is already flattened and
       // re-applying would draw every mark twice.
       if (sidecar && sidecar.base) applyModel(session.state, sidecar.data);
+      // Bookmarks come from the document's own outline, which is authoritative;
+      // the sidecar only says which entries this app created. Read AFTER the
+      // base swap so it is the base's outline, not the flattened copy's.
+      const owned = (sidecar && sidecar.data && sidecar.data.bookmarks) || [];
+      session.state.bookmarks = App.Bookmarks ? await App.Bookmarks.read(doc, owned) : [];
       sessions.push(session);
       activate(session, false);
       App.toast(`Opened ${session.state.fileName}`, 'success');

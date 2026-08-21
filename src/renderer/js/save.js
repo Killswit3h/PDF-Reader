@@ -820,6 +820,18 @@
         }
       }
 
+      // Page bookmarks into the document's own /Outlines tree, so other PDF
+      // applications show them. Failing to write them must not fail the save --
+      // the marks matter more -- but it must not pass silently either.
+      if (App.Bookmarks && (App.state.bookmarks || []).length) {
+        try {
+          App.Bookmarks.writeOutline(pdfDoc, App.state.bookmarks);
+        } catch (e) {
+          if (window.console) console.warn('outline write failed:', e && e.message);
+          App.toast('Saved, but the page bookmarks could not be written to this file.', 'error', 7000);
+        }
+      }
+
       // Document stamps: Bates/page numbering, header/footer, watermark. Drawn
       // last so they sit above the flattened content.
       if (App.DocStamp) App.DocStamp.applyToPdf(pdfDoc, helv);
@@ -846,6 +858,11 @@
           // flattened, so reopening restores editable marks over the filled form.
           const baseDoc = await PDFDocument.load(App.state.pdfBytes);
           await applyFormEdits(baseDoc);
+          // Bookmarks go into the BASE as well as the flattened output. Writing
+          // only the output is the #98 failure repeated: Tabs.open reopens this
+          // base, so the bookmarks would be visible in Acrobat and gone the
+          // moment the file was reopened here.
+          if (App.Bookmarks) App.Bookmarks.writeOutline(baseDoc, App.state.bookmarks);
           const baseBytes = new Uint8Array(await baseDoc.save());
           const json = new TextEncoder().encode(JSON.stringify(model));
           // Nothing between these two that can fail.

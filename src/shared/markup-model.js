@@ -12,9 +12,9 @@
  * App in the browser.
  */
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory();
-  else { root.App = root.App || {}; Object.assign(root.App, factory()); }
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./outline'));
+  else { root.App = root.App || {}; Object.assign(root.App, factory(root.App)); }
+})(typeof self !== 'undefined' ? self : this, function (Outline) {
   // Bumped only when the shape changes in a way older readers cannot handle.
   const MARKUP_MODEL_VERSION = 1;
 
@@ -49,9 +49,17 @@
       viewports: cloneObject(st.viewports),
       placements: cloneArray(st.placements),
       measurements: cloneArray(st.measurements),
-      annotations: cloneArray(st.annotations)
+      annotations: cloneArray(st.annotations),
+      // Which outline entries are OURS. The bookmarks themselves live in the
+      // PDF's own /Outlines tree, which is authoritative; this records only
+      // ownership, because pdf.js drops the custom key we write to mark them
+      // and a title match would claim someone else's bookmark.
+      bookmarks: Outline.ourPages(st.bookmarks)
     };
-    m.__count = m.placements.length + m.measurements.length + m.annotations.length;
+    // Bookmarks count toward the gate: a document with bookmarks and no marks
+    // still needs the sidecar, or reopening it would forget which are ours.
+    m.__count = m.placements.length + m.measurements.length + m.annotations.length
+      + m.bookmarks.length;
     return m;
   }
 
