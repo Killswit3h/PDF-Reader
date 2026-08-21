@@ -193,6 +193,25 @@ const SCENARIOS = [
     // A radius that is silently wrong prints on a sheet someone builds from,
     // so this checks the number, the refusal that keeps a bad one out of the
     // file, and that the value survives a save and reopen.
+    // The mode banner's actions must sit on the text's centre line. A later
+    // .link-btn rule meant for the digital-signature panel set
+    // align-self:flex-start and a smaller font, and being later it won here
+    // too: "Finish shape" and "Cancel" rode 8.5-9.5px above the banner text.
+    // Nothing else notices, so this guards it.
+    name: 'mode banner — measure/markup actions align with the banner text',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_BANNER: '1' }, [SAMPLE]), 'banner');
+      check(j.visible === true, 'mode banner did not show when a tool was armed');
+      check(j.finShown === true, '"Finish shape" missing while measuring');
+      check(j.dFinish < 1, `"Finish shape" is ${j.dFinish}px off the text centre line`);
+      check(j.dCancel < 1, `"Cancel" is ${j.dCancel}px off the text centre line`);
+      check(j.alignFinish === 'center', `align-self is ${j.alignFinish}, expected center`);
+      check(j.insideBar === true, 'an action overflows the banner box');
+      check(j.sameSize === true, 'actions are a different size from the banner text');
+      check(j.underlined === false, 'actions still render as underlined links, not buttons');
+    }
+  },
+  {
     // Length ALONG a curved run -- the linear-feet quantity a takeoff needs, and
     // the one the radius tools deliberately do not report.
     name: 'arc length — measures along the curve, not across to it',

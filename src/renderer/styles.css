@@ -99,8 +99,8 @@ html, body {
 /* ===================== Mode banner ===================== */
 #mode-banner {
   height: 34px;
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 14px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 10px 0 14px;
   background: var(--accent-quiet);
   color: var(--text);
   border-bottom: 1px solid var(--border);
@@ -111,6 +111,37 @@ html, body {
   background: none; border: none; color: var(--accent);
   cursor: pointer; font-size: var(--fs-md); text-decoration: underline;
 }
+
+/* Mode-banner actions.
+   These need their own scope because a later `.link-btn` rule further down
+   (written for the digital-signature panel, a COLUMN flex) sets
+   `align-self: flex-start` and a smaller font. Being later, it wins here too —
+   which pinned "Finish shape" and "Cancel" to the top of the 34px bar while the
+   banner text stayed vertically centred, and shrank them out of step with it.
+   They are also actions, not links, so they read as buttons rather than
+   underlined text. */
+#mode-banner-text {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#mode-banner .link-btn {
+  align-self: center;
+  display: inline-flex; align-items: center; gap: 6px;
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid transparent; border-radius: 6px;
+  font-size: var(--fs-md); line-height: 1.1;
+  text-decoration: none; white-space: nowrap;
+}
+#mode-banner .link-btn .ico { width: 14px; height: 14px; }
+#mode-banner .link-btn:hover {
+  background: var(--accent-quiet); border-color: var(--border);
+  color: var(--accent-hover); text-decoration: none;
+}
+/* Finishing the shape is the affirmative action; cancelling is the quiet one. */
+#mode-banner #mode-finish { font-weight: 600; }
+#mode-banner #mode-cancel { color: var(--text-dim); }
+#mode-banner #mode-cancel:hover { color: var(--text); }
 
 /* ===================== Viewer ===================== */
 #viewer-wrap {
