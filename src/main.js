@@ -2167,6 +2167,49 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_BANNER: the mode banner's actions line up with its text. A later
+      // .link-btn rule written for the digital-signature panel (a column flex)
+      // sets align-self:flex-start, and being later it won here too, pinning
+      // "Finish shape" and "Cancel" to the top of the 34px bar. Cheap to
+      // reintroduce, invisible to every other test, so it gets its own.
+      if (process.env.SMOKE_BANNER) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              App.Measure.startTool('length');
+              await new Promise(r=>setTimeout(r,400));
+              const bar = document.querySelector('#mode-banner');
+              const txt = document.querySelector('#mode-banner-text');
+              const fin = document.querySelector('#mode-finish');
+              const can = document.querySelector('#mode-cancel');
+              const mid = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height/2; };
+              const cs = (el, p) => getComputedStyle(el)[p];
+              const barR = bar.getBoundingClientRect();
+              const out = {
+                visible: !bar.classList.contains('hidden'),
+                finShown: !fin.classList.contains('hidden'),
+                // Every action shares the text's vertical centre.
+                dFinish: Math.abs(mid(fin) - mid(txt)),
+                dCancel: Math.abs(mid(can) - mid(txt)),
+                // and sits inside the bar rather than overflowing it.
+                insideBar: fin.getBoundingClientRect().top >= barR.top - 0.5 &&
+                           fin.getBoundingClientRect().bottom <= barR.bottom + 0.5,
+                alignFinish: cs(fin, 'alignSelf'),
+                sameSize: cs(fin, 'fontSize') === cs(txt, 'fontSize'),
+                // Actions read as buttons, not underlined text.
+                underlined: cs(fin, 'textDecorationLine').indexOf('underline') >= 0
+              };
+              App.Measure.stop();
+              return JSON.stringify(out);
+            })()`, true);
+            console.log('[banner] ' + r);
+          } catch (e) { console.log('[banner] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SELECT) {
         setTimeout(async () => {
           try {
