@@ -1947,6 +1947,18 @@ function createWindow() {
               // ---- AC-1: normal round-trip ----
               const good = await App.Save.buildBytes();
               const goodAtt = await attOf(good);
+              // Probe the sidecar directly: is it the read, the base, or the
+              // rehydrate that drops the marks?
+              let dbg = {};
+              try {
+                const pd = await pdfjsLib.getDocument({ data: good.slice() }).promise;
+                const sc = await App.Viewer._readSidecar(pd);
+                dbg = {
+                  sc: !!sc, base: !!(sc && sc.base),
+                  mAnn: sc && sc.data ? (sc.data.annotations||[]).length : -1,
+                  mMeas: sc && sc.data ? (sc.data.measurements||[]).length : -1
+                };
+              } catch (e) { dbg = { err: e.message }; }
               const gb = good.buffer.slice(good.byteOffset, good.byteOffset + good.byteLength);
               await App.Viewer.load(gb, 'roundtrip.pdf', null);
               for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
