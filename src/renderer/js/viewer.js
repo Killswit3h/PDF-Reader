@@ -112,6 +112,8 @@
     eventBus.on('pagechanging', (e) => {
       App.state.currentPage = e.pageNumber;
       App.$('#page-input').value = String(e.pageNumber);
+      // The bookmark button reports the page you are ON, so it has to follow.
+      if (App.Bookmarks) App.Bookmarks.refreshButton();
     });
 
     eventBus.on('scalechanging', () => {
@@ -802,7 +804,8 @@
   Viewer._updateControls = function (enabled) {
     ['#btn-select', '#btn-sign', '#btn-initials', '#btn-date', '#btn-measure', '#btn-markup',
      '#btn-document',
-     '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-marquee', '#btn-rotate', '#btn-prev', '#btn-next',
+     '#btn-zoom-out', '#btn-zoom-in', '#btn-fit-width', '#btn-marquee', '#btn-rotate',
+     '#btn-bookmark', '#btn-bookmarks', '#btn-prev', '#btn-next',
      '#btn-save', '#btn-save-as', '#page-input']
       .forEach((s) => { const el = App.$(s); if (el) el.disabled = !enabled; });
     // Marquee zoom is a transient mode — never carry it across a doc close or a
@@ -812,6 +815,9 @@
     // open and no drawing tool is armed. setMode() keeps it in sync afterwards.
     const sel = App.$('#btn-select');
     if (sel) sel.classList.toggle('armed', !!enabled && !App.state.mode);
+    // The bookmark button reflects the page in view, so it has to be brought up
+    // to date whenever the document behind it changes -- open, close, tab switch.
+    if (App.Bookmarks) { App.Bookmarks.refreshButton(); App.Bookmarks.renderShelf(); }
     // Reveal the right-hand markup rail only once a document is loaded.
     document.body.classList.toggle('doc-open', !!enabled);
     if (App.MarkupRail) App.MarkupRail.sync();

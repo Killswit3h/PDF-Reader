@@ -193,6 +193,38 @@ const SCENARIOS = [
     // A radius that is silently wrong prints on a sheet someone builds from,
     // so this checks the number, the refusal that keeps a bad one out of the
     // file, and that the value survives a save and reopen.
+    // Real PDF outline entries, so bookmarks travel with the file. Two failures
+    // matter more than the rest: bookmarks that reach Acrobat but vanish when
+    // the file is reopened here (the sidecar base swap, i.e. the #98 shape), and
+    // a save that damages an outline the document already carried.
+    name: 'bookmarks — real PDF outline entries that survive save and reopen',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_BOOKMARK: '1' }, [SAMPLE]), 'bookmark');
+      // AC-1 / AC-8: toggling marks the page and the document.
+      check(j.litBefore === false, 'button lit before anything was bookmarked');
+      check(j.litAfterAdd === true, 'button did not light after bookmarking the page');
+      check(j.dirtyAfter === true, 'bookmarking left the document reporting no unsaved changes');
+      // AC-2: it reports the page you are ON.
+      check(j.litOnOther === false, 'button stayed lit on an unbookmarked page');
+      check(j.litBack === true, 'button did not relight on returning to the bookmarked page');
+      // AC-5 / FR-8: the shelf shows the document's own bookmarks too, marked.
+      check(j.shelf.indexOf('Client Index') >= 0, `shelf missing the document's own bookmark: ${JSON.stringify(j.shelf)}`);
+      check(j.shelf.indexOf('Page 3') >= 0, `shelf missing our bookmark: ${JSON.stringify(j.shelf)}`);
+      check(j.foreignRows === 1, `expected 1 foreign row, found ${j.foreignRows}`);
+      // AC-4: it reaches the file, pointing at the right page.
+      check(j.titles2.indexOf('Page 3') >= 0, `saved outline missing our entry: ${JSON.stringify(j.titles2)}`);
+      check(j.destPage === 3, `saved bookmark resolves to page ${j.destPage}, expected 3`);
+      // AC-6: nothing the document already carried is lost or renamed.
+      check(j.titles2.indexOf('Client Index') >= 0,
+        `saving destroyed the document's own outline entry: ${JSON.stringify(j.titles2)}`);
+      // AC-7: and it is still there after reopening HERE, not just in Acrobat.
+      check(j.reTitles.indexOf('Page 3') >= 0, 'bookmark lost on reopen — the base swap dropped the outline');
+      check(JSON.stringify(j.rePages) === '[2,3]', `reopened pages ${JSON.stringify(j.rePages)}, expected [2,3]`);
+      check(JSON.stringify(j.reMine) === '[3]', `ownership not restored: ${JSON.stringify(j.reMine)}`);
+      check(j.reLit === true, 'button not lit on the bookmarked page after reopen');
+    }
+  },
+  {
     // The mode banner's actions must sit on the text's centre line. A later
     // .link-btn rule meant for the digital-signature panel set
     // align-self:flex-start and a smaller font, and being later it won here

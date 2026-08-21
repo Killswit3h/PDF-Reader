@@ -42,6 +42,8 @@
       <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
       <symbol id="i-fit-width" viewBox="0 0 24 24"><path d="M3 5v14M21 5v14"/><path d="M6 12h12"/><path d="M9 9l-3 3 3 3"/><path d="M15 15l3-3-3-3"/></symbol>
       <symbol id="i-marquee" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+      <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></symbol>
+      <symbol id="i-bookmark-list" viewBox="0 0 24 24"><path d="M5 3h9v12l-4.5-3.4L5 15z"/><path d="M17 8h3M17 13h3M17 18h3M10 18h4"/></symbol>
       <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 3.5V9h-5.5"/></symbol>
       <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
       <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
@@ -153,6 +155,14 @@
       <button id="btn-fit-width" class="tb-btn" data-overflow disabled title="Fit to width"><svg class="ico" aria-hidden="true"><use href="#i-fit-width"/></svg>Fit</button>
       <button id="btn-marquee" class="tb-btn icon" data-overflow disabled title="Marquee zoom — drag a box to zoom into that area (Z)" aria-label="Marquee zoom"><svg class="ico" aria-hidden="true"><use href="#i-marquee"/></svg></button>
       <button id="btn-rotate" class="tb-btn icon" data-overflow disabled title="Rotate view 90° (R)" aria-label="Rotate view"><svg class="ico" aria-hidden="true"><use href="#i-rotate"/></svg></button>
+      <button id="btn-bookmark" class="tb-btn icon" data-overflow disabled aria-pressed="false" title="Bookmark this page" aria-label="Bookmark this page"><svg class="ico" aria-hidden="true"><use href="#i-bookmark"/></svg></button>
+      <div class="tb-dropdown">
+        <button id="btn-bookmarks" class="tb-btn icon" data-overflow disabled title="Bookmarked pages" aria-label="Bookmarked pages" aria-expanded="false"><svg class="ico" aria-hidden="true"><use href="#i-bookmark-list"/></svg></button>
+        <div id="bookmark-menu" class="tb-menu hidden">
+          <div class="tb-menu-title">Bookmarked pages</div>
+          <div id="bookmark-list"></div>
+        </div>
+      </div>
     </div>
 
     <div class="tb-sep"></div>
@@ -1044,6 +1054,7 @@
   <script src="../shared/digital-ids.js"></script>
   <script src="../shared/pdf-sign.js"></script>
   <script src="../shared/ocr-layout.js"></script>
+  <script src="../shared/outline.js"></script>
   <script src="../shared/markup-model.js"></script>
 
   <!-- ======= App modules ======= -->
@@ -1060,6 +1071,7 @@
   <script src="js/docstamp.js"></script>
   <script src="js/toolchest.js"></script>
   <script src="js/print.js"></script>
+  <script src="js/bookmarks.js"></script>
   <script src="js/save.js"></script>
   <script src="js/digisign.js"></script>
   <script src="js/tabs.js"></script>
