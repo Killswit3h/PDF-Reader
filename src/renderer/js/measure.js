@@ -67,6 +67,12 @@
     return App.computeValue(type, pts, scaleFor(page, pts));
   }
 
+  // Exposed so save.js can resolve the governing scale the same way the on-screen
+  // label does — region beats page — when it writes a measurement's /Measure
+  // dictionary. Resolving it any other way would let the exported scale disagree
+  // with the number the user is looking at.
+  M.scaleFor = scaleFor;
+
   // Recompute every measurement's cached value/label (after a scale change).
   M.recomputeAll = function () {
     App.state.measurements.forEach((m) => {

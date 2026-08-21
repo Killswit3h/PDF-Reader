@@ -43,18 +43,30 @@
     return d > 180 ? 360 - d : d;
   }
 
-  // Arithmetic mean point of a set.
+  // Arithmetic mean point of a set. An empty set returns the origin rather than
+  // {NaN, NaN}, which would otherwise flow into a measurement label's transform
+  // and drop it off-page with no visible error.
   function centroid(pts) {
+    if (!pts || !pts.length) return { vx: 0, vy: 0 };
     let x = 0, y = 0;
     pts.forEach((p) => { x += p.vx; y += p.vy; });
     return { vx: x / pts.length, vy: y / pts.length };
   }
 
   // Axis-aligned bounding box: { x, y, w, h }.
+  // Scanned with a loop rather than Math.min(...xs): a long freehand stroke can
+  // hold more points than the engine's argument limit, and spreading it there
+  // throws RangeError mid-draw. Same reason simplify() is iterative.
   function bbox(pts) {
-    const xs = pts.map((p) => p.vx), ys = pts.map((p) => p.vy);
-    const minX = Math.min(...xs), minY = Math.min(...ys);
-    return { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY };
+    if (!pts || !pts.length) return { x: 0, y: 0, w: 0, h: 0 };
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const p of pts) {
+      if (p.vx < minX) minX = p.vx;
+      if (p.vx > maxX) maxX = p.vx;
+      if (p.vy < minY) minY = p.vy;
+      if (p.vy > maxY) maxY = p.vy;
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }
 
   // Normalized rectangle from two opposite corners: { vx, vy, vw, vh }.

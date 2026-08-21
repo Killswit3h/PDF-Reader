@@ -61,8 +61,18 @@
     // Freehand ink/highlight export the same curve-fit points the screen shows.
     const src = (App.Markup && App.Markup.smoothStroke) ? App.Markup.smoothStroke(an) : an.pts;
     const P = src.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
-    const xs = P.map((p) => p[0]), ys = P.map((p) => p[1]);
-    const rect = [Math.min(...xs) - 2, Math.min(...ys) - 2, Math.max(...xs) + 2, Math.max(...ys) + 2];
+    // Loop rather than Math.min(...xs): a long freehand stroke can exceed the
+    // engine's argument limit and spreading it throws RangeError — which would
+    // fail the whole save, losing the user's work. See Geom.bbox for the twin.
+    if (!P.length) return;
+    let rx0 = Infinity, ry0 = Infinity, rx1 = -Infinity, ry1 = -Infinity;
+    for (const p of P) {
+      if (p[0] < rx0) rx0 = p[0];
+      if (p[0] > rx1) rx1 = p[0];
+      if (p[1] < ry0) ry0 = p[1];
+      if (p[1] > ry1) ry1 = p[1];
+    }
+    const rect = [rx0 - 2, ry0 - 2, rx1 + 2, ry1 + 2];
     const col = hexArr(s.stroke || '#e5484d');
     // Highlighter exports as a wide Ink stroke; everything else uses its style width.
     const hlWidth = (App.Markup && App.Markup.highlightWidth) ? App.Markup.highlightWidth(s) : Math.max(10, (s.width || 2) * 6);
@@ -132,6 +142,253 @@
     let annots = page.node.Annots();
     if (!annots) { annots = ctx.obj([]); page.node.set(PDFName.of('Annots'), annots); }
     annots.push(ref);
+  }
+
+  // Append an annotation reference to a page's /Annots, creating the array on
+  // first use. Shared by the annotation writers below.
+  function pushAnnot(pdfDoc, page, dict) {
+    const { PDFName } = window.PDFLib;
+    const ref = pdfDoc.context.register(dict);
+    let annots = page.node.Annots();
+    if (!annots) { annots = pdfDoc.context.obj([]); page.node.set(PDFName.of('Annots'), annots); }
+    annots.push(ref);
+  }
+
+  // Quad-based text markups (highlight / underline / strikeout) as REAL
+  // annotations. These are the subtypes Acrobat and Bluebeam create for the
+  // same three tools, so exporting them keeps the mark selectable,
+  // recolourable, repliable and listed in the other tool's markup panel —
+  // instead of baked into the page content where nothing can touch it.
+  //
+  // Every one carries a generated /AP appearance stream. Without /AP the viewer
+  // has to synthesise the appearance itself: Acrobat does, plenty of others do
+  // not, and the mark would render as nothing in some of the very software this
+  // is meant to interoperate with. Verified rendering pixel-wise through pdf.js.
+  function writeTextMarkupAnnot(pdfDoc, page, an, vp) {
+    const { PDFName, PDFArray, PDFNumber, PDFString, PDFRawStream } = window.PDFLib;
+    const ctx = pdfDoc.context;
+    const s = an.style || {};
+    const quads = an.quads || [];
+    const SUB = { texthighlight: 'Highlight', underline: 'Underline', strikeout: 'StrikeOut' };
+    const subtype = SUB[an.type];
+    if (!subtype || !quads.length) return;
+
+    const col = hexArr(s.stroke || '#ffd400');
+    const numArr = (arr) => { const a = PDFArray.withContext(ctx); arr.forEach((n) => a.push(PDFNumber.of(n))); return a; };
+
+    // Map each viewport quad to an axis-aligned box in PDF user space. Page
+    // rotation is always a multiple of 90 degrees, so an axis-aligned quad stays
+    // axis-aligned and min/max of the two mapped corners is exact.
+    const boxes = quads.map((q) => {
+      const a0 = vp.convertToPdfPoint(q.x, q.y);
+      const a1 = vp.convertToPdfPoint(q.x + q.w, q.y + q.h);
+      return {
+        x: Math.min(a0[0], a1[0]), y: Math.min(a0[1], a1[1]),
+        w: Math.abs(a1[0] - a0[0]), h: Math.abs(a1[1] - a0[1])
+      };
+    });
+
+    let rx0 = Infinity, ry0 = Infinity, rx1 = -Infinity, ry1 = -Infinity;
+    for (const b of boxes) {
+      if (b.x < rx0) rx0 = b.x;
+      if (b.y < ry0) ry0 = b.y;
+      if (b.x + b.w > rx1) rx1 = b.x + b.w;
+      if (b.y + b.h > ry1) ry1 = b.y + b.h;
+    }
+    const rect = [rx0 - 1, ry0 - 1, rx1 + 1, ry1 + 1];
+
+    // /QuadPoints runs upper-left, upper-right, lower-left, lower-right per
+    // quad — the order Acrobat writes and every real viewer expects, whatever
+    // the spec's own prose says about counter-clockwise ordering.
+    const qp = [];
+    boxes.forEach((b) => {
+      qp.push(b.x, b.y + b.h, b.x + b.w, b.y + b.h, b.x, b.y, b.x + b.w, b.y);
+    });
+
+    const lw = Math.max(1, s.width || 1.5);
+    const c3 = `${col[0].toFixed(3)} ${col[1].toFixed(3)} ${col[2].toFixed(3)}`;
+    let ops, resources;
+    if (an.type === 'texthighlight') {
+      // Multiply keeps the text underneath readable the way a real highlighter
+      // does; a plain opaque fill would bury it.
+      ops = ['/GS0 gs', `${c3} rg`].concat(boxes.map((b) => `${b.x} ${b.y} ${b.w} ${b.h} re f`));
+      resources = ctx.obj({ ExtGState: ctx.obj({ GS0: ctx.obj({ Type: 'ExtGState', BM: 'Multiply', ca: 1 }) }) });
+    } else {
+      ops = [`${c3} RG`, `${lw} w`].concat(boxes.map((b) => {
+        const yy = an.type === 'underline' ? b.y + lw : b.y + b.h / 2;
+        return `${b.x} ${yy} m ${b.x + b.w} ${yy} l S`;
+      }));
+      resources = ctx.obj({});
+    }
+
+    const apDict = ctx.obj({
+      Type: 'XObject', Subtype: 'Form',
+      BBox: numArr(rect), Matrix: numArr([1, 0, 0, 1, 0, 0]), Resources: resources
+    });
+    const apRef = ctx.register(PDFRawStream.of(apDict, new TextEncoder().encode(ops.join('\n'))));
+
+    const d = ctx.obj({});
+    const set = (k, v) => d.set(PDFName.of(k), v);
+    set('Type', PDFName.of('Annot'));
+    set('Subtype', PDFName.of(subtype));
+    set('Rect', numArr(rect));
+    set('QuadPoints', numArr(qp));
+    set('C', numArr(col));
+    set('F', PDFNumber.of(4));                       // Print
+    set('AP', ctx.obj({ N: apRef }));
+    if (an.text) set('Contents', PDFString.of(an.text));
+    pushAnnot(pdfDoc, page, d);
+  }
+
+  // Escape a literal string for a content stream's ( ) operand.
+  function pdfEsc(s) {
+    return String(s == null ? '' : s).replace(/([\\()])/g, '\\$1');
+  }
+
+  // A circle as four cubic Beziers — the count tool's dot, drawn in an /AP where
+  // there is no drawCircle helper to lean on.
+  function circleOps(cx, cy, r) {
+    const k = 0.5523 * r;
+    return [
+      `${cx + r} ${cy} m`,
+      `${cx + r} ${cy + k} ${cx + k} ${cy + r} ${cx} ${cy + r} c`,
+      `${cx - k} ${cy + r} ${cx - r} ${cy + k} ${cx - r} ${cy} c`,
+      `${cx - r} ${cy - k} ${cx - k} ${cy - r} ${cx} ${cy - r} c`,
+      `${cx + k} ${cy - r} ${cx + r} ${cy - k} ${cx + r} ${cy} c`,
+      'f'
+    ].join('\n');
+  }
+
+  // One NumberFormat entry (ISO 32000 Table 271): how a measured axis converts
+  // into a named unit and how it prints.
+  function numberFormat(ctx, unit, conversion) {
+    const { PDFName, PDFNumber, PDFString } = window.PDFLib;
+    const d = ctx.obj({});
+    d.set(PDFName.of('Type'), PDFName.of('NumberFormat'));
+    d.set(PDFName.of('U'), PDFString.of(unit));      // unit label the viewer shows
+    d.set(PDFName.of('C'), PDFNumber.of(conversion)); // user-space units -> `unit`
+    d.set(PDFName.of('F'), PDFName.of('D'));         // decimal
+    d.set(PDFName.of('D'), PDFNumber.of(100));       // to two places
+    return d;
+  }
+
+  // Measurements as real annotations carrying a /Measure dictionary.
+  //
+  // Bluebeam and Acrobat keep a measurement live by storing the calibration
+  // beside the geometry, so the recipient can select it, read the calibrated
+  // value and keep measuring on the same scale. PDF expresses that with
+  // /Measure (ISO 32000 s12.9). Drawing the numbers into page content — what
+  // this used to do — exports a picture of a takeoff rather than a takeoff.
+  //
+  // The annotation carries its own /AP reproducing exactly what the flattened
+  // path drew, including the rotation-corrected label, so the visual result is
+  // unchanged everywhere while the geometry, scale and value become readable.
+  function writeMeasureAnnot(pdfDoc, page, m, vp, scale, fontRef) {
+    const { PDFName, PDFArray, PDFNumber, PDFString, PDFRawStream } = window.PDFLib;
+    const ctx = pdfDoc.context;
+    const pts = m.pts || [];
+    if (!pts.length) return false;
+    const P = pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
+    const numArr = (arr) => { const a = PDFArray.withContext(ctx); arr.forEach((n) => a.push(PDFNumber.of(n))); return a; };
+    const col = hexArr(m.color || M_COLORS[m.type] || '#2f6fed');
+    const c3 = `${col[0].toFixed(3)} ${col[1].toFixed(3)} ${col[2].toFixed(3)}`;
+    const lw = Math.max(0.5, m.width || 1.4);
+
+    // Geometry subtype. Angle is a PolyLine too, but carries no /Measure: it is
+    // degrees, which no scale affects.
+    const MAP = {
+      length: ['Line', 'LineDimension'],
+      perimeter: ['PolyLine', 'PolyLineDimension'],
+      continuous: ['PolyLine', 'PolyLineDimension'],
+      area: ['Polygon', 'PolygonDimension'],
+      angle: ['PolyLine', null],
+      count: ['Polygon', null]
+    };
+    const [subtype, it] = MAP[m.type] || ['PolyLine', null];
+
+    // ---- appearance: the same strokes and label the flattened path draws ----
+    const ops = [];
+    if (m.type === 'count') {
+      ops.push(`${c3} rg`);
+      P.forEach((c) => ops.push(circleOps(c[0], c[1], 5)));
+    } else {
+      const seq = m.type === 'area' ? P.concat([P[0]]) : P;
+      ops.push(`${c3} RG`, `${lw} w`);
+      seq.forEach((p, i) => ops.push(i === 0 ? `${p[0]} ${p[1]} m` : `${p[0]} ${p[1]} l`));
+      ops.push('S');
+    }
+
+    // Label anchor, resolved in scale-1 viewport space so the on-screen writing
+    // direction survives page rotation — the same technique the flattened path
+    // and the free-text export use.
+    let av;
+    if (m.type === 'area' || m.type === 'count') av = App.Geom.centroid(pts);
+    else if (m.type === 'angle') av = pts[1];
+    else av = pts[0];
+    const anchor = vp.convertToPdfPoint(av.vx + 3, av.vy - 3);
+    const dirPt = vp.convertToPdfPoint(av.vx + 4, av.vy - 3);
+    const ang = Math.atan2(dirPt[1] - anchor[1], dirPt[0] - anchor[0]);
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    if (m.label) {
+      ops.push('BT', `/Helv 9 Tf`, `${c3} rg`,
+        `${ca.toFixed(6)} ${sa.toFixed(6)} ${(-sa).toFixed(6)} ${ca.toFixed(6)} ${anchor[0]} ${anchor[1]} Tm`,
+        `(${pdfEsc(m.label)}) Tj`, 'ET');
+    }
+
+    // Rect must contain the strokes AND the rotated label, so pad generously.
+    let rx0 = Infinity, ry0 = Infinity, rx1 = -Infinity, ry1 = -Infinity;
+    for (const p of P.concat([anchor])) {
+      if (p[0] < rx0) rx0 = p[0];
+      if (p[0] > rx1) rx1 = p[0];
+      if (p[1] < ry0) ry0 = p[1];
+      if (p[1] > ry1) ry1 = p[1];
+    }
+    const pad = 12 + lw;
+    const rect = [rx0 - pad, ry0 - pad, rx1 + pad, ry1 + pad];
+
+    const resources = ctx.obj({ Font: ctx.obj({ Helv: fontRef }) });
+    const apDict = ctx.obj({
+      Type: 'XObject', Subtype: 'Form',
+      BBox: numArr(rect), Matrix: numArr([1, 0, 0, 1, 0, 0]), Resources: resources
+    });
+    const apRef = ctx.register(PDFRawStream.of(apDict, new TextEncoder().encode(ops.join('\n'))));
+
+    // ---- the annotation ----
+    const d = ctx.obj({});
+    const set = (k, v) => d.set(PDFName.of(k), v);
+    set('Type', PDFName.of('Annot'));
+    set('Subtype', PDFName.of(subtype));
+    set('Rect', numArr(rect));
+    set('C', numArr(col));
+    set('F', PDFNumber.of(4));
+    set('AP', ctx.obj({ N: apRef }));
+    const bs = ctx.obj({}); bs.set(PDFName.of('W'), PDFNumber.of(lw)); set('BS', bs);
+    if (it) set('IT', PDFName.of(it));
+    if (m.label) set('Contents', PDFString.of(String(m.label)));
+
+    const flat = [].concat.apply([], P);
+    if (subtype === 'Line') set('L', numArr([P[0][0], P[0][1], P[1][0], P[1][1]]));
+    else set('Vertices', numArr(flat));
+
+    // ---- /Measure: the calibration itself ----
+    // `scale.factor` is real units per PDF user-space unit, which is exactly the
+    // conversion /X wants. /D and /A then read in those same units, so their
+    // conversion is 1.
+    if (scale && scale.factor && it) {
+      const md = ctx.obj({});
+      md.set(PDFName.of('Type'), PDFName.of('Measure'));
+      md.set(PDFName.of('Subtype'), PDFName.of('RL'));   // rectilinear
+      const perInch = scale.factor * 72;
+      md.set(PDFName.of('R'), PDFString.of(`1 in = ${(+perInch.toFixed(4))} ${scale.unit}`));
+      const mk = (arr) => { const a = PDFArray.withContext(ctx); arr.forEach((o) => a.push(o)); return a; };
+      md.set(PDFName.of('X'), mk([numberFormat(ctx, scale.unit, scale.factor)]));
+      md.set(PDFName.of('D'), mk([numberFormat(ctx, scale.unit, 1)]));
+      md.set(PDFName.of('A'), mk([numberFormat(ctx, `${scale.unit}²`, 1)]));
+      set('Measure', md);
+    }
+
+    pushAnnot(pdfDoc, page, d);
+    return true;
   }
 
   function drawArrowPdf(page, from, to, color, width) {
@@ -290,6 +547,15 @@
       for (const m of App.state.measurements) {
         const vp = App.state.baseViewports[m.page - 1];
         const page = pdfDoc.getPage(m.page - 1);
+        // With editable annotations on, a measurement exports as a real
+        // dimension annotation carrying its calibration, so Bluebeam/Acrobat can
+        // still read and extend the takeoff. Falls through to flattening if the
+        // writer declines (e.g. no geometry).
+        if (App.state.saveAnnots) {
+          const sc = (App.Measure && App.Measure.scaleFor)
+            ? App.Measure.scaleFor(m.page, m.pts) : null;
+          if (writeMeasureAnnot(pdfDoc, page, m, vp, sc, helv.ref)) continue;
+        }
         const color = hexRgb(m.color || M_COLORS[m.type] || '#2f6fed');
         // vertices -> PDF user space (rotation-safe)
         const P = m.pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
@@ -338,9 +604,12 @@
         const vp = App.state.baseViewports[an.page - 1];
         if (!vp) continue;
         const page = pdfDoc.getPage(an.page - 1);
-        // Text markups (highlight/underline/strikeout) are quad-based; always
-        // flatten-draw them (writeRealAnnot doesn't handle these types).
+        // Text markups (highlight/underline/strikeout) are quad-based, so they
+        // take the QuadPoints writer rather than writeRealAnnot. With editable
+        // annotations on they export as real Highlight/Underline/StrikeOut
+        // objects; otherwise they flatten into page content as before.
         if (an.type === 'texthighlight' || an.type === 'underline' || an.type === 'strikeout') {
+          if (App.state.saveAnnots) { writeTextMarkupAnnot(pdfDoc, page, an, vp); continue; }
           const tcol = hexRgb((an.style && an.style.stroke) || '#ffd400');
           (an.quads || []).forEach((q) => {
             const a0 = vp.convertToPdfPoint(q.x, q.y);

@@ -23,7 +23,13 @@ const { createStore } = require('./desktop-store');
 // saved signature, preferences, recent files and window bounds. Pin userData to
 // the original location so an in-place update keeps all of it. Must run before
 // the app is ready (and before anything below reads userData).
-try { app.setPath('userData', path.join(app.getPath('appData'), 'PDF Signer')); } catch (_) { /* fall back to default */ }
+// Skipped under the e2e harness: run.js gives each spawn its own
+// --user-data-dir so scenarios can't collide, and pinning userData here would
+// override that and drag every spawn back onto the installed app's profile —
+// and therefore onto its single-instance lock (see gotLock below).
+if (!process.env.SMOKE_TEST) {
+  try { app.setPath('userData', path.join(app.getPath('appData'), 'PDF Signer')); } catch (_) { /* fall back to default */ }
+}
 
 // Persisted desktop-only state (window bounds + recent files). Skipped under the
 // e2e smoke harness so scenarios run against deterministic default bounds.
@@ -1824,6 +1830,62 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // A full interop sample: every markup tool AND every measure tool on one
+      // calibrated page, exported with editable annotations on. Pass a file path
+      // (SMOKE_INTEROP=/path/out.pdf) to keep the PDF — that file is what you
+      // open in Bluebeam Revu or Acrobat to confirm by eye that the annotations
+      // this app writes are live and correctly placed there, which no headless
+      // check can tell you.
+      if (process.env.SMOKE_INTEROP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1000));
+              const A = App.state, pg = 1;
+              const st = (c) => ({ stroke: c || '#e5484d', fill:'none', width:2, opacity:1, fontSize:14 });
+              const add = (o, c) => { A.annoSeq=(A.annoSeq||0)+1; A.annotations.push(Object.assign({id:A.annoSeq,page:pg,style:st(c)},o)); };
+              add({type:'rect', pts:[{vx:40,vy:40},{vx:170,vy:110}]});
+              add({type:'ellipse', pts:[{vx:190,vy:40},{vx:310,vy:110}]});
+              add({type:'line', pts:[{vx:40,vy:130},{vx:170,vy:170}]});
+              add({type:'arrow', pts:[{vx:190,vy:130},{vx:310,vy:170}]});
+              add({type:'polyline', pts:[{vx:40,vy:190},{vx:100,vy:240},{vx:170,vy:190}]});
+              add({type:'polygon', pts:[{vx:190,vy:190},{vx:300,vy:200},{vx:250,vy:265}]});
+              add({type:'cloud', pts:[{vx:40,vy:285},{vx:150,vy:295},{vx:95,vy:360}]});
+              add({type:'ink', pts:[{vx:190,vy:290},{vx:215,vy:325},{vx:255,vy:290},{vx:300,vy:335}]});
+              add({type:'highlight', pts:[{vx:40,vy:385},{vx:300,vy:385}]}, '#ffd400');
+              add({type:'text', pts:[{vx:40,vy:410},{vx:220,vy:452}], text:'Editable note'});
+              add({type:'callout', pts:[{vx:40,vy:470},{vx:220,vy:512},{vx:300,vy:545}], text:'Callout'});
+              add({type:'texthighlight', quads:[{x:40,y:570,w:180,h:15}]}, '#ffd400');
+              add({type:'underline', quads:[{x:40,y:600,w:180,h:15}]}, '#2f6fed');
+              add({type:'strikeout', quads:[{x:40,y:630,w:180,h:15}]}, '#e5484d');
+              // Calibrate the page (1 in of paper = 20 ft) so the measurements
+              // carry a real /Measure dictionary rather than an empty one.
+              A.scales = A.scales || {};
+              A.scales[pg] = { factor: 20/72, unit: 'ft' };
+              const mAdd = (type, pts) => { A.measureSeq=(A.measureSeq||0)+1; A.measurements.push({id:A.measureSeq,page:pg,type:type,pts:pts,value:0,unit:'ft',color:'#2f6fed',width:1.4,label:''}); };
+              mAdd('length', [{vx:360,vy:60},{vx:520,vy:60}]);
+              mAdd('perimeter', [{vx:360,vy:110},{vx:520,vy:110},{vx:520,vy:180}]);
+              mAdd('area', [{vx:360,vy:220},{vx:520,vy:220},{vx:520,vy:310},{vx:360,vy:310}]);
+              mAdd('angle', [{vx:360,vy:360},{vx:360,vy:430},{vx:440,vy:430}]);
+              mAdd('count', [{vx:360,vy:470},{vx:400,vy:470},{vx:440,vy:470}]);
+              if (App.Measure && App.Measure.recomputeAll) App.Measure.recomputeAll();
+              A.saveAnnots = true;
+              let bytesLen=0, err='', b64='';
+              try { const b = await App.Save.buildBytes(); bytesLen=b.length; let s=''; for(let i=0;i<b.length;i++) s+=String.fromCharCode(b[i]); b64=btoa(s); } catch(e){ err=e.message+' | '+(e.stack||'').split('\\n')[1]; }
+              return JSON.stringify({ annCount:A.annotations.length, measCount:A.measurements.length, bytesLen, err, b64 });
+            })()`, true);
+            const parsed = JSON.parse(r);
+            console.log('[interop] ' + JSON.stringify({ annCount: parsed.annCount, measCount: parsed.measCount, bytesLen: parsed.bytesLen, err: parsed.err }));
+            if (process.env.SMOKE_INTEROP !== '1' && parsed.b64) {
+              fs.writeFileSync(process.env.SMOKE_INTEROP, Buffer.from(parsed.b64, 'base64'));
+              console.log('[interop] wrote ' + process.env.SMOKE_INTEROP);
+            }
+          } catch (e) { console.log('[interop] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SELECT) {
         setTimeout(async () => {
           try {
@@ -2484,9 +2546,15 @@ function createWindow() {
   });
 }
 
-// Enforce a single instance so "Open with" reuses the running window.
-const gotLock = app.requestSingleInstanceLock();
+// Enforce a single instance so "Open with" reuses the running window. The e2e
+// harness opts out: every scenario is its own short-lived instance, and losing
+// the lock to an installed FieldMark the developer happens to have open would
+// quit it before it printed anything — which surfaces as all 55 scenarios
+// failing with empty output and no stated reason.
+const gotLock = process.env.SMOKE_TEST ? true : app.requestSingleInstanceLock();
 if (!gotLock) {
+  // Say so on the way out; a silent exit(0) is indistinguishable from a crash.
+  console.log('[single-instance] another instance holds the lock — handing the file off to it and exiting.');
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
