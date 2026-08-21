@@ -101,7 +101,12 @@ const MEASURES = [
   { type: 'radiusCenter', it: 'LineDimension', measure: true, radius: 20,
     pts: [{ vx: 400, vy: 480 }, { vx: 400, vy: 552 }] },
   { type: 'radius3', it: 'LineDimension', measure: true, radius: 20,
-    pts: [{ vx: 322, vy: 500 }, { vx: 250, vy: 428 }, { vx: 178, vy: 500 }] }
+    pts: [{ vx: 322, vy: 500 }, { vx: 250, vy: 428 }, { vx: 178, vy: 500 }] },
+  // A half circle of radius 72pt at 20ft/inch: r*theta = 72*PI points, which is
+  // exactly 20*PI = 62.8319 ft. The exported polyline must sum to that, not to
+  // the chord and not to the radius.
+  { type: 'arcLength', it: 'PolyLineDimension', measure: true, arcLen: 20 * Math.PI,
+    pts: [{ vx: 322, vy: 620 }, { vx: 250, vy: 692 }, { vx: 178, vy: 620 }] }
 ];
 
 (async () => {
@@ -306,6 +311,14 @@ const MEASURES = [
               return arr ? arr.asArray().map((n) => n.asNumber()) : null;
             } catch (_) { return null; }
           })(),
+          // /Vertices is what a viewer sums for a polyline dimension. For arc
+          // length that sum IS the reported value -- see FR-7.
+          V: (() => {
+            try {
+              const arr = a.get(PDFName.of('Vertices'));
+              return arr ? arr.asArray().map((n) => n.asNumber()) : null;
+            } catch (_) { return null; }
+          })(),
           labelFont
         });
       }
@@ -358,7 +371,7 @@ const MEASURES = [
   let mbad = 0;
   for (const mm of MEASURES) {
     if (!mm.it) continue;                       // angle/count are scale-independent
-    if (mm.radius != null) continue;            // radius is checked by value below
+    if (mm.radius != null || mm.arcLen != null) continue; // checked by value below
     const hit = dicts.find((d) => d.it === mm.it);
     const okM = !!hit && hit.measure === mm.measure && hit.ap && !!hit.labelFont;
     if (!okM) mbad++;
@@ -382,6 +395,29 @@ const MEASURES = [
     if (!okR) mbad++;
     mrows.push(`  ${okR ? 'OK  ' : 'FAIL'}  ${mm.type.padEnd(10)} /L measures ` +
       `${got != null ? got.toFixed(2) : '—'} ft, FieldMark reports R ${mm.radius.toFixed(2)} ft`);
+  }
+  // ---- FR-7 / AC-3: the exported polyline sums to the reported arc length ----
+  // A chord polyline always under-measures a curve. This asserts the tessellation
+  // is fine enough that a recipient summing /Vertices lands on the same number
+  // FieldMark printed, rather than a quietly short one.
+  const polyVals = dicts
+    .filter((d) => d.it === 'PolyLineDimension' && d.V && d.V.length >= 4)
+    .map((d) => {
+      let sum = 0;
+      for (let i = 2; i < d.V.length; i += 2) {
+        sum += Math.hypot(d.V[i] - d.V[i - 2], d.V[i + 1] - d.V[i - 1]);
+      }
+      return sum * FACTOR;
+    });
+  for (const mm of MEASURES) {
+    if (mm.arcLen == null) continue;
+    const got = polyVals.find((v) => Math.abs(v - mm.arcLen) < 0.01);
+    const okA = got != null;
+    if (!okA) mbad++;
+    const near = polyVals.length ? polyVals.map((v) => v.toFixed(2)).join(', ') : 'none';
+    mrows.push(`  ${okA ? 'OK  ' : 'FAIL'}  ${mm.type.padEnd(10)} polyline sums to ` +
+      `${got != null ? got.toFixed(4) : '— (saw ' + near + ')'} ft, FieldMark reports ` +
+      `${mm.arcLen.toFixed(4)} ft`);
   }
   console.log(`[verify-tools] ${out.measCount} measurements exported`);
   console.log(mrows.join('\n'));

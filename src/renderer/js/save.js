@@ -40,7 +40,7 @@
   const M_COLORS = {
     length: '#2f6fed', continuous: '#0891b2', perimeter: '#7b61ff', area: '#21a366',
     angle: '#d1348c', count: '#e5a300',
-    radius3: '#f26419', radiusCenter: '#00695c'
+    radius3: '#f26419', radiusCenter: '#00695c', arcLength: '#8e24aa'
   };
   function hexRgb(hex) {
     const { rgb } = window.PDFLib;
@@ -318,7 +318,7 @@
     // here: P becomes the radius spoke (which /L exports, and which a
     // recipient's viewer measures), while shapePts carries the arc for the
     // bounding box. For every other type both stay exactly what they were.
-    const RAD = { radius3: true, radiusCenter: true };
+    const RAD = { radius3: true, radiusCenter: true, arcLength: true };
     const cv = (pt) => vp.convertToPdfPoint(pt.vx, pt.vy);
     let radInfo = null;
     if (RAD[m.type]) {
@@ -335,7 +335,16 @@
     }
     let P = pts.map(cv);
     let shapePts = P;
-    if (radInfo) {
+    if (radInfo && m.type === 'arcLength') {
+      // Arc length exports the traced arc ITSELF as the measurement geometry:
+      // a recipient's viewer sums the polyline, which is the arc length -- the
+      // value we report. Density comes from an error budget, not by eye: a chord
+      // polyline under-measures a curve, and arcTessellationSegments keeps that
+      // shortfall far below the two decimals the label shows.
+      const segN = App.Geom.arcTessellationSegments(radInfo.span.a1 - radInfo.span.a0);
+      P = App.Geom.arcPoints(radInfo.c, radInfo.c.r, radInfo.span.a0, radInfo.span.a1, segN).map(cv);
+      shapePts = P;
+    } else if (radInfo) {
       P = [cv(radInfo.c), cv(radInfo.edge)];
       shapePts = App.Geom.arcPoints(radInfo.c, radInfo.c.r, radInfo.span.a0, radInfo.span.a1, 32)
         .map(cv).concat(P);
@@ -359,7 +368,10 @@
       // drawn curve. PDF has no radius dimension type; this is how the number
       // stays identical on both sides. See FR-13.
       radius3: ['Line', 'LineDimension'],
-      radiusCenter: ['Line', 'LineDimension']
+      radiusCenter: ['Line', 'LineDimension'],
+      // Arc length is the one type where the drawn curve IS the measurement, so
+      // it exports as a polyline over that curve rather than as a spoke.
+      arcLength: ['PolyLine', 'PolyLineDimension']
     };
     const [subtype, it] = MAP[m.type] || ['PolyLine', null];
 
@@ -371,6 +383,7 @@
       // the same curve the screen shows, page rotation included.
       const { c, span, edge } = radInfo;
       const pie = m.type === 'radius3';
+      const arcOnly = m.type === 'arcLength';
       const start = { vx: c.vx + c.r * Math.cos(span.a0), vy: c.vy + c.r * Math.sin(span.a0) };
       const s0 = cv(start), cc = cv(c);
       ops.push(`${c3} RG`, `${lw} w`);
@@ -383,9 +396,12 @@
         ops.push(`${b1[0]} ${b1[1]} ${b2[0]} ${b2[1]} ${be[0]} ${be[1]} c`);
       }
       ops.push(pie ? 'h S' : 'S');
-      // The measured radius, dashed, matching what the user saw on screen.
-      const e0 = cv(edge);
-      ops.push('[4 3] 0 d', `${cc[0]} ${cc[1]} m`, `${e0[0]} ${e0[1]} l`, 'S', '[] 0 d');
+      // The measured radius, dashed, matching what the user saw on screen. Arc
+      // length does not draw it -- it is not what that tool measures.
+      if (!arcOnly) {
+        const e0 = cv(edge);
+        ops.push('[4 3] 0 d', `${cc[0]} ${cc[1]} m`, `${e0[0]} ${e0[1]} l`, 'S', '[] 0 d');
+      }
     } else if (m.type === 'count') {
       ops.push(`${c3} rg`);
       P.forEach((c) => ops.push(circleOps(c[0], c[1], 5)));

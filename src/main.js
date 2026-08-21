@@ -2101,6 +2101,72 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_ARCLEN: length along a curve — the linear-feet takeoff a curved
+      // run on a plan sheet needs, and the quantity the radius tools do NOT give.
+      if (process.env.SMOKE_ARCLEN) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,700));
+              const A = App.state, M = App.Measure;
+              A.scales[1] = { factor: 0.5, unit: 'ft', ratioLabel: '1pt=0.5ft' };
+              const commit = (tool, pts) => {
+                M._tool = tool; M._active = { tool: tool, page: 1, pts: pts };
+                M.finishDrawing(); M._tool = null;
+              };
+
+              // AC-1: half of a 100pt circle is 100*PI pt; at 0.5 ft/pt = 50*PI ft.
+              commit('arcLength', [{vx:300,vy:200},{vx:200,vy:100},{vx:100,vy:200}]);
+              const ma = A.measurements[A.measurements.length-1];
+              const want = 50 * Math.PI;
+              // The same three clicks as a radius report a different number --
+              // that difference is the entire reason this tool exists.
+              const asRadius = App.computeValue('radius3', ma.pts, A.scales[1]).value;
+              const oneDrawn = A.measurements.length;
+
+              // AC-2: collinear refused, nothing non-finite stored
+              commit('arcLength', [{vx:100,vy:400},{vx:200,vy:400},{vx:300,vy:400}]);
+              const refusedCollinear = A.measurements.length === oneDrawn;
+              const nums = [];
+              A.measurements.forEach(m => {
+                if (typeof m.value === 'number') nums.push(m.value);
+                (m.pts||[]).forEach(p => { nums.push(p.vx); nums.push(p.vy); });
+              });
+              const anyBad = nums.some(n => !isFinite(n));
+
+              // AC-5: feet-inches reaches it like any length
+              M.setFeetInches(true);
+              const fiLabel = String(ma.label);
+              M.setFeetInches(false);
+              const decLabel = String(ma.label);
+
+              // FR-5: a real curve, and no radius spoke inviting the wrong read
+              M.repositionAll();
+              await new Promise(r=>setTimeout(r,300));
+              const curves = document.querySelectorAll('.markup-layer path.m-shape').length;
+              const dashed = document.querySelectorAll('.markup-layer line[stroke-dasharray]').length;
+
+              // AC-4: round-trip
+              const bytes = await App.Save.buildBytes();
+              const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength);
+              await App.Viewer.load(buf, 'arclen.pdf', null);
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,700));
+              const re = App.state.measurements.filter(m => m.type==='arcLength');
+
+              return JSON.stringify({
+                value: ma.value, want: want, label: decLabel, fiLabel,
+                asRadius, refusedCollinear, anyBad, curves, dashed,
+                reCount: re.length, reVal: re.length ? re[0].value : null
+              });
+            })()`, true);
+            console.log('[arclen] ' + r);
+          } catch (e) { console.log('[arclen] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SELECT) {
         setTimeout(async () => {
           try {

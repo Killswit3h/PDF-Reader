@@ -25,15 +25,22 @@ That matters because FR-7 promises the recipient's number matches ours. Working
 it backwards for the worst realistic case — a 200 ft run displayed to two
 decimals, so the error budget is 0.01 ft, i.e. 5×10⁻⁵ relative:
 
-| δ per segment | relative error | on a 214 ft arc |
-|---|---|---|
-| 5° | 3.2×10⁻⁴ | 0.069 ft — **visible at 2 dp** |
-| 2° | 5.1×10⁻⁵ | 0.011 ft — borderline |
-| **1°** | **1.3×10⁻⁵** | **0.003 ft — safe** |
+| δ per segment | relative error | on 214 ft | on a 1000 ft run |
+|---|---|---|---|
+| 5° | 3.2×10⁻⁴ | 0.069 ft — **visible at 2 dp** | 0.32 ft |
+| 1° | 1.3×10⁻⁵ | 0.003 ft | **0.013 ft — past budget** |
+| **0.5°** | **3.2×10⁻⁶** | **0.0007 ft** | **0.003 ft — safe** |
 
-So: **δ = 1°**, clamped to at least 24 segments (so a short arc is still smooth)
-and at most 720 (so a full sweep cannot bloat the file unboundedly). A 292°
-cul-de-sac run becomes ~292 vertices, which is unremarkable for a PDF.
+So: **δ = 0.5°**, clamped to at least 24 segments (so a short arc is still
+smooth) and at most 1440 (so a full sweep cannot bloat the file unboundedly).
+
+1° was the first choice and a unit test rejected it: it holds for a couple of
+hundred feet but drifts past a hundredth of a foot on a long run, and the whole
+point is that the recipient never sees a different number. The guarantee the
+helper can actually make is **relative** — it knows the arc in points and has no
+idea what a point is worth in feet — so that is what the test asserts, with the
+absolute figure checked separately for runs the size a plan sheet carries. A
+292° cul-de-sac becomes ~584 vertices, unremarkable for a PDF.
 
 `arcTessellationSegments(theta)` goes in `src/shared/geometry.js` as a pure
 function with the error bound in its comment, and is unit-tested — the numbers
