@@ -271,6 +271,20 @@
     return out;
   }
 
+  // The arc from p0 to p2 that passes through pmid, as a signed angular span.
+  // Three points on a circle leave two possible arcs between the outer two; the
+  // middle click is what picks which. Returns { a0, a1 } where a1 - a0 is signed
+  // (negative = clockwise), so drawing and export sweep the same way.
+  function arcSpanThrough(centre, p0, pmid, p2) {
+    const TAU = Math.PI * 2;
+    const a0 = angleOf(centre, p0);
+    const norm = (t) => { let x = t % TAU; if (x < 0) x += TAU; return x; };
+    const dm = norm(angleOf(centre, pmid) - a0);
+    const d2 = norm(angleOf(centre, p2) - a0);
+    // Counter-clockwise only if the middle point is reached before the end.
+    return (dm <= d2) ? { a0, a1: a0 + d2 } : { a0, a1: a0 - (TAU - d2) };
+  }
+
   // Approximate an arc with cubic Bezier segments, each spanning at most 90
   // degrees -- the standard construction, and accurate to well under a printer
   // dot at that span. PDF content streams have no arc operator, only 'c', so
@@ -302,7 +316,7 @@
       dist, polyLen, shoelace, angleAt, centroid, bbox,
       rectFrom, ortho, nearestVertex, arrowHeadPoints, unrotatePoint,
       simplify, smoothStroke,
-      circumcircle, angleOf, arcPoints, arcToBezier,
+      circumcircle, angleOf, arcPoints, arcToBezier, arcSpanThrough,
       matMul, matApply, constructPathVertices
     }
   };

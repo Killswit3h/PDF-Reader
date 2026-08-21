@@ -106,6 +106,24 @@
     return null;
   }
 
+  // The angular span a radius measurement sweeps, shared by the on-screen arc
+  // and the exported appearance stream so the two cannot disagree.
+  //   radius3      -- p0 through p1 to p2, the middle click choosing the arc
+  //   radiusCenter -- a stored { a0, a1 } section, or a full circle by default
+  // Returns { a0, a1, full } or null when there is no circle.
+  function arcSpanOf(type, pts, arc) {
+    const c = circleOf(type, pts);
+    if (!c) return null;
+    if (type === 'radiusCenter') {
+      if (arc && isFinite(arc.a0) && isFinite(arc.a1) && arc.a0 !== arc.a1) {
+        return { a0: arc.a0, a1: arc.a1, full: false };
+      }
+      return { a0: 0, a1: Math.PI * 2, full: true };
+    }
+    const s = Geom.arcSpanThrough(c, pts[0], pts[1], pts[2]);
+    return { a0: s.a0, a1: s.a1, full: false };
+  }
+
   // Real-world value + unit for a point set. `scale` = { factor, unit } | null.
   function computeValue(type, pts, scale) {
     if (type === 'count') return { value: pts.length, unit: 'ct' };
@@ -131,5 +149,5 @@
     return realVal / drawPts;
   }
 
-  return { UNITS, fmtMeasure, formatFeetInches, computeValue, ratioToFactor, segmentLengths, circleOf };
+  return { UNITS, fmtMeasure, formatFeetInches, computeValue, ratioToFactor, segmentLengths, circleOf, arcSpanOf };
 });

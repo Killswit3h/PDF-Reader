@@ -16,9 +16,19 @@
   const SVGNS = 'http://www.w3.org/2000/svg';
   const COLORS = {
     length: '#2f6fed', continuous: '#0891b2', perimeter: '#7b61ff', area: '#21a366',
-    angle: '#d1348c', count: '#e5a300'
+    angle: '#d1348c', count: '#e5a300',
+    radius3: '#f26419', radiusCenter: '#00695c'
   };
-  const NEEDS_SCALE = { length: true, continuous: true, perimeter: true, area: true };
+  const NEEDS_SCALE = {
+    length: true, continuous: true, perimeter: true, area: true,
+    radius3: true, radiusCenter: true
+  };
+  // Types whose value is a circle's radius. Deliberately absent from LINEAR:
+  // a radius is not a running polyline length, and per-segment leg labels
+  // would be meaningless on an arc.
+  const RADIUS = { radius3: true, radiusCenter: true };
+  // Points a tool consumes; anything beyond is ignored. Absent = open-ended.
+  const CAP = { angle: 3, radius3: 3, radiusCenter: 2 };
   // Types measured as a running length over an open polyline (sum of every leg).
   const LINEAR = { length: true, continuous: true, perimeter: true };
   const SNAP_PX = 10;
@@ -141,14 +151,26 @@
     const a = M._active;
     M._active = null;
     if (!a || M._tool === 'calibrate' || M._tool === 'viewport') return;
-    const need = a.tool === 'area' ? 3 : a.tool === 'angle' ? 3 : a.tool === 'count' ? 1 : 2;
+    const need = (a.tool === 'area' || a.tool === 'angle' || a.tool === 'radius3') ? 3
+      : a.tool === 'count' ? 1 : 2;
     if (a.pts.length < need) return;
     finalize(a);
   };
 
   function finalize(a) {
+    // A radius needs a real circle. Three collinear clicks have no circumcircle,
+    // and a zero-length centre-radius has no circle at all; storing either would
+    // put Infinity/NaN into the measurement model and into the saved PDF. Refuse
+    // before the history snapshot so a rejected draw leaves no undo step.
+    if (RADIUS[a.tool] && !App.circleOf(a.tool, a.pts.slice(0, CAP[a.tool]))) {
+      App.toast(a.tool === 'radius3'
+        ? 'Those three points lie on a straight line — a radius needs a curve. Click three points along the arc.'
+        : 'Click the centre, then a point away from it.', 'error', 5000);
+      M.repositionAll();
+      return;
+    }
     App.History.snapshot();
-    const pts = a.pts.slice(0, a.tool === 'angle' ? 3 : undefined);
+    const pts = a.pts.slice(0, CAP[a.tool]);
     const { value, unit } = computeValue(a.tool, a.page, pts);
     const m = {
       id: ++App.state.measureSeq,
@@ -199,8 +221,9 @@
     if (tool !== 'count' && last && dist(last, p) < 1.5) { M.repositionAll(); return; } // dedupe dbl-click
     M._active.pts.push({ vx: p.vx, vy: p.vy });
 
-    if (tool === 'length' && M._active.pts.length === 2) { const a = M._active; M._active = null; finalize(a); }
-    else if (tool === 'angle' && M._active.pts.length === 3) { const a = M._active; M._active = null; finalize(a); }
+    // Fixed-arity tools terminate themselves the moment they have enough points.
+    const cap = tool === 'length' ? 2 : CAP[tool];
+    if (cap && M._active.pts.length >= cap) { const a = M._active; M._active = null; finalize(a); }
     M.repositionAll();
   };
 
@@ -319,8 +342,85 @@
     layer.appendChild(c);
   }
 
+  // SVG path for a radius shape. A real arc command, not a tessellation, so the
+  // curve stays smooth at every zoom level (FR-11). SVG's sweep flag runs in the
+  // positive-angle direction and our angles use the same y-down convention, so a
+  // positive span maps to sweep 1 directly.
+  function arcD(c, a0, a1, z, pie) {
+    const R = c.r * z;
+    const pt = (t) => `${(c.vx + c.r * Math.cos(t)) * z},${(c.vy + c.r * Math.sin(t)) * z}`;
+    const delta = a1 - a0;
+    if (!pie && Math.abs(delta) >= Math.PI * 2 - 1e-9) {
+      // One A command cannot close a full circle: start and end coincide and the
+      // renderer draws nothing at all. Two half-arcs do.
+      const half = a0 + Math.PI;
+      return `M ${pt(a0)} A ${R},${R} 0 1,1 ${pt(half)} A ${R},${R} 0 1,1 ${pt(a0)} Z`;
+    }
+    const large = Math.abs(delta) > Math.PI ? 1 : 0;
+    const sweep = delta > 0 ? 1 : 0;
+    const arc = `A ${R},${R} 0 ${large},${sweep} ${pt(a1)}`;
+    return pie
+      ? `M ${c.vx * z},${c.vy * z} L ${pt(a0)} ${arc} Z`
+      : `M ${pt(a0)} ${arc}`;
+  }
+
+  // The point on the circumference the radius is measured to. save.js exports
+  // this same spoke as the annotation's /L, so what the user sees measured and
+  // what a recipient's viewer measures are the same segment.
+  function spokeEnd(c, a0) {
+    return { vx: c.vx + c.r * Math.cos(a0), vy: c.vy + c.r * Math.sin(a0) };
+  }
+
+  // Draw a radius measurement: arc or pie, the measured spoke, hit area, handles
+  // and label. Returns false when the points do not define a circle, so a render
+  // never throws even if a degenerate one somehow reached the state.
+  function drawRadius(layer, m, z, selected, color) {
+    const c = App.circleOf(m.type, m.pts);
+    const span = App.arcSpanOf(m.type, m.pts, m.arc);
+    if (!c || !span) return false;
+    const w = widthOf(m);
+    const pie = m.type === 'radius3';
+    const d = arcD(c, span.a0, span.a1, z, pie);
+
+    const path = ns('path');
+    path.setAttribute('class', 'm-shape' + (pie ? ' m-fill' : '') + (selected ? ' selected' : ''));
+    path.setAttribute('d', d);
+    path.setAttribute('fill', pie ? color : 'none');
+    path.setAttribute('stroke', color);
+    path.style.strokeWidth = (w + (selected ? 0.8 : 0)) + 'px';
+    layer.appendChild(path);
+
+    // The measured radius, dashed so it reads as a dimension rather than as part
+    // of the traced geometry.
+    const edge = spokeEnd(c, span.a0);
+    const spoke = ns('line');
+    spoke.setAttribute('class', 'm-shape');
+    spoke.setAttribute('x1', c.vx * z); spoke.setAttribute('y1', c.vy * z);
+    spoke.setAttribute('x2', edge.vx * z); spoke.setAttribute('y2', edge.vy * z);
+    spoke.setAttribute('stroke', color);
+    spoke.setAttribute('stroke-dasharray', '5 4');
+    spoke.style.strokeWidth = w + 'px';
+    layer.appendChild(spoke);
+
+    if (!selected) m.pts.forEach((pt) => vdot(layer, pt, z, color));
+
+    const hit = ns('path');
+    hit.setAttribute('class', 'm-hit');
+    hit.setAttribute('d', d);
+    hit.setAttribute('fill', 'none');
+    hit.addEventListener('pointerdown', (e) => startMeasureDrag(m, e));
+    layer.appendChild(hit);
+
+    if (selected) m.pts.forEach((pt, idx) => vhandle(layer, m, idx, z, color));
+
+    const mid = { vx: (c.vx + edge.vx) / 2, vy: (c.vy + edge.vy) / 2 };
+    label(layer, mid.vx * z + 6, mid.vy * z - 6, m.label, color);
+    return true;
+  }
+
   function drawMeasurement(layer, m, z, selected) {
     const color = colorOf(m);
+    if (RADIUS[m.type]) { drawRadius(layer, m, z, selected, color); return; }
     if (m.type === 'count') {
       m.pts.forEach((pt, idx) => {
         const c = ns('circle');
@@ -415,6 +515,26 @@
     const color = M._color || COLORS[a.tool] || '#2f6fed';
     const pts = a.pts.slice();
     const live = pts.concat(a.hover ? [a.hover] : []);
+    // Radius preview: show the real arc as soon as the points define one, so the
+    // user is aiming at the curve they will actually get, not at a chord.
+    if (RADIUS[a.tool]) {
+      const c = App.circleOf(a.tool, live);
+      const span = c ? App.arcSpanOf(a.tool, live, null) : null;
+      if (c && span) {
+        const path = ns('path');
+        path.setAttribute('class', 'm-shape m-preview');
+        path.setAttribute('d', arcD(c, span.a0, span.a1, z, a.tool === 'radius3'));
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', color);
+        path.style.strokeWidth = DEFAULT_WIDTH + 'px';
+        layer.appendChild(path);
+      }
+      live.forEach((pt) => vdot(layer, pt, z, color));
+      const prevR = livePreviewValue(a, live);
+      const atR = live[live.length - 1];
+      if (prevR && atR) label(layer, atR.vx * z + 10, atR.vy * z + 4, prevR, color);
+      return;
+    }
     if (live.length >= 2) {
       const line = ns('polyline');
       line.setAttribute('class', 'm-shape m-preview');
@@ -446,6 +566,15 @@
   }
   function livePreviewValue(a, live) {
     if (a.tool === 'count') return `Count: ${a.pts.length}`;
+    if (RADIUS[a.tool]) {
+      // Name the collinear case while the point can still be moved, rather than
+      // letting the user commit and only then be refused.
+      if (a.tool === 'radius3' && live.length >= 3 && !App.circleOf('radius3', live)) {
+        return 'in line — no arc';
+      }
+      const rv = computeValue(a.tool, a.page, live);
+      return fmtVal(a.tool, rv.value, rv.unit);
+    }
     if (a.tool === 'angle') return live.length >= 3 ? `${angleAt(live[0], live[1], live[2]).toFixed(1)}°` : null;
     const type = a.tool === 'area' ? 'area' : a.tool === 'perimeter' ? 'perimeter' : 'length';
     const pts = a.tool === 'area' ? live : live;
