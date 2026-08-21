@@ -2017,6 +2017,90 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_RADIUS: the two radius measure tools end to end — the reported
+      // value, the collinear refusal that protects the saved file, full circle
+      // vs swept section, and the round-trip.
+      if (process.env.SMOKE_RADIUS) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,700));
+              const A = App.state, M = App.Measure;
+              A.scales[1] = { factor: 0.5, unit: 'ft', ratioLabel: '1pt=0.5ft' };
+
+              // Drive the real tool state machine, so the click arity and the
+              // finalize guard are what is under test, not just the arithmetic.
+              const commit = (tool, pts) => {
+                M._tool = tool;
+                M._active = { tool: tool, page: 1, pts: pts };
+                M.finishDrawing();
+                M._tool = null;
+              };
+
+              // AC-1: three points on a circle of radius 100pt at 0.5 ft/pt = 50ft
+              commit('radius3', [{vx:300,vy:200},{vx:200,vy:100},{vx:100,vy:200}]);
+              const m3 = A.measurements[A.measurements.length-1];
+              // AC-2: centre + a point 100pt away = 50ft
+              commit('radiusCenter', [{vx:400,vy:200},{vx:400,vy:300}]);
+              const mc = A.measurements[A.measurements.length-1];
+              const twoDrawn = A.measurements.length;
+
+              // AC-3: three collinear clicks must create nothing at all
+              commit('radius3', [{vx:100,vy:400},{vx:200,vy:400},{vx:300,vy:400}]);
+              const refusedCollinear = A.measurements.length === twoDrawn;
+              // FR-10: a zero-length centre radius is discarded too
+              commit('radiusCenter', [{vx:50,vy:50},{vx:50,vy:50}]);
+              const refusedZero = A.measurements.length === twoDrawn;
+
+              // Nothing non-finite may ever reach the model: that is what would
+              // corrupt the sidecar and the exported annotation.
+              const nums = [];
+              A.measurements.forEach(m => {
+                if (typeof m.value === 'number') nums.push(m.value);
+                (m.pts||[]).forEach(p => { nums.push(p.vx); nums.push(p.vy); });
+              });
+              const anyBad = nums.some(n => !isFinite(n));
+
+              // AC-4: no stored arc = full circle; a stored arc = just that section
+              const spanFull = App.arcSpanOf('radiusCenter', mc.pts, mc.arc);
+              const spanSect = App.arcSpanOf('radiusCenter', mc.pts, {a0:0, a1:Math.PI/2});
+
+              // AC-5: the feet-inches toggle reaches a radius like any length
+              M.setFeetInches(true);
+              const fiLabel = String(m3.label);
+              M.setFeetInches(false);
+              const decLabel = String(m3.label);
+
+              // FR-11: a real curve is drawn, not a polyline
+              M.repositionAll();
+              await new Promise(r=>setTimeout(r,300));
+              const curves = document.querySelectorAll('.markup-layer path.m-shape').length;
+
+              // AC-7: round-trip through save + reopen (the tab path)
+              const wantVals = [m3.value, mc.value];
+              const bytes = await App.Save.buildBytes();
+              const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset+bytes.byteLength);
+              await App.Viewer.load(buf, 'radius.pdf', null);
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,700));
+              const re = App.state.measurements.filter(m => m.type==='radius3' || m.type==='radiusCenter');
+
+              return JSON.stringify({
+                r3: m3.value, rc: mc.value, r3label: decLabel,
+                refusedCollinear, refusedZero, anyBad,
+                fullByDefault: spanFull ? spanFull.full : null,
+                sectionNotFull: spanSect ? spanSect.full : null,
+                curves, wantVals,
+                reCount: re.length, reVals: re.map(m => m.value), fiLabel
+              });
+            })()`, true);
+            console.log('[radius] ' + r);
+          } catch (e) { console.log('[radius] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SELECT) {
         setTimeout(async () => {
           try {
