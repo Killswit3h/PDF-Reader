@@ -1966,16 +1966,27 @@ function createWindow() {
               const reAnn = App.state.annotations.length, reMeas = App.state.measurements.length;
 
               // ---- AC-2: a base that cannot be built writes no sidecar at all ----
-              // Corrupt pdfBytes so PDFDocument.load throws inside the sidecar
-              // block. With the model attached first (the old order) this
-              // produced a file carrying marks with no base; it must now produce
-              // a file carrying neither.
-              const keepBytes = App.state.pdfBytes;
-              App.state.pdfBytes = new Uint8Array([1,2,3,4,5]);
+              // Fail ONLY the base build. Corrupting App.state.pdfBytes does not
+              // work: buildBytes loads the main document from those same bytes
+              // first, so the whole export dies before the sidecar block is ever
+              // reached and the test proves nothing. Instead count calls to
+              // PDFDocument.load and throw on the second — call 1 is the main
+              // document, call 2 is the pristine base. With the model attached
+              // first (the old order) this produced a file carrying the marks
+              // with no base to lay them over; it must now produce a file
+              // carrying neither attachment.
+              const PD = window.PDFLib.PDFDocument;
+              const realLoad = PD.load.bind(PD);
+              let loadCalls = 0;
+              PD.load = async function () {
+                loadCalls++;
+                if (loadCalls === 2) throw new Error('smoke: forced base failure');
+                return realLoad.apply(null, arguments);
+              };
               let halfAtt = null, halfErr = '';
               try { halfAtt = await attOf(await App.Save.buildBytes()); }
               catch (e) { halfErr = e.message; }
-              App.state.pdfBytes = keepBytes;
+              PD.load = realLoad;
 
               // ---- AC-3: a model with no base is reported, not swallowed ----
               const orphan = await PDFDocument.create();
@@ -1997,7 +2008,7 @@ function createWindow() {
                 restored: reAnn === wantAnn && reMeas === wantMeas,
                 halfAtt, halfErr,
                 noHalfSidecar: Array.isArray(halfAtt) && halfAtt.length === 0,
-                askedAboutOrphan: asked.length > 0, orphanFlat
+                askedAboutOrphan: asked.length > 0, orphanFlat, loadCalls, dbg
               });
             })()`, true);
             console.log('[roundtrip] ' + r);
