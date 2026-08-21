@@ -74,3 +74,69 @@ registry added in `feat/rail-menu-exclusivity`. Opening it therefore does not
 close an open rail flyout and vice versa. Pre-existing; no visible overlap on
 current layouts because the rail is a bottom bar at that breakpoint. Fold it
 into `registerDropdown()` if the two ever collide.
+
+## Radius measurement — 3-Point and Center Radius
+
+Requested alongside the round-trip fix; to match Bluebeam, which ships two
+separate tools. 3-Point Radius: click one end of the arc, a point along it, then
+the other end; Revu draws a pie-piece and reports the radius. Center Radius:
+click the centre then a point on the circumference, drawing a full circle by
+default, or drag along the arc to draw only a section. Both should export as
+calibrated dimension annotations the way the existing measure tools now do.
+
+## Persist page orientation by baking /Rotate
+
+Rotation is currently not stored anywhere — it is absent from the serialized
+model. Decision taken: write `/Rotate` into the PDF page itself rather than
+keeping it a view preference, so a corrected sheet opens the same way in every
+application and for every recipient. Note this modifies the document, so it
+wants a clear, undoable user action rather than silently persisting whatever the
+Rotate button was last set to.
+
+## Real PDF bookmarks with a side panel
+
+No outline handling exists today. Decision taken: the real PDF outline, read and
+written, not an app-local flag layer — so bookmarks in drawings received from
+others are visible, and bookmarks added here travel to Acrobat and Revu.
+
+## Independent per-pane rotation when comparing
+
+Compare currently offers no rotation. Decision taken: each pane rotates on its
+own, so a sheet scanned sideways can be aligned against one that was not.
+
+## Zoom anchor accuracy
+
+`Viewer.zoomToAt` already anchors at the cursor, and the Ctrl+wheel binding is
+correct; the complaint is that the anchor drifts. Leading hypothesis: the anchor
+is computed as `scrollLeft + offset` and scaled by the zoom ratio, which only
+holds when content starts at the scroll origin. When a page is narrower than the
+viewport pdf.js centres it, and that margin does not scale with zoom. Confirm
+against the real viewer before changing the maths.
+
+## Document change log
+
+Requested during the round-trip work; deferred so the data-loss fix ships alone.
+Decisions taken:
+
+Scope is marks plus document operations — every markup and measurement added,
+moved, restyled or deleted, and page-level events: reorder, rotate, insert,
+delete, stamps and watermarks, signatures. Opens and saves are not logged.
+
+Two halves, both required. The native half writes `/CreationDate` and `/M` on
+every exported annotation, so Bluebeam and Acrobat show dates in their markup
+list and update them when a recipient edits a mark; this is the only part that
+survives the file being edited in other software. The FieldMark half is a
+detailed panel backed by a record in the sidecar, covering what the native
+fields cannot — deletions, before/after values, and document operations that are
+not annotations.
+
+No author identity. `/T` is deliberately omitted: the app has no accounts and
+adding a name was declined. Consequence to keep in mind — marks made here are
+anonymous, while Revu and Acrobat stamp their own user's name on anything they
+create or edit, so a recipient's changes are attributable and the originals are
+not. Combined with keeping the original file, Compare is the intended way to see
+what a recipient altered.
+
+Open question for its spec: the FieldMark half lives in the sidecar, which means
+it inherits the sidecar's fragility — another tool rewriting the PDF drops it.
+Decide then whether the log should also be exportable to a standalone file.
