@@ -191,7 +191,36 @@
   }
 
   /* ---------------- interaction (from app.js delegation) ---------------- */
+  // Press-drag-release on Center Radius sweeps a section instead of drawing the
+  // default full circle (FR-4). Mirrors the freehand-ink pointer pattern; the
+  // browser still fires a click after the drag, which _suppressClick swallows so
+  // the release does not also get taken as the next point.
+  M.radiusDragStart = function (page, overlay, e) {
+    if (M._tool !== 'radiusCenter') return;
+    if (!M._active || M._active.page !== page || M._active.pts.length !== 1) return;
+    M._rdrag = { page, start: pointFromEvent(page, overlay, e), moved: false, sweep: 0, lastAng: null };
+  };
+
+  M.radiusDragEnd = function () {
+    const d = M._rdrag;
+    M._rdrag = null;
+    if (!d || !d.moved || !M._active) return;
+    const a = M._active;
+    M._active = null;
+    a.pts.push(d.start);
+    const c = App.circleOf('radiusCenter', a.pts);
+    if (c && d.sweep) {
+      const a0 = App.Geom.angleOf(c, d.start);
+      a.arc = { a0, a1: a0 + d.sweep };
+    }
+    M._suppressClick = true;
+    finalize(a);
+    M.repositionAll();
+  };
+
   M.handleClick = function (page, overlay, e) {
+    // Swallow the click the browser fires at the end of a sweep drag.
+    if (M._suppressClick) { M._suppressClick = false; return; }
     const tool = M._tool;
     if (!tool) return;
     const p = pointFromEvent(page, overlay, e);
@@ -229,6 +258,30 @@
 
   M.handleMove = function (page, overlay, e) {
     if (App.Snap) App.Snap.ensure(page); // harvest this page's geometry once, lazily
+    // Sweeping a Center Radius section: accumulate the signed angle travelled
+    // rather than reading it from the current position, so a sweep past 180
+    // degrees keeps going the way the user is dragging instead of snapping to
+    // the short way round.
+    const rd = M._rdrag;
+    if (rd && M._active && M._active.pts.length === 1) {
+      const p = pointFromEvent(page, overlay, e);
+      if (!rd.moved && dist(rd.start, p) > 3) rd.moved = true;
+      if (rd.moved) {
+        const c = App.circleOf('radiusCenter', [M._active.pts[0], rd.start]);
+        if (c) {
+          const cur = App.Geom.angleOf(c, p);
+          if (rd.lastAng == null) rd.lastAng = App.Geom.angleOf(c, rd.start);
+          let dd = cur - rd.lastAng;
+          while (dd > Math.PI) dd -= Math.PI * 2;
+          while (dd < -Math.PI) dd += Math.PI * 2;
+          rd.sweep += dd;
+          rd.lastAng = cur;
+        }
+        M._active.rdrag = { edge: rd.start, sweep: rd.sweep };
+      }
+      M.scheduleReposition(page);
+      return;
+    }
     if (!M._active || M._active.page !== page || !M._active.pts.length) return;
     const p = pointFromEvent(page, overlay, e);
     M._active.hover = p;
@@ -518,8 +571,14 @@
     // Radius preview: show the real arc as soon as the points define one, so the
     // user is aiming at the curve they will actually get, not at a chord.
     if (RADIUS[a.tool]) {
-      const c = App.circleOf(a.tool, live);
-      const span = c ? App.arcSpanOf(a.tool, live, null) : null;
+      // Mid-sweep the radius is fixed by where the drag began; only the span grows.
+      const sweeping = a.rdrag ? [a.pts[0], a.rdrag.edge] : null;
+      const c = App.circleOf(a.tool, sweeping || live);
+      let span = c ? App.arcSpanOf(a.tool, sweeping || live, null) : null;
+      if (c && span && sweeping) {
+        const a0 = App.Geom.angleOf(c, a.rdrag.edge);
+        span = { a0, a1: a0 + a.rdrag.sweep, full: false };
+      }
       if (c && span) {
         const path = ns('path');
         path.setAttribute('class', 'm-shape m-preview');
