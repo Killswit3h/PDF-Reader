@@ -199,7 +199,7 @@ const SCENARIOS = [
       // AC-1 / AC-2: 100pt at 0.5 ft/pt is 50ft, by either construction.
       check(j.r3 === 50, `3-point radius ${j.r3} != 50`);
       check(j.rc === 50, `centre radius ${j.rc} != 50`);
-      check(j.r3label === 'R 50.00 ft', `label "${j.r3label}" should read R 50.00 ft`);
+      check(j.r3label === '50.00 ft', `label "${j.r3label}" should read as a plain distance`);
       // AC-3 / FR-10: degenerate input creates nothing and leaves no non-finite
       // number in the model -- the failure that would corrupt the saved file.
       check(j.refusedCollinear === true, 'collinear clicks created a measurement');
@@ -211,7 +211,7 @@ const SCENARIOS = [
       // FR-11: drawn as real curves, not polylines.
       check(j.curves >= 2, `expected 2 curve paths, found ${j.curves}`);
       // AC-5: the feet-inches toggle reaches a radius like any length.
-      check(/^R \d+'-/.test(j.fiLabel), `feet-inches label "${j.fiLabel}" not architectural`);
+      check(/^\d+'-/.test(j.fiLabel), `feet-inches label "${j.fiLabel}" not architectural`);
       // AC-7: both survive save + reopen with their radii intact.
       check(j.reCount === 2, `${j.reCount} radius measurements restored, expected 2`);
       check(JSON.stringify(j.reVals) === JSON.stringify(j.wantVals),

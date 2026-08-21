@@ -56,6 +56,18 @@ the units of the governing scale, resolved region-beats-page through the same
 **FR-7** — The system shall format the radius with the active display options, so
 the feet-inches toggle applies to it exactly as it applies to a length.
 
+**FR-7a** — The system shall label a radius measurement as a plain distance, with
+no prefix or wording distinguishing it from any other length.
+
+> **Decided by the repo owner.** A radius IS a distance — centre to
+> circumference — and that is what is being measured. Labelling it as one keeps
+> the text identical to what Bluebeam and Acrobat print for the same annotation,
+> which completes the parity FR-13 starts: same number, same label, both sides.
+> The tool that produced it stays named "Radius" on the button and in the
+> measurements panel, where the identity is useful; the value is just a distance.
+> An earlier draft prefixed the value with `R `, which would have made FieldMark
+> the only viewer showing that prefix.
+
 **FR-8** — Where no scale is set for the page, the system shall show the existing
 `(set scale)` cue and prompt to set one, rather than showing a number in points.
 

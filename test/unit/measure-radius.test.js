@@ -69,17 +69,24 @@ describe('computeValue — radius types', () => {
 });
 
 describe('fmtMeasure — radius labels', () => {
-  it('prefixes R so a reader cannot mistake it for an arc length', () => {
-    expect(fmtMeasure('radius3', 50, 'ft')).toBe('R 50.00 ft');
-    expect(fmtMeasure('radiusCenter', 12.5, 'm')).toBe('R 12.50 m');
+  // A radius is a distance, so it prints as one -- identical to what Bluebeam
+  // shows for the same annotation. The tool name lives on the button and in the
+  // measurements panel, not in the value.
+  it('formats exactly like a length, with no distinguishing prefix', () => {
+    expect(fmtMeasure('radius3', 50, 'ft')).toBe('50.00 ft');
+    expect(fmtMeasure('radiusCenter', 12.5, 'm')).toBe('12.50 m');
   });
 
   it('applies the feet-inches toggle exactly as a length does', () => {
-    expect(fmtMeasure('radius3', 50.5, 'ft', { feetInches: true, denom: 16 })).toBe("R 50'-6\"");
+    expect(fmtMeasure('radius3', 50.5, 'ft', { feetInches: true, denom: 16 })).toBe("50'-6\"");
   });
 
   it('ignores feet-inches for a metric scale', () => {
-    expect(fmtMeasure('radiusCenter', 4.25, 'm', { feetInches: true, denom: 16 })).toBe('R 4.25 m');
+    expect(fmtMeasure('radiusCenter', 4.25, 'm', { feetInches: true, denom: 16 })).toBe('4.25 m');
+  });
+
+  it('is indistinguishable from a length of the same value', () => {
+    expect(fmtMeasure('radius3', 50, 'ft')).toBe(fmtMeasure('length', 50, 'ft'));
   });
 
   it('does not change how the existing types format', () => {

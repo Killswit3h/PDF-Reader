@@ -27,6 +27,9 @@
   // a radius is not a running polyline length, and per-segment leg labels
   // would be meaningless on an arc.
   const RADIUS = { radius3: true, radiusCenter: true };
+  // How a type is named in the measurements panel. The value it reports is a
+  // plain distance; this is where the tool that produced it is still visible.
+  const TYPE_LABEL = { radius3: '3-point radius', radiusCenter: 'center radius' };
   // Points a tool consumes; anything beyond is ignored. Absent = open-ended.
   const CAP = { angle: 3, radius3: 3, radiusCenter: 2 };
   // Types measured as a running length over an open polyline (sum of every leg).
@@ -754,7 +757,7 @@
         row.setAttribute('aria-selected', m.id === App.state.measureSelectedId ? 'true' : 'false');
         row.innerHTML =
           `<span class="mp-swatch" style="background:${colorOf(m)}"></span>` +
-          `<span class="mp-type">${m.type}</span>` +
+          `<span class="mp-type">${TYPE_LABEL[m.type] || m.type}</span>` +
           `<span class="mp-val">${m.label}</span>` +
           `<span class="mp-pg">p${m.page}</span>` +
           `<button class="mp-del" title="Delete" aria-label="Delete">${App.icon('trash')}</button>`;

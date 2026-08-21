@@ -60,15 +60,13 @@
     if (type === 'count') return `${value}`;
     if (type === 'angle') return `${value.toFixed(1)}°`;
     if (type === 'area') return `${value.toFixed(2)} ${unit}²`;
-    // Radius reads as a length with an R prefix, so the feet-inches toggle
-    // applies to it exactly as it does to a length -- and so a reader can tell
-    // it apart from an arc length at a glance.
-    if (type === 'radius3' || type === 'radiusCenter') {
-      const body = (opts && opts.feetInches && unit === 'ft')
-        ? formatFeetInches(value, opts.denom)
-        : `${value.toFixed(2)} ${unit}`;
-      return `R ${body}`;
-    }
+    // A radius IS a distance -- centre to circumference -- so it is labelled as
+    // one, with no prefix distinguishing it from any other length. That keeps
+    // the label identical to what Bluebeam and Acrobat print for the same
+    // annotation, which is the whole point of exporting the radius segment as
+    // the measurement geometry. The tool that produced it is named "radius" on
+    // the button and in the measurements panel; the value is just a distance.
+    // Falls through to the length branch below deliberately.
     // length / perimeter
     if (opts && opts.feetInches && unit === 'ft') return formatFeetInches(value, opts.denom);
     return `${value.toFixed(2)} ${unit}`;
