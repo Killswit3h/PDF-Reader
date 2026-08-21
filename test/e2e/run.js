@@ -193,6 +193,30 @@ const SCENARIOS = [
     // A radius that is silently wrong prints on a sheet someone builds from,
     // so this checks the number, the refusal that keeps a bad one out of the
     // file, and that the value survives a save and reopen.
+    // Length ALONG a curved run -- the linear-feet quantity a takeoff needs, and
+    // the one the radius tools deliberately do not report.
+    name: 'arc length — measures along the curve, not across to it',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_ARCLEN: '1' }, [SAMPLE]), 'arclen');
+      // AC-1: half a 100pt circle at 0.5 ft/pt is 50*PI ft.
+      check(Math.abs(j.value - j.want) < 1e-6, `arc length ${j.value} != ${j.want}`);
+      check(j.label === '157.08 ft', `label "${j.label}" should read as a plain distance`);
+      // The distinction the tool exists for: same three clicks, different number.
+      check(Math.abs(j.asRadius - 50) < 1e-6, `radius off the same points was ${j.asRadius}`);
+      check(j.value > j.asRadius * 3, 'arc length should far exceed the radius on a half circle');
+      // AC-2: degenerate input creates nothing and leaves no non-finite number.
+      check(j.refusedCollinear === true, 'collinear clicks created an arc length');
+      check(j.anyBad === false, 'a non-finite number reached the measurement model');
+      // FR-5: a real curve, and no radius spoke inviting the wrong number.
+      check(j.curves >= 1, `expected a curve path, found ${j.curves}`);
+      check(j.dashed === 0, 'arc length drew a radius spoke; it does not measure the radius');
+      // AC-5 / AC-4.
+      check(/^\d+'-/.test(j.fiLabel), `feet-inches label "${j.fiLabel}" not architectural`);
+      check(j.reCount === 1, `${j.reCount} arc lengths restored, expected 1`);
+      check(Math.abs(j.reVal - j.want) < 1e-6, `restored ${j.reVal} != saved ${j.want}`);
+    }
+  },
+  {
     name: 'radius — 3-point and centre radius measure, refuse bad input, round-trip',
     run: () => {
       const j = tagJson(runApp({ SMOKE_RADIUS: '1' }, [SAMPLE]), 'radius');

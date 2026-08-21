@@ -97,7 +97,9 @@
       const r = Geom.dist(pts[0], pts[1]);
       return r > 0 ? { vx: pts[0].vx, vy: pts[0].vy, r } : null;
     }
-    if (type === 'radius3') {
+    if (type === 'radius3' || type === 'arcLength') {
+      // Arc length uses the identical 3-point construction; only the number
+      // reported off the circle differs.
       if (pts.length < 3) return null;
       return Geom.circumcircle(pts[0], pts[1], pts[2]);
     }
@@ -129,6 +131,16 @@
       return { value: pts.length >= 3 ? Geom.angleAt(pts[0], pts[1], pts[2]) : 0, unit: '°' };
     }
     if (!scale) return { value: null, unit: null };
+    if (type === 'arcLength') {
+      // Length ALONG the curve: r * theta. Distinct from the radius, and the
+      // quantity a linear-feet takeoff of a curved run actually needs.
+      const ac = circleOf(type, pts);
+      const asp = ac ? arcSpanOf(type, pts, null) : null;
+      return {
+        value: (ac && asp) ? ac.r * Math.abs(asp.a1 - asp.a0) * scale.factor : null,
+        unit: scale.unit
+      };
+    }
     if (type === 'radius3' || type === 'radiusCenter') {
       // A degenerate circle yields a null value, never NaN: the caller refuses
       // to create the measurement rather than storing an unusable number.

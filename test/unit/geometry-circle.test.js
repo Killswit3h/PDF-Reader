@@ -152,3 +152,70 @@ describe('arcToBezier', () => {
     expect(arcToBezier({ vx: 0, vy: 0 }, 0, 0, Math.PI)).toEqual([]);
   });
 });
+
+// A chord polyline always under-measures the curve it approximates. This is the
+// density rule that keeps that shortfall invisible in an exported measurement,
+// and the numbers below are why the rule is 1 degree rather than something
+// chosen by eye.
+describe('arcTessellationSegments', () => {
+  const { arcTessellationSegments } = Geom;
+  const polylineLen = (r, theta, n) => 2 * n * r * Math.sin(Math.abs(theta) / (2 * n));
+
+  it('splits at about half a degree per segment', () => {
+    expect(arcTessellationSegments(Math.PI)).toBe(360);
+    expect(arcTessellationSegments(Math.PI * 2)).toBe(720);
+  });
+
+  it('floors short arcs so they still look smooth', () => {
+    expect(arcTessellationSegments(0.001)).toBe(24);
+    expect(arcTessellationSegments(0)).toBe(24);
+  });
+
+  it('caps long sweeps so a file cannot bloat without bound', () => {
+    expect(arcTessellationSegments(Math.PI * 20)).toBe(1440);
+  });
+
+  it('is sign-agnostic — a clockwise sweep tessellates like a counter-clockwise one', () => {
+    expect(arcTessellationSegments(-Math.PI)).toBe(arcTessellationSegments(Math.PI));
+  });
+
+  // The case from the plan sheet that prompted the tool: a ~292 degree
+  // cul-de-sac run at R42, whose drawing calls out 214 LF of guardrail.
+  it('keeps a 214ft run inside a hundredth of a foot', () => {
+    const r = 42, theta = 292 * Math.PI / 180;
+    const n = arcTessellationSegments(theta);
+    const shortfall = r * theta - polylineLen(r, theta, n);
+    expect(shortfall).toBeLessThan(0.01);
+    expect(r * theta).toBeCloseTo(214.05, 1);
+  });
+
+  // The guarantee is RELATIVE, because the helper knows the arc in points and
+  // has no idea what a point is worth in feet. This is the bound everything
+  // else follows from, and it holds at any radius and any sweep.
+  it('holds a relative shortfall of a few parts per million at any size', () => {
+    for (const r of [5, 42, 200, 1000]) {
+      for (const deg of [15, 90, 180, 292, 359]) {
+        const theta = deg * Math.PI / 180;
+        const n = arcTessellationSegments(theta);
+        const arc = r * theta;
+        expect((arc - polylineLen(r, theta, n)) / arc).toBeLessThan(5e-6);
+      }
+    }
+  });
+
+  // What that relative bound buys in absolute terms for runs the size a plan
+  // sheet actually carries: comfortably inside the hundredth of a foot the
+  // label displays. A 1000ft-radius full sweep is 6000ft of arc and does drift
+  // past that -- it is also not a curved run anyone takes off a drawing.
+  it('keeps runs up to about 3000ft inside a hundredth of a foot', () => {
+    for (const r of [5, 42, 200]) {
+      for (const deg of [15, 90, 180, 292, 359]) {
+        const theta = deg * Math.PI / 180;
+        const n = arcTessellationSegments(theta);
+        const arc = r * theta;
+        expect(arc).toBeLessThan(3200);
+        expect(arc - polylineLen(r, theta, n)).toBeLessThan(0.01);
+      }
+    }
+  });
+});

@@ -17,21 +17,23 @@
   const COLORS = {
     length: '#2f6fed', continuous: '#0891b2', perimeter: '#7b61ff', area: '#21a366',
     angle: '#d1348c', count: '#e5a300',
-    radius3: '#f26419', radiusCenter: '#00695c'
+    radius3: '#f26419', radiusCenter: '#00695c', arcLength: '#8e24aa'
   };
   const NEEDS_SCALE = {
     length: true, continuous: true, perimeter: true, area: true,
-    radius3: true, radiusCenter: true
+    radius3: true, radiusCenter: true, arcLength: true
   };
-  // Types whose value is a circle's radius. Deliberately absent from LINEAR:
-  // a radius is not a running polyline length, and per-segment leg labels
-  // would be meaningless on an arc.
-  const RADIUS = { radius3: true, radiusCenter: true };
+  // Types derived from a circle. Deliberately absent from LINEAR: none of them
+  // is a running polyline length, and per-segment leg labels would be
+  // meaningless on an arc.
+  const CIRCULAR = { radius3: true, radiusCenter: true, arcLength: true };
+  // Of those, the one measuring along the curve rather than across to it.
+  const ARC_ONLY = { arcLength: true };
   // How a type is named in the measurements panel. The value it reports is a
   // plain distance; this is where the tool that produced it is still visible.
-  const TYPE_LABEL = { radius3: '3-point radius', radiusCenter: 'center radius' };
+  const TYPE_LABEL = { radius3: '3-point radius', radiusCenter: 'center radius', arcLength: 'arc length' };
   // Points a tool consumes; anything beyond is ignored. Absent = open-ended.
-  const CAP = { angle: 3, radius3: 3, radiusCenter: 2 };
+  const CAP = { angle: 3, radius3: 3, radiusCenter: 2, arcLength: 3 };
   // Types measured as a running length over an open polyline (sum of every leg).
   const LINEAR = { length: true, continuous: true, perimeter: true };
   const SNAP_PX = 10;
@@ -154,7 +156,7 @@
     const a = M._active;
     M._active = null;
     if (!a || M._tool === 'calibrate' || M._tool === 'viewport') return;
-    const need = (a.tool === 'area' || a.tool === 'angle' || a.tool === 'radius3') ? 3
+    const need = (a.tool === 'area' || a.tool === 'angle' || a.tool === 'radius3' || a.tool === 'arcLength') ? 3
       : a.tool === 'count' ? 1 : 2;
     if (a.pts.length < need) return;
     finalize(a);
@@ -165,8 +167,8 @@
     // and a zero-length centre-radius has no circle at all; storing either would
     // put Infinity/NaN into the measurement model and into the saved PDF. Refuse
     // before the history snapshot so a rejected draw leaves no undo step.
-    if (RADIUS[a.tool] && !App.circleOf(a.tool, a.pts.slice(0, CAP[a.tool]))) {
-      App.toast(a.tool === 'radius3'
+    if (CIRCULAR[a.tool] && !App.circleOf(a.tool, a.pts.slice(0, CAP[a.tool]))) {
+      App.toast((a.tool === 'radius3' || a.tool === 'arcLength')
         ? 'Those three points lie on a straight line — a radius needs a curve. Click three points along the arc.'
         : 'Click the centre, then a point away from it.', 'error', 5000);
       M.repositionAll();
@@ -447,16 +449,20 @@
     layer.appendChild(path);
 
     // The measured radius, dashed so it reads as a dimension rather than as part
-    // of the traced geometry.
+    // of the traced geometry. Not drawn for arc length: the radius is not what
+    // that tool measures, and showing it invites reading the wrong number off
+    // the sheet — which is exactly the confusion this tool exists to end.
     const edge = spokeEnd(c, span.a0);
-    const spoke = ns('line');
-    spoke.setAttribute('class', 'm-shape');
-    spoke.setAttribute('x1', c.vx * z); spoke.setAttribute('y1', c.vy * z);
-    spoke.setAttribute('x2', edge.vx * z); spoke.setAttribute('y2', edge.vy * z);
-    spoke.setAttribute('stroke', color);
-    spoke.setAttribute('stroke-dasharray', '5 4');
-    spoke.style.strokeWidth = w + 'px';
-    layer.appendChild(spoke);
+    if (!ARC_ONLY[m.type]) {
+      const spoke = ns('line');
+      spoke.setAttribute('class', 'm-shape');
+      spoke.setAttribute('x1', c.vx * z); spoke.setAttribute('y1', c.vy * z);
+      spoke.setAttribute('x2', edge.vx * z); spoke.setAttribute('y2', edge.vy * z);
+      spoke.setAttribute('stroke', color);
+      spoke.setAttribute('stroke-dasharray', '5 4');
+      spoke.style.strokeWidth = w + 'px';
+      layer.appendChild(spoke);
+    }
 
     if (!selected) m.pts.forEach((pt) => vdot(layer, pt, z, color));
 
@@ -469,14 +475,18 @@
 
     if (selected) m.pts.forEach((pt, idx) => vhandle(layer, m, idx, z, color));
 
-    const mid = { vx: (c.vx + edge.vx) / 2, vy: (c.vy + edge.vy) / 2 };
+    // Arc length labels on the curve it measured; a radius labels its spoke.
+    const midAng = (span.a0 + span.a1) / 2;
+    const mid = ARC_ONLY[m.type]
+      ? { vx: c.vx + c.r * Math.cos(midAng), vy: c.vy + c.r * Math.sin(midAng) }
+      : { vx: (c.vx + edge.vx) / 2, vy: (c.vy + edge.vy) / 2 };
     label(layer, mid.vx * z + 6, mid.vy * z - 6, m.label, color);
     return true;
   }
 
   function drawMeasurement(layer, m, z, selected) {
     const color = colorOf(m);
-    if (RADIUS[m.type]) { drawRadius(layer, m, z, selected, color); return; }
+    if (CIRCULAR[m.type]) { drawRadius(layer, m, z, selected, color); return; }
     if (m.type === 'count') {
       m.pts.forEach((pt, idx) => {
         const c = ns('circle');
@@ -573,7 +583,7 @@
     const live = pts.concat(a.hover ? [a.hover] : []);
     // Radius preview: show the real arc as soon as the points define one, so the
     // user is aiming at the curve they will actually get, not at a chord.
-    if (RADIUS[a.tool]) {
+    if (CIRCULAR[a.tool]) {
       // Mid-sweep the radius is fixed by where the drag began; only the span grows.
       const sweeping = a.rdrag ? [a.pts[0], a.rdrag.edge] : null;
       const c = App.circleOf(a.tool, sweeping || live);
@@ -628,7 +638,7 @@
   }
   function livePreviewValue(a, live) {
     if (a.tool === 'count') return `Count: ${a.pts.length}`;
-    if (RADIUS[a.tool]) {
+    if (CIRCULAR[a.tool]) {
       // Name the collinear case while the point can still be moved, rather than
       // letting the user commit and only then be refused.
       if (a.tool === 'radius3' && live.length >= 3 && !App.circleOf('radius3', live)) {
@@ -772,6 +782,18 @@
           M.select(m.id, true); // panel pick: scroll the shape's page into view
         });
         list.appendChild(row);
+        // Arc length also reports the radius it was traced on, so one trace
+        // gives both numbers without reaching for the radius tool as well.
+        if (ARC_ONLY[m.type]) {
+          const ac = App.circleOf(m.type, m.pts);
+          const asc = scaleFor(m.page, m.pts);
+          if (ac && asc) {
+            const note = document.createElement('div');
+            note.className = 'mp-segs';
+            note.textContent = 'radius ' + App.fmtMeasure('length', ac.r * asc.factor, asc.unit, fmtOpts());
+            list.appendChild(note);
+          }
+        }
         // Selected length/perimeter/area: list each leg's length underneath.
         if (m.id === App.state.measureSelectedId &&
             (LINEAR[m.type] || m.type === 'area')) {

@@ -158,3 +158,17 @@ a separate tool the way Bluebeam ships one). Arc length is a genuinely different
 quantity from the radius and would need its own type — note that it is what a
 recipient's viewer would report if the radius export ever regressed to writing
 the drawn curve as the measurement geometry, so the two must not be conflated.
+
+## Arc length from a centre plus a swept angle
+
+The Arc Length tool takes the 3-point trace, which is what a curved run on a
+plan sheet gives you. A centre-plus-sweep variant (like Center Radius) would
+suit a case where the centre is known and dimensioned instead. Deferred from
+that feature; the drawing, export and value paths would all be reused.
+
+## Chained arc runs
+
+A curved run that changes radius mid-way — a reverse curve, or a curb return
+tangent into a bulb — currently needs one arc length measurement per segment,
+added by hand. A running total across several arcs (the way `continuous` sums
+polyline legs) would match how such a run is actually called out on a sheet.

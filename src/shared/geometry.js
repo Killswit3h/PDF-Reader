@@ -285,6 +285,28 @@
     return (dm <= d2) ? { a0, a1: a0 + d2 } : { a0, a1: a0 - (TAU - d2) };
   }
 
+  // How many straight segments to split an arc into when its length has to be
+  // measured from the polyline rather than from the curve.
+  //
+  // A chord polyline is always SHORTER than the arc it approximates: over N
+  // segments spanning theta, it measures 2Nr*sin(theta/2N) against a true arc of
+  // r*theta, a relative shortfall of about d^2/24 where d = theta/N. That is a
+  // silent under-measurement, so the density is chosen from an error budget
+  // rather than by eye. For a 200ft run shown to two decimals the budget is
+  // 0.01ft, i.e. 5e-5 relative:
+  //     5   deg -> 3.2e-4  relative
+  //     1   deg -> 1.3e-5  relative  (0.003ft on 214ft, but 0.013ft on 1000ft)
+  //     0.5 deg -> 3.2e-6  relative  (0.003ft even on a 1000ft run)
+  // Hence half a degree: 1 degree is fine for a couple of hundred feet but
+  // drifts past a hundredth on a long run, and the whole point is that the
+  // recipient never sees a different number. Floored so a short arc still looks
+  // smooth, capped so a full sweep cannot bloat the file without bound.
+  function arcTessellationSegments(theta) {
+    const perSegment = Math.PI / 360; // half a degree
+    const n = Math.ceil(Math.abs(theta || 0) / perSegment);
+    return Math.max(24, Math.min(1440, n || 24));
+  }
+
   // Approximate an arc with cubic Bezier segments, each spanning at most 90
   // degrees -- the standard construction, and accurate to well under a printer
   // dot at that span. PDF content streams have no arc operator, only 'c', so
@@ -316,7 +338,7 @@
       dist, polyLen, shoelace, angleAt, centroid, bbox,
       rectFrom, ortho, nearestVertex, arrowHeadPoints, unrotatePoint,
       simplify, smoothStroke,
-      circumcircle, angleOf, arcPoints, arcToBezier, arcSpanThrough,
+      circumcircle, angleOf, arcPoints, arcToBezier, arcSpanThrough, arcTessellationSegments,
       matMul, matApply, constructPathVertices
     }
   };

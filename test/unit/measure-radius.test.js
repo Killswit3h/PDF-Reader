@@ -95,3 +95,43 @@ describe('fmtMeasure — radius labels', () => {
     expect(fmtMeasure('angle', 90, '°')).toBe('90.0°');
   });
 });
+
+// Arc length is the quantity a linear-feet takeoff of a curved run needs, and
+// is deliberately NOT the radius the same three clicks also produce.
+describe('computeValue — arcLength', () => {
+  const HALF_R100 = [{ vx: 100, vy: 0 }, { vx: 0, vy: 100 }, { vx: -100, vy: 0 }];
+
+  it('measures along the curve, not across to it', () => {
+    // Half of a 100pt circle is 100*PI points; at 0.5 ft/pt that is 50*PI ft.
+    const got = computeValue('arcLength', HALF_R100, FT);
+    expect(got.value).toBeCloseTo(50 * Math.PI, 6);
+    expect(got.unit).toBe('ft');
+  });
+
+  it('differs from the radius the same three points give', () => {
+    const arc = computeValue('arcLength', HALF_R100, FT).value;
+    const rad = computeValue('radius3', HALF_R100, FT).value;
+    expect(rad).toBeCloseTo(50, 9);
+    expect(arc).toBeGreaterThan(rad);
+  });
+
+  it('scales a quarter arc correctly', () => {
+    const q = [{ vx: 100, vy: 0 }, { vx: 70.710678, vy: 70.710678 }, { vx: 0, vy: 100 }];
+    expect(computeValue('arcLength', q, FT).value).toBeCloseTo(25 * Math.PI, 3);
+  });
+
+  it('yields a null value — never NaN — for collinear points', () => {
+    const got = computeValue('arcLength', COLLINEAR, FT);
+    expect(got.value).toBeNull();
+    expect(Number.isNaN(got.value)).toBe(false);
+  });
+
+  it('reports no value when the page has no scale', () => {
+    expect(computeValue('arcLength', HALF_R100, null)).toEqual({ value: null, unit: null });
+  });
+
+  it('labels as a plain distance, like any length', () => {
+    expect(fmtMeasure('arcLength', 214.05, 'ft')).toBe('214.05 ft');
+    expect(fmtMeasure('arcLength', 214.05, 'ft')).toBe(fmtMeasure('length', 214.05, 'ft'));
+  });
+});
