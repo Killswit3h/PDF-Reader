@@ -57,7 +57,13 @@ App.state = {
   annoStyle: null, // { stroke, fill, width, opacity, fontSize }
   annoUndo: [],
   annoRedo: [],
-  saveAnnots: false, // true = write real PDF annotations; false = flatten
+  // true = write real PDF annotations; false = flatten into page content.
+  // Defaults ON: flattened marks are dead pixels to Bluebeam and Acrobat, and
+  // the sidecar that keeps them editable here is an attachment any other tool
+  // may strip. Real annotations are the only form that survives the trip. The
+  // trade-off — a recipient can move or delete them in their copy — is accepted,
+  // because the sender keeps the original.
+  saveAnnots: true,
 
   // ---- OCR ----
   // Recognition results per page: { [page]: { status, dpi, words:[{text,vx,vy,vw,vh,conf}] } }

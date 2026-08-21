@@ -133,6 +133,11 @@ const SCENARIOS = [
       check(j.labelMatchesRef, `label angle ${j.labelAngle} != reference text ${j.refAngle}`);
       check(j.labelRotated, `label angle ${j.labelAngle} not compensating page rotation`);
       check(j.flatHorizontal, `unrotated page: label ${j.flatLabel}, ref ${j.flatRef} — expected 0`);
+      // The annotation export is the default, so its label must rotate too. Read
+      // from the /AP stream's Tm, since getTextContent cannot see inside it.
+      check(j.apAngle !== null, 'no Tm found in the measurement annotation /AP — label missing');
+      check(j.apMatchesFlat, `annotation label angle ${j.apAngle} != flattened ${j.labelAngle}`);
+      check(j.apFlatHorizontal, `unrotated page: annotation label ${j.flatApAngle} — expected 0`);
     }
   },
   {

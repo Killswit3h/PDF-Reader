@@ -56,7 +56,7 @@
       numPages: doc.numPages, currentPage: 1, zoom: 1.0, baseViewports: [], pageEls: [],
       mode: null, placements: [], selectedId: null, placementSeq: 0,
       scales: {}, viewports: {}, measurements: [], measureSeq: 0, viewportSeq: 0, measureSelectedId: null,
-      annotations: [], annoSeq: 0, annoSelectedId: null, annoUndo: [], annoRedo: [], saveAnnots: false, flattenForms: false,
+      annotations: [], annoSeq: 0, annoSelectedId: null, annoUndo: [], annoRedo: [], saveAnnots: true, flattenForms: false,
       dirty: false, docStamp: null
     };
   }
