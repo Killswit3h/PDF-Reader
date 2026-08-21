@@ -95,7 +95,13 @@ const MEASURES = [
   { type: 'perimeter', it: 'PolyLineDimension', measure: true, pts: [{ vx: 400, vy: 100 }, { vx: 520, vy: 100 }, { vx: 520, vy: 160 }] },
   { type: 'area', it: 'PolygonDimension', measure: true, pts: [{ vx: 400, vy: 200 }, { vx: 520, vy: 200 }, { vx: 520, vy: 280 }] },
   { type: 'angle', it: null, measure: false, pts: [{ vx: 400, vy: 320 }, { vx: 400, vy: 380 }, { vx: 470, vy: 380 }] },
-  { type: 'count', it: null, measure: false, pts: [{ vx: 400, vy: 420 }, { vx: 430, vy: 420 }, { vx: 460, vy: 420 }] }
+  { type: 'count', it: null, measure: false, pts: [{ vx: 400, vy: 420 }, { vx: 430, vy: 420 }, { vx: 460, vy: 420 }] },
+  // Radius: 72 points of paper at 20ft/inch is exactly 20.00 ft, so a drift
+  // shows up as a round number changing rather than a rounding argument.
+  { type: 'radiusCenter', it: 'LineDimension', measure: true, radius: 20,
+    pts: [{ vx: 400, vy: 480 }, { vx: 400, vy: 552 }] },
+  { type: 'radius3', it: 'LineDimension', measure: true, radius: 20,
+    pts: [{ vx: 322, vy: 500 }, { vx: 250, vy: 428 }, { vx: 178, vy: 500 }] }
 ];
 
 (async () => {
@@ -292,6 +298,14 @@ const MEASURES = [
           it: nm(a, 'IT'),
           measure: !!a.get(PDFName.of('Measure')),
           ap: !!a.get(PDFName.of('AP')),
+          // /L is what a recipient's viewer measures. For a radius annotation it
+          // must be the radius segment itself -- see FR-13.
+          L: (() => {
+            try {
+              const arr = a.get(PDFName.of('L'));
+              return arr ? arr.asArray().map((n) => n.asNumber()) : null;
+            } catch (_) { return null; }
+          })(),
           labelFont
         });
       }
@@ -344,12 +358,30 @@ const MEASURES = [
   let mbad = 0;
   for (const mm of MEASURES) {
     if (!mm.it) continue;                       // angle/count are scale-independent
+    if (mm.radius != null) continue;            // radius is checked by value below
     const hit = dicts.find((d) => d.it === mm.it);
     const okM = !!hit && hit.measure === mm.measure && hit.ap && !!hit.labelFont;
     if (!okM) mbad++;
     mrows.push(`  ${okM ? 'OK  ' : 'FAIL'}  ${mm.type.padEnd(10)} /IT ${(mm.it || '-').padEnd(19)}` +
       ` measure=${hit ? hit.measure : 'ABSENT'} ap=${hit ? hit.ap : 'ABSENT'}` +
       ` labelFont=${hit ? (hit.labelFont || 'UNRESOLVED') : 'ABSENT'}`);
+  }
+  // ---- FR-13 / AC-6: the exported number equals the radius ----
+  // The point of the radius export. A recipient's viewer recomputes the value
+  // from /L, so /L has to BE the radius segment; if it ever drifts back to the
+  // drawn arc, Bluebeam starts reporting the arc length while FieldMark reports
+  // the radius, and the two sides disagree. That is what this catches.
+  const FACTOR = 20 / 72; // the calibration the harness set: 1in = 20ft
+  const lineVals = dicts
+    .filter((d) => d.it === 'LineDimension' && d.L && d.L.length === 4)
+    .map((d) => Math.hypot(d.L[2] - d.L[0], d.L[3] - d.L[1]) * FACTOR);
+  for (const mm of MEASURES) {
+    if (mm.radius == null) continue;
+    const got = lineVals.find((v) => Math.abs(v - mm.radius) < 0.01);
+    const okR = got != null;
+    if (!okR) mbad++;
+    mrows.push(`  ${okR ? 'OK  ' : 'FAIL'}  ${mm.type.padEnd(10)} /L measures ` +
+      `${got != null ? got.toFixed(2) : '—'} ft, FieldMark reports R ${mm.radius.toFixed(2)} ft`);
   }
   console.log(`[verify-tools] ${out.measCount} measurements exported`);
   console.log(mrows.join('\n'));
