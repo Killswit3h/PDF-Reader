@@ -783,7 +783,10 @@
     const chk = App.$('#mkp-annots');
     if (chk) {
       // Restore the persisted editable-vs-flatten choice.
-      const saved = App.Prefs ? App.Prefs.get('saveAnnots', false) : false;
+      // Fallback is true, matching App.state — see the note in util.js. A user
+      // who has explicitly ticked or unticked the box keeps their own choice;
+      // only the never-set fallback moves.
+      const saved = App.Prefs ? App.Prefs.get('saveAnnots', true) : true;
       App.state.saveAnnots = saved;
       chk.checked = saved;
       chk.addEventListener('change', (e) => {

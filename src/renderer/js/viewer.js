@@ -439,6 +439,39 @@
     st.dirty = false;
   };
 
+  // A saved file carried the marks model but not the pristine base it needs.
+  //
+  // The marks are all here as data, but the page on screen is already flattened,
+  // so laying them back over it would draw every mark twice — which is why
+  // _rehydrate is deliberately not called for this case. Offering the model as
+  // JSON at least keeps the record. Before this, the marks were dropped with no
+  // message whatsoever, which is how a day's markup went missing with nothing to
+  // explain it. Losing the layers is bad; losing them silently is worse.
+  Viewer._offerOrphanModel = async function (data) {
+    if (!data) return;
+    const marks = (data.annotations || []).length;
+    const meas = (data.measurements || []).length;
+    const place = (data.placements || []).length;
+    const total = marks + meas + place;
+    if (!total) return;
+    const want = await App.confirm(
+      `This file holds ${total} saved item${total === 1 ? '' : 's'} ` +
+      `(${marks} markup, ${meas} measurement, ${place} placement) but is missing the ` +
+      'editable copy they need, so they cannot be placed back over this page. ' +
+      'Export them to a JSON file so the record is not lost?',
+      { title: 'Marks could not be restored', okLabel: 'Export JSON' }
+    );
+    if (!want) return;
+    try {
+      const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
+      const res = await window.api.saveTextDialog(`${base}-marks.json`, JSON.stringify(data, null, 2));
+      if (res && res.ok) App.toast(`Saved: ${res.path}`, 'success', 5000);
+      else if (res && res.error) App.toast('Could not export marks: ' + res.error, 'error');
+    } catch (e) {
+      App.toast('Could not export marks: ' + (e && e.message), 'error');
+    }
+  };
+
   // Show the document currently in App.state (its pdfDoc/arrays) in the viewer.
   // `restore` = { scaleValue, page } to reapply on a tab switch (else fit-width).
   // PDF.js keeps interactive AcroForm edits in the document's annotationStorage
@@ -524,6 +557,12 @@
       if (sidecar && sidecar.base) Viewer._rehydrate(sidecar.data);
       Viewer._showActive(null);
       App.toast(`Opened ${App.state.fileName}`, 'success');
+      // Model present, base absent. The guard above is right to refuse to
+      // rehydrate — without the pristine base it would double-draw — but the
+      // marks are recoverable data and must not disappear without a word.
+      // Deliberately not awaited: the open has already succeeded, and this only
+      // adds a prompt on top of it.
+      if (sidecar && !sidecar.base) Viewer._offerOrphanModel(sidecar.data);
       return true;
     } catch (err) {
       console.error(err);

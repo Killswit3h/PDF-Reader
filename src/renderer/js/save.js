@@ -732,19 +732,30 @@
       // our marks excluded). Reopening in this app restores every mark as a live,
       // movable object; other viewers just see the flattened content above and
       // ignore these attachments. Only embed when there's something to preserve.
+      //
+      // Order matters. The base is built BEFORE anything is attached, so every
+      // step that can realistically throw — loading pdfBytes, applying form
+      // edits, re-saving the base — runs while the document carries no sidecar
+      // at all, and a failure leaves a clean file rather than half of one.
+      // Attaching the model first (as this used to) could write a file holding a
+      // complete record of the user's marks with no base to lay them over, which
+      // the open path can only refuse. pdf-lib has no detach and no transaction,
+      // so this ordering IS the guarantee — not an atomic write.
       try {
         const model = S.serializeModel();
         if (!opts.noSidecar && model.__count > 0) {
           delete model.__count;
-          const json = new TextEncoder().encode(JSON.stringify(model));
-          await pdfDoc.attach(json, App.SIDECAR.MODEL, {
-            mimeType: 'application/json', description: 'FieldMark editable markups'
-          });
           // Sidecar base = the document with form edits applied but our marks NOT
           // flattened, so reopening restores editable marks over the filled form.
           const baseDoc = await PDFDocument.load(App.state.pdfBytes);
           await applyFormEdits(baseDoc);
-          await pdfDoc.attach(new Uint8Array(await baseDoc.save()), App.SIDECAR.BASE, {
+          const baseBytes = new Uint8Array(await baseDoc.save());
+          const json = new TextEncoder().encode(JSON.stringify(model));
+          // Nothing between these two that can fail.
+          await pdfDoc.attach(json, App.SIDECAR.MODEL, {
+            mimeType: 'application/json', description: 'FieldMark editable markups'
+          });
+          await pdfDoc.attach(baseBytes, App.SIDECAR.BASE, {
             mimeType: 'application/pdf', description: 'FieldMark base document'
           });
         }
@@ -753,7 +764,10 @@
         // Highest-severity silent failure in the app before this: the file saves
         // fine and looks right, but reopening it gives flattened pixels instead
         // of editable marks, with nothing to explain why.
-        App.toast('Saved, but markups were flattened — reopening this file will not restore them as editable.', 'error', 9000);
+        // The marks are still live in this session, so say so: the user can act
+        // on it now (save elsewhere, or copy them out) instead of finding out
+        // when they reopen the file tomorrow and it is too late.
+        App.toast('Saved, but the editable copy could not be embedded — reopening this file will show flattened marks. Your markups are still editable in this window.', 'error', 11000);
       }
 
       return await pdfDoc.save();
@@ -805,6 +819,18 @@
     try {
       const bytes = await S.buildBytes();
       const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
+
+      // Editable annotations turned off: name the cost at the moment it is
+      // incurred, rather than leaving it to be discovered by whoever opens the
+      // file. Only fires when there is something to flatten, and only for the
+      // minority who deliberately unticked the box — the default is on.
+      if (!App.state.saveAnnots) {
+        const n = (App.state.annotations || []).length + (App.state.measurements || []).length;
+        if (n) {
+          App.toast(`${n} mark${n === 1 ? '' : 's'} flattened — they will not be editable in other PDF apps.`,
+            'info', 6000);
+        }
+      }
 
       if (!forceDialog && App.state.filePath) {
         // Non-destructive default: confirm the first overwrite of each file so a

@@ -341,6 +341,22 @@
   // Build the document, apply the signature with `opts`, and save it into the
   // file being worked on (in place; falls back to Save As for raw-bytes docs).
   async function doSign(opts) {
+    // Signing drops the editable sidecar on purpose (see buildBytes below), so
+    // the signed file's marks can never be reopened as movable objects. That is
+    // correct, but it used to be invisible — the user found out days later on
+    // reopening. Ask first, while cancelling is still an option. Runs before
+    // showLoading so the dialog is not buried under the overlay.
+    const marks = (App.state.annotations || []).length + (App.state.measurements || []).length;
+    if (marks) {
+      const go = await App.confirm(
+        `Signing flattens this document. Its ${marks} markup${marks === 1 ? '' : 's'} and ` +
+        'measurements will stay visible but can no longer be moved or edited when the ' +
+        'signed file is reopened — signing and an editable copy cannot coexist.\n\n' +
+        'Save a copy first if you still need to edit them.',
+        { title: 'Sign — marks become permanent', okLabel: 'Sign anyway' }
+      );
+      if (!go) { $('#dsig-go').disabled = false; setStatus(''); return; }
+    }
     $('#dsig-go').disabled = true;
     setStatus('Building document…');
     // setStatus writes into #dsig-status, which lives *inside* the modal. In

@@ -56,7 +56,7 @@
       numPages: doc.numPages, currentPage: 1, zoom: 1.0, baseViewports: [], pageEls: [],
       mode: null, placements: [], selectedId: null, placementSeq: 0,
       scales: {}, viewports: {}, measurements: [], measureSeq: 0, viewportSeq: 0, measureSelectedId: null,
-      annotations: [], annoSeq: 0, annoSelectedId: null, annoUndo: [], annoRedo: [], saveAnnots: false, flattenForms: false,
+      annotations: [], annoSeq: 0, annoSelectedId: null, annoUndo: [], annoRedo: [], saveAnnots: true, flattenForms: false,
       dirty: false, docStamp: null
     };
   }
@@ -87,12 +87,32 @@
     App.Viewer.init();
     App.showLoading('Opening PDF…');
     try {
-      const { doc, original } = await App.Viewer._parse(arrayBuffer);
+      let { doc, original } = await App.Viewer._parse(arrayBuffer);
+      // Editable round-trip. This has to happen HERE, not only in
+      // Viewer._loadInto. Opening a file goes through the tab manager, which
+      // builds a fresh session state from the bytes on disk, so the restore
+      // _loadInto performs never ran on the path users actually take — it is
+      // reachable only from replaceActive() and the no-tabs fallback. The
+      // result was the original defect: a file saved with a perfectly good
+      // sidecar reopened with every mark flattened into the page and the model
+      // silently ignored. Swap the pristine base in as the working document.
+      const sidecar = await App.Viewer._readSidecar(doc);
+      if (sidecar && sidecar.base) {
+        const reparsed = await App.Viewer._parse(sidecar.base);
+        doc = reparsed.doc; original = reparsed.original;
+      }
       snapshotActive();
       const session = { id: ++seq, state: freshState(doc, original, name, filePath), history: { undo: [], redo: [] }, scaleValue: null, page: 1 };
+      // Applied to the session state BEFORE activate(), so the overlay draws the
+      // marks on the first render instead of popping them in afterwards.
+      // Requires the base: without it the visible page is already flattened and
+      // re-applying would draw every mark twice.
+      if (sidecar && sidecar.base) applyModel(session.state, sidecar.data);
       sessions.push(session);
       activate(session, false);
       App.toast(`Opened ${session.state.fileName}`, 'success');
+      // Model with no base: recoverable data that must not vanish without a word.
+      if (sidecar && !sidecar.base) App.Viewer._offerOrphanModel(sidecar.data);
       return true;
     } catch (err) {
       console.error(err);

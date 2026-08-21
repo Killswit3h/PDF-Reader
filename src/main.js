@@ -1722,13 +1722,38 @@ function createWindow() {
                 App.state.measurements.length=0; App.state.placements.length=0; App.state.annotations.length=0;
                 App.state.measurements.push({ page:1, type:'distance', color:'#2f6fed', width:1.4, label:'12.3ft', pts:[{vx:100,vy:120},{vx:260,vy:120}] });
                 App.state.placements.push({ id:1, type:'text', page:1, vx:100, vy:200, vw:120, vh:20, fontPt:12, text:'REFTX' });
+                // Flatten path. Pinned explicitly rather than riding the default:
+                // this half reads page-content text, which is the only place the
+                // label lands when annotations are off.
+                App.state.saveAnnots = false;
                 const out = await App.Save.buildBytes();
                 const doc2 = await pdfjsLib.getDocument({ data: out }).promise;
                 const p2 = await doc2.getPage(1);
                 const tc = await p2.getTextContent();
                 const items = tc.items.map(it => ({ s:(it.str||'').replace(/\\s/g,''), a: Math.round(Math.atan2(it.transform[1], it.transform[0])*180/Math.PI) }));
                 const find = (re) => { const hit = items.find(it => re.test(it.s)); return hit ? hit.a : null; };
-                return { pageRot: p2.rotate, labelAngle: find(/12\\.?3/), refAngle: find(/REFTX/) };
+                // Annotation path — now the DEFAULT. The label lives inside the
+                // measurement's /AP stream, which getTextContent cannot see, so
+                // read the angle straight out of the stream's Tm matrix. Without
+                // this the default export would be untested for exactly the bug
+                // this scenario exists to catch.
+                App.state.saveAnnots = true;
+                const outA = await App.Save.buildBytes();
+                const dA = await PDFDocument.load(outA);
+                const arr = dA.getPage(0).node.Annots();
+                let apAngle = null;
+                for (let i=0; arr && i<arr.size() && apAngle===null; i++) {
+                  const an = arr.lookup(i);
+                  const ap = an.get(window.PDFLib.PDFName.of('AP'));
+                  if (!ap) continue;
+                  const nS = dA.context.lookup(ap.get(window.PDFLib.PDFName.of('N')));
+                  const raw = nS && (nS.contents || (nS.getContents && nS.getContents()));
+                  if (!raw) continue;
+                  const mm = new TextDecoder().decode(raw)
+                    .match(/(-?[\\d.]+) (-?[\\d.]+) (-?[\\d.]+) (-?[\\d.]+) -?[\\d.]+ -?[\\d.]+ Tm/);
+                  if (mm) apAngle = Math.round(Math.atan2(parseFloat(mm[2]), parseFloat(mm[1]))*180/Math.PI);
+                }
+                return { pageRot: p2.rotate, labelAngle: find(/12\\.?3/), refAngle: find(/REFTX/), apAngle };
               };
               const rot = await mk(90);
               const flat = await mk(0);
@@ -1740,7 +1765,13 @@ function createWindow() {
                 // that orientation is actually rotated (not the old vertical bug's 0),
                 labelRotated: rot.labelAngle !== null && Math.abs(rot.labelAngle) > 45,
                 // and an unrotated page keeps the label horizontal.
-                flatHorizontal: flat.labelAngle === 0 && flat.refAngle === 0
+                flatHorizontal: flat.labelAngle === 0 && flat.refAngle === 0,
+                apAngle: rot.apAngle, flatApAngle: flat.apAngle,
+                // The annotation export puts the label at the same angle the
+                // flattened one does,
+                apMatchesFlat: rot.apAngle !== null && rot.apAngle === rot.labelAngle,
+                // and leaves it horizontal on an unrotated page.
+                apFlatHorizontal: flat.apAngle === 0
               });
             })()`, true);
             console.log('[textrot] ' + r);
@@ -1882,6 +1913,106 @@ function createWindow() {
               console.log('[interop] wrote ' + process.env.SMOKE_INTEROP);
             }
           } catch (e) { console.log('[interop] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_ROUNDTRIP: the editable round-trip, including the two failure
+      // states that used to lose work silently. Covers AC-1 (a normal save and
+      // reopen restores live marks), AC-2 (a base that cannot be built writes
+      // NEITHER attachment rather than half a sidecar) and AC-3 (a file holding
+      // a model with no base is reported instead of opening flat in silence).
+      if (process.env.SMOKE_ROUNDTRIP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,800));
+              const { PDFDocument } = window.PDFLib;
+              const A = App.state;
+              const st = () => ({ stroke:'#e5484d', fill:'none', width:2, opacity:1, fontSize:14 });
+              const add = (o) => { A.annoSeq=(A.annoSeq||0)+1; A.annotations.push(Object.assign({id:A.annoSeq,page:1,style:st()},o)); };
+              add({type:'rect', pts:[{vx:60,vy:60},{vx:200,vy:140}]});
+              add({type:'ink', pts:[{vx:230,vy:60},{vx:260,vy:90},{vx:300,vy:60}]});
+              A.scales = A.scales || {}; A.scales[1] = { factor: 20/72, unit:'ft' };
+              A.measureSeq = (A.measureSeq||0)+1;
+              A.measurements.push({ id:A.measureSeq, page:1, type:'length', pts:[{vx:60,vy:220},{vx:220,vy:220}], value:1, unit:'ft', color:'#2f6fed', width:1.4, label:'1.00 ft' });
+              const wantAnn = A.annotations.length, wantMeas = A.measurements.length;
+              const attOf = async (bytes) => {
+                const d = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+                const a = await d.getAttachments();
+                return a ? Object.keys(a).sort() : [];
+              };
+
+              // ---- AC-1: normal round-trip ----
+              const good = await App.Save.buildBytes();
+              const goodAtt = await attOf(good);
+              // Probe the sidecar directly: is it the read, the base, or the
+              // rehydrate that drops the marks?
+              let dbg = {};
+              try {
+                const pd = await pdfjsLib.getDocument({ data: good.slice() }).promise;
+                const sc = await App.Viewer._readSidecar(pd);
+                dbg = {
+                  sc: !!sc, base: !!(sc && sc.base),
+                  mAnn: sc && sc.data ? (sc.data.annotations||[]).length : -1,
+                  mMeas: sc && sc.data ? (sc.data.measurements||[]).length : -1
+                };
+              } catch (e) { dbg = { err: e.message }; }
+              const gb = good.buffer.slice(good.byteOffset, good.byteOffset + good.byteLength);
+              await App.Viewer.load(gb, 'roundtrip.pdf', null);
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const reAnn = App.state.annotations.length, reMeas = App.state.measurements.length;
+
+              // ---- AC-2: a base that cannot be built writes no sidecar at all ----
+              // Fail ONLY the base build. Corrupting App.state.pdfBytes does not
+              // work: buildBytes loads the main document from those same bytes
+              // first, so the whole export dies before the sidecar block is ever
+              // reached and the test proves nothing. Instead count calls to
+              // PDFDocument.load and throw on the second — call 1 is the main
+              // document, call 2 is the pristine base. With the model attached
+              // first (the old order) this produced a file carrying the marks
+              // with no base to lay them over; it must now produce a file
+              // carrying neither attachment.
+              const PD = window.PDFLib.PDFDocument;
+              const realLoad = PD.load.bind(PD);
+              let loadCalls = 0;
+              PD.load = async function () {
+                loadCalls++;
+                if (loadCalls === 2) throw new Error('smoke: forced base failure');
+                return realLoad.apply(null, arguments);
+              };
+              let halfAtt = null, halfErr = '';
+              try { halfAtt = await attOf(await App.Save.buildBytes()); }
+              catch (e) { halfErr = e.message; }
+              PD.load = realLoad;
+
+              // ---- AC-3: a model with no base is reported, not swallowed ----
+              const orphan = await PDFDocument.create();
+              orphan.addPage([300,300]);
+              const model = JSON.stringify({ annotations:[{id:1,page:1,type:'rect',pts:[{vx:1,vy:1},{vx:2,vy:2}]}], measurements:[], placements:[] });
+              await orphan.attach(new TextEncoder().encode(model), App.SIDECAR.MODEL, { mimeType:'application/json' });
+              const ob = await orphan.save();
+              const origConfirm = App.confirm;
+              let asked = '';
+              App.confirm = async (msg) => { asked = String(msg||''); return false; };
+              await App.Viewer.load(ob.buffer.slice(ob.byteOffset, ob.byteOffset+ob.byteLength), 'orphan.pdf', null);
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const orphanFlat = App.state.annotations.length === 0;
+              App.confirm = origConfirm;
+
+              return JSON.stringify({
+                goodAtt, wantAnn, wantMeas, reAnn, reMeas,
+                restored: reAnn === wantAnn && reMeas === wantMeas,
+                halfAtt, halfErr,
+                noHalfSidecar: Array.isArray(halfAtt) && halfAtt.length === 0,
+                askedAboutOrphan: asked.length > 0, orphanFlat, loadCalls, dbg
+              });
+            })()`, true);
+            console.log('[roundtrip] ' + r);
+          } catch (e) { console.log('[roundtrip] error', e && e.message); }
           app.quit();
         }, 1200);
         return;

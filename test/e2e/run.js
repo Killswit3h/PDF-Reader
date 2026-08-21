@@ -133,6 +133,11 @@ const SCENARIOS = [
       check(j.labelMatchesRef, `label angle ${j.labelAngle} != reference text ${j.refAngle}`);
       check(j.labelRotated, `label angle ${j.labelAngle} not compensating page rotation`);
       check(j.flatHorizontal, `unrotated page: label ${j.flatLabel}, ref ${j.flatRef} — expected 0`);
+      // The annotation export is the default, so its label must rotate too. Read
+      // from the /AP stream's Tm, since getTextContent cannot see inside it.
+      check(j.apAngle !== null, 'no Tm found in the measurement annotation /AP — label missing');
+      check(j.apMatchesFlat, `annotation label angle ${j.apAngle} != flattened ${j.labelAngle}`);
+      check(j.apFlatHorizontal, `unrotated page: annotation label ${j.flatApAngle} — expected 0`);
     }
   },
   {
@@ -158,6 +163,30 @@ const SCENARIOS = [
       check(j.pageDivs > 0, 'no page divs');
       check(j.renderedCanvases > 0, 'no rendered canvases');
       check(j.findOk === true, 'find threw');
+    }
+  },
+  {
+    // The round-trip is the feature's whole point: marks that do not come back
+    // are indistinguishable from marks that were never saved. Opening goes
+    // through the tab manager, so this drives App.Viewer.load (not _loadInto)
+    // deliberately — restoring only on the fallback path is the bug this covers.
+    name: 'round-trip — saved marks reopen as editable objects',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_ROUNDTRIP: '1' }, [SAMPLE]), 'roundtrip');
+      // AC-1: a normal save embeds both halves and reopening restores them.
+      check(j.goodAtt.length === 2, `expected both attachments, got ${JSON.stringify(j.goodAtt)}`);
+      check(j.dbg && j.dbg.sc && j.dbg.base, `sidecar unreadable on reopen: ${JSON.stringify(j.dbg)}`);
+      check(j.reAnn === j.wantAnn, `restored ${j.reAnn} annotations, saved ${j.wantAnn}`);
+      check(j.reMeas === j.wantMeas, `restored ${j.reMeas} measurements, saved ${j.wantMeas}`);
+      check(j.restored === true, 'marks did not survive save + reopen');
+      // AC-2: a base that cannot be built writes NEITHER attachment. loadCalls
+      // proves the failure was injected at the base, not at the main document.
+      check(j.loadCalls === 2, `expected the base load to be reached, loadCalls=${j.loadCalls}`);
+      check(j.halfErr === '', `export should still succeed without a sidecar: ${j.halfErr}`);
+      check(j.noHalfSidecar === true, `half sidecar written: ${JSON.stringify(j.halfAtt)}`);
+      // AC-3: a model with no base is reported, never swallowed.
+      check(j.askedAboutOrphan === true, 'orphan model opened flat with no message');
+      check(j.orphanFlat === true, 'orphan model was drawn over an already-flattened page');
     }
   },
   {
