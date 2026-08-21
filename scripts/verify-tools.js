@@ -241,6 +241,7 @@ const MEASURES = [
 
   // ---- re-parse the exported bytes and tally annotation subtypes ----
   const found = {};
+  const dated = { total: 0, creation: 0, mod: 0, sample: null };
   let parseErr = '';
   if (out.b64out) {
     try {
@@ -250,6 +251,12 @@ const MEASURES = [
       const p1 = await doc.getPage(1);
       for (const a of await p1.getAnnotations()) {
         found[a.subtype] = (found[a.subtype] || 0) + 1;
+        // /CreationDate + /M: without them Acrobat and Bluebeam show a blank
+        // date column and cannot sort a markup list by when things were drawn.
+        dated.total++;
+        if (a.creationDate) dated.creation++;
+        if (a.modificationDate) dated.mod++;
+        if (!dated.sample) dated.sample = a.creationDate || a.modificationDate || null;
       }
     } catch (e) { parseErr = e.message; }
   }
@@ -302,6 +309,14 @@ const MEASURES = [
     if (!ok) bad++;
     rows.push(`  ${ok ? 'OK  ' : 'FAIL'}  ${sub.padEnd(10)} expected >=${want[sub]}, found ${found[sub] || 0}`);
   }
+  // Every exported annotation must carry both dates, and in the PDF wire format.
+  const datesOk = dated.total > 0 && dated.creation === dated.total && dated.mod === dated.total;
+  const fmtOk = !dated.sample || /^D:\d{14}(Z|[+-]\d{2}')/.test(dated.sample);
+  if (!datesOk) bad++;
+  if (!fmtOk) bad++;
+  rows.push(`  ${datesOk ? 'OK  ' : 'FAIL'}  ${'dates'.padEnd(10)} /CreationDate ${dated.creation}/${dated.total}, /M ${dated.mod}/${dated.total}`);
+  rows.push(`  ${fmtOk ? 'OK  ' : 'FAIL'}  ${'date fmt'.padEnd(10)} ${dated.sample || '(none)'}`);
+
   const flattened = TOOLS.filter((t) => !t.expect).map((t) => t.type);
 
   console.log(`[verify-tools] ${TOOLS.length} tools exported; annotations on page 1: ${JSON.stringify(found)}`);

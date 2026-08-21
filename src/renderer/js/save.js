@@ -54,6 +54,29 @@
   // Write a standard PDF annotation dictionary (interoperable/editable) instead
   // of flattening. Geometry via convertToPdfPoint. Verified structurally by
   // re-parsing with PDF.js (subtype + rect); validate visual fidelity in Acrobat.
+  // One timestamp for the whole export, so every annotation in a saved file
+  // agrees rather than drifting by a second across a large plan set. Set at the
+  // top of buildBytes; the fallback keeps the writers usable on their own.
+  let exportStamp = null;
+
+  // /CreationDate + /M on every exported annotation. Acrobat and Bluebeam show
+  // these in their markup list and update /M when a recipient edits a mark, so
+  // this is the only part of a change log that survives the file being edited
+  // in other software. No /T (author): this app has no accounts, and stamping a
+  // name was declined -- marks made here are deliberately anonymous.
+  function setAnnotDates(set, PDFString, mark) {
+    const stamp = exportStamp || App.pdfDateString();
+    // Prefer the mark's own creation time when it has one. The model does not
+    // carry createdAt yet (the document change log adds it); until then the
+    // export time is the honest answer, and is still better than the blank
+    // column every other viewer shows today.
+    const created = (mark && mark.createdAt)
+      ? App.pdfDateString(new Date(mark.createdAt))
+      : stamp;
+    set('CreationDate', PDFString.of(created));
+    set('M', PDFString.of(stamp));
+  }
+
   function writeRealAnnot(pdfDoc, page, an, vp) {
     const { PDFName, PDFArray, PDFNumber, PDFString } = window.PDFLib;
     const ctx = pdfDoc.context;
@@ -84,6 +107,7 @@
     const d = ctx.obj({});
     const set = (k, v) => d.set(PDFName.of(k), v);
     set('Type', PDFName.of('Annot'));
+    setAnnotDates(set, PDFString, an);
     set('Rect', numArr(rect));
     set('C', numArr(col));
     if (op < 1) set('CA', PDFNumber.of(op));
@@ -230,6 +254,7 @@
     const d = ctx.obj({});
     const set = (k, v) => d.set(PDFName.of(k), v);
     set('Type', PDFName.of('Annot'));
+    setAnnotDates(set, PDFString, an);
     set('Subtype', PDFName.of(subtype));
     set('Rect', numArr(rect));
     set('QuadPoints', numArr(qp));
@@ -357,6 +382,7 @@
     const d = ctx.obj({});
     const set = (k, v) => d.set(PDFName.of(k), v);
     set('Type', PDFName.of('Annot'));
+    setAnnotDates(set, PDFString, m);
     set('Subtype', PDFName.of(subtype));
     set('Rect', numArr(rect));
     set('C', numArr(col));
@@ -457,6 +483,7 @@
     opts = opts || {};
     const { PDFDocument, StandardFonts, degrees, rgb } = window.PDFLib;
 
+    exportStamp = App.pdfDateString();
     const pdfDoc = await PDFDocument.load(App.state.pdfBytes);
       // If the user typed into interactive form fields (PDF.js ENABLE_FORMS keeps
       // their edits in annotationStorage), write those values into the fields with
@@ -776,24 +803,11 @@
   // Serialize the in-app marks (geometry in scale-1 viewport points) so a saved
   // PDF can be reopened here with everything still editable. __count lets the
   // caller skip embedding when there's nothing to preserve.
+  // Thin wrapper over the shared model. The shape is the round-trip contract,
+  // so it lives in src/shared where Node can unit-test it; this keeps
+  // App.Save.serializeModel as the renderer-facing name its callers already use.
   S.serializeModel = function () {
-    const st = App.state;
-    const clone = (x) => JSON.parse(JSON.stringify(x || []));
-    const m = {
-      v: 1,
-      seqs: {
-        placementSeq: st.placementSeq || 0, measureSeq: st.measureSeq || 0,
-        viewportSeq: st.viewportSeq || 0, annoSeq: st.annoSeq || 0
-      },
-      saveAnnots: !!st.saveAnnots,
-      scales: JSON.parse(JSON.stringify(st.scales || {})),
-      viewports: JSON.parse(JSON.stringify(st.viewports || {})),
-      placements: clone(st.placements),
-      measurements: clone(st.measurements),
-      annotations: clone(st.annotations)
-    };
-    m.__count = m.placements.length + m.measurements.length + m.annotations.length;
-    return m;
+    return App.serializeMarkupModel(App.state);
   };
 
   // Save: overwrite the file that was opened, in place, with no dialog.
