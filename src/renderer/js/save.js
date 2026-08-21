@@ -39,7 +39,8 @@
 
   const M_COLORS = {
     length: '#2f6fed', continuous: '#0891b2', perimeter: '#7b61ff', area: '#21a366',
-    angle: '#d1348c', count: '#e5a300'
+    angle: '#d1348c', count: '#e5a300',
+    radius3: '#f26419', radiusCenter: '#00695c'
   };
   function hexRgb(hex) {
     const { rgb } = window.PDFLib;
@@ -313,7 +314,32 @@
     const ctx = pdfDoc.context;
     const pts = m.pts || [];
     if (!pts.length) return false;
-    const P = pts.map((pt) => vp.convertToPdfPoint(pt.vx, pt.vy));
+    // Radius types measure a segment but DRAW a curve, so the two come apart
+    // here: P becomes the radius spoke (which /L exports, and which a
+    // recipient's viewer measures), while shapePts carries the arc for the
+    // bounding box. For every other type both stay exactly what they were.
+    const RAD = { radius3: true, radiusCenter: true };
+    const cv = (pt) => vp.convertToPdfPoint(pt.vx, pt.vy);
+    let radInfo = null;
+    if (RAD[m.type]) {
+      const rc = App.circleOf(m.type, pts);
+      const rs = App.arcSpanOf(m.type, pts, m.arc);
+      // A degenerate circle is refused at draw time; refuse again rather than
+      // writing non-finite numbers into the file if one ever reached here.
+      if (!rc || !rs) return false;
+      radInfo = {
+        c: rc,
+        span: rs,
+        edge: { vx: rc.vx + rc.r * Math.cos(rs.a0), vy: rc.vy + rc.r * Math.sin(rs.a0) }
+      };
+    }
+    let P = pts.map(cv);
+    let shapePts = P;
+    if (radInfo) {
+      P = [cv(radInfo.c), cv(radInfo.edge)];
+      shapePts = App.Geom.arcPoints(radInfo.c, radInfo.c.r, radInfo.span.a0, radInfo.span.a1, 32)
+        .map(cv).concat(P);
+    }
     const numArr = (arr) => { const a = PDFArray.withContext(ctx); arr.forEach((n) => a.push(PDFNumber.of(n))); return a; };
     const col = hexArr(m.color || M_COLORS[m.type] || '#2f6fed');
     const c3 = `${col[0].toFixed(3)} ${col[1].toFixed(3)} ${col[2].toFixed(3)}`;
@@ -327,13 +353,40 @@
       continuous: ['PolyLine', 'PolyLineDimension'],
       area: ['Polygon', 'PolygonDimension'],
       angle: ['PolyLine', null],
-      count: ['Polygon', null]
+      count: ['Polygon', null],
+      // A radius exports as the radius SEGMENT, so the value a recipient's
+      // viewer recomputes is the radius itself rather than the arc length of the
+      // drawn curve. PDF has no radius dimension type; this is how the number
+      // stays identical on both sides. See FR-13.
+      radius3: ['Line', 'LineDimension'],
+      radiusCenter: ['Line', 'LineDimension']
     };
     const [subtype, it] = MAP[m.type] || ['PolyLine', null];
 
     // ---- appearance: the same strokes and label the flattened path draws ----
     const ops = [];
-    if (m.type === 'count') {
+    if (radInfo) {
+      // PDF content streams have no arc operator, so the curve is cubic Bezier.
+      // convertToPdfPoint is affine, so transforming the control points gives
+      // the same curve the screen shows, page rotation included.
+      const { c, span, edge } = radInfo;
+      const pie = m.type === 'radius3';
+      const start = { vx: c.vx + c.r * Math.cos(span.a0), vy: c.vy + c.r * Math.sin(span.a0) };
+      const s0 = cv(start), cc = cv(c);
+      ops.push(`${c3} RG`, `${lw} w`);
+      if (pie) ops.push(`${cc[0]} ${cc[1]} m`, `${s0[0]} ${s0[1]} l`);
+      else ops.push(`${s0[0]} ${s0[1]} m`);
+      for (const sg of App.Geom.arcToBezier(c, c.r, span.a0, span.a1)) {
+        const b1 = cv({ vx: sg.x1, vy: sg.y1 });
+        const b2 = cv({ vx: sg.x2, vy: sg.y2 });
+        const be = cv({ vx: sg.x, vy: sg.y });
+        ops.push(`${b1[0]} ${b1[1]} ${b2[0]} ${b2[1]} ${be[0]} ${be[1]} c`);
+      }
+      ops.push(pie ? 'h S' : 'S');
+      // The measured radius, dashed, matching what the user saw on screen.
+      const e0 = cv(edge);
+      ops.push('[4 3] 0 d', `${cc[0]} ${cc[1]} m`, `${e0[0]} ${e0[1]} l`, 'S', '[] 0 d');
+    } else if (m.type === 'count') {
       ops.push(`${c3} rg`);
       P.forEach((c) => ops.push(circleOps(c[0], c[1], 5)));
     } else {
@@ -347,7 +400,8 @@
     // direction survives page rotation — the same technique the flattened path
     // and the free-text export use.
     let av;
-    if (m.type === 'area' || m.type === 'count') av = App.Geom.centroid(pts);
+    if (radInfo) av = { vx: (radInfo.c.vx + radInfo.edge.vx) / 2, vy: (radInfo.c.vy + radInfo.edge.vy) / 2 };
+    else if (m.type === 'area' || m.type === 'count') av = App.Geom.centroid(pts);
     else if (m.type === 'angle') av = pts[1];
     else av = pts[0];
     const anchor = vp.convertToPdfPoint(av.vx + 3, av.vy - 3);
@@ -362,7 +416,7 @@
 
     // Rect must contain the strokes AND the rotated label, so pad generously.
     let rx0 = Infinity, ry0 = Infinity, rx1 = -Infinity, ry1 = -Infinity;
-    for (const p of P.concat([anchor])) {
+    for (const p of shapePts.concat([anchor])) {
       if (p[0] < rx0) rx0 = p[0];
       if (p[0] > rx1) rx1 = p[0];
       if (p[1] < ry0) ry0 = p[1];

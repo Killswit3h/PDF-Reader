@@ -140,3 +140,21 @@ what a recipient altered.
 Open question for its spec: the FieldMark half lives in the sidecar, which means
 it inherits the sidecar's fragility — another tool rewriting the PDF drops it.
 Decide then whether the log should also be exportable to a standalone file.
+
+## Measure type tables are duplicated across measure.js and save.js
+
+Noticed while adding the radius tools. `COLORS` in `src/renderer/js/measure.js`
+and `M_COLORS` in `src/renderer/js/save.js` are the same map written twice, so
+every new measure type has to be added in both places or an exported
+measurement silently draws in the wrong colour. The radius branch edits both
+rather than refactoring mid-feature. Fold `M_COLORS` into a single shared table
+(`src/shared/`) when something next touches either file.
+
+## Diameter, and arc length as a measurement
+
+Explicitly out of scope of the radius feature, recorded so they are not lost.
+Diameter is a display choice over the same circle (a radius/diameter toggle, or
+a separate tool the way Bluebeam ships one). Arc length is a genuinely different
+quantity from the radius and would need its own type — note that it is what a
+recipient's viewer would report if the radius export ever regressed to writing
+the drawn curve as the measurement geometry, so the two must not be conflated.

@@ -224,11 +224,99 @@
     ];
   }
 
+  /* ---------------- circles and arcs (radius measurement) ---------------- */
+
+  // Circle through three points, or null when they do not define one.
+  //
+  // Three collinear points have no circumcircle: the perpendicular bisectors
+  // are parallel and the centre runs off to infinity. Unguarded that yields
+  // Infinity/NaN coordinates, which would be stored in the measurement model
+  // and written into the saved PDF -- so this returns null and the caller
+  // refuses the measurement instead.
+  //
+  // Collinearity is judged RELATIVE to the size of the triangle rather than
+  // against a fixed epsilon, so the same tolerance behaves correctly on a 1:20
+  // detail and a 1:2000 key sheet.
+  function circumcircle(a, b, c) {
+    if (!a || !b || !c) return null;
+    const ax = a.vx, ay = a.vy, bx = b.vx, by = b.vy, cx = c.vx, cy = c.vy;
+    // Twice the signed area of the triangle; zero exactly when collinear.
+    const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+    // Scale the tolerance by the triangle's extent squared: |d| is an area, so
+    // comparing it to a length would be dimensionally wrong and would change
+    // behaviour with zoom.
+    const scale = Math.max(dist(a, b), dist(b, c), dist(a, c));
+    if (!scale || Math.abs(d) < 1e-9 * scale * scale) return null;
+    const a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+    const ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d;
+    const uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d;
+    const centre = { vx: ux, vy: uy };
+    const r = dist(centre, a);
+    if (!isFinite(r) || r <= 0) return null;
+    return { vx: ux, vy: uy, r };
+  }
+
+  // Angle of a point on a circle, measured from the centre.
+  function angleOf(centre, pt) { return Math.atan2(pt.vy - centre.vy, pt.vx - centre.vx); }
+
+  // Sample points along an arc. For bounding boxes only -- drawing uses a real
+  // curve (SVG arc on screen, Bezier in the PDF) so nothing is ever faceted.
+  function arcPoints(centre, r, a0, a1, n) {
+    const steps = Math.max(2, n || 24);
+    const out = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = a0 + (a1 - a0) * (i / steps);
+      out.push({ vx: centre.vx + r * Math.cos(t), vy: centre.vy + r * Math.sin(t) });
+    }
+    return out;
+  }
+
+  // The arc from p0 to p2 that passes through pmid, as a signed angular span.
+  // Three points on a circle leave two possible arcs between the outer two; the
+  // middle click is what picks which. Returns { a0, a1 } where a1 - a0 is signed
+  // (negative = clockwise), so drawing and export sweep the same way.
+  function arcSpanThrough(centre, p0, pmid, p2) {
+    const TAU = Math.PI * 2;
+    const a0 = angleOf(centre, p0);
+    const norm = (t) => { let x = t % TAU; if (x < 0) x += TAU; return x; };
+    const dm = norm(angleOf(centre, pmid) - a0);
+    const d2 = norm(angleOf(centre, p2) - a0);
+    // Counter-clockwise only if the middle point is reached before the end.
+    return (dm <= d2) ? { a0, a1: a0 + d2 } : { a0, a1: a0 - (TAU - d2) };
+  }
+
+  // Approximate an arc with cubic Bezier segments, each spanning at most 90
+  // degrees -- the standard construction, and accurate to well under a printer
+  // dot at that span. PDF content streams have no arc operator, only 'c', so
+  // this is how a true curve reaches the exported appearance stream.
+  // Returns [{ x1,y1, x2,y2, x,y }] control points, following a move to the
+  // arc's start point.
+  function arcToBezier(centre, r, a0, a1) {
+    const total = a1 - a0;
+    if (!isFinite(total) || total === 0 || !(r > 0)) return [];
+    const count = Math.ceil(Math.abs(total) / (Math.PI / 2));
+    const step = total / count;
+    // Control-point offset for a circular arc of this span.
+    const k = (4 / 3) * Math.tan(step / 4);
+    const segs = [];
+    for (let i = 0; i < count; i++) {
+      const s = a0 + step * i, e = s + step;
+      const cs = Math.cos(s), ss = Math.sin(s), ce = Math.cos(e), se = Math.sin(e);
+      segs.push({
+        x1: centre.vx + r * (cs - k * ss), y1: centre.vy + r * (ss + k * cs),
+        x2: centre.vx + r * (ce + k * se), y2: centre.vy + r * (se - k * ce),
+        x: centre.vx + r * ce, y: centre.vy + r * se
+      });
+    }
+    return segs;
+  }
+
   return {
     Geom: {
       dist, polyLen, shoelace, angleAt, centroid, bbox,
       rectFrom, ortho, nearestVertex, arrowHeadPoints, unrotatePoint,
       simplify, smoothStroke,
+      circumcircle, angleOf, arcPoints, arcToBezier, arcSpanThrough,
       matMul, matApply, constructPathVertices
     }
   };

@@ -190,6 +190,35 @@ const SCENARIOS = [
     }
   },
   {
+    // A radius that is silently wrong prints on a sheet someone builds from,
+    // so this checks the number, the refusal that keeps a bad one out of the
+    // file, and that the value survives a save and reopen.
+    name: 'radius — 3-point and centre radius measure, refuse bad input, round-trip',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_RADIUS: '1' }, [SAMPLE]), 'radius');
+      // AC-1 / AC-2: 100pt at 0.5 ft/pt is 50ft, by either construction.
+      check(j.r3 === 50, `3-point radius ${j.r3} != 50`);
+      check(j.rc === 50, `centre radius ${j.rc} != 50`);
+      check(j.r3label === '50.00 ft', `label "${j.r3label}" should read as a plain distance`);
+      // AC-3 / FR-10: degenerate input creates nothing and leaves no non-finite
+      // number in the model -- the failure that would corrupt the saved file.
+      check(j.refusedCollinear === true, 'collinear clicks created a measurement');
+      check(j.refusedZero === true, 'a zero-length centre radius was stored');
+      check(j.anyBad === false, 'a non-finite number reached the measurement model');
+      // AC-4: full circle unless a section was swept.
+      check(j.fullByDefault === true, 'centre radius did not default to a full circle');
+      check(j.sectionNotFull === false, 'a swept section was treated as a full circle');
+      // FR-11: drawn as real curves, not polylines.
+      check(j.curves >= 2, `expected 2 curve paths, found ${j.curves}`);
+      // AC-5: the feet-inches toggle reaches a radius like any length.
+      check(/^\d+'-/.test(j.fiLabel), `feet-inches label "${j.fiLabel}" not architectural`);
+      // AC-7: both survive save + reopen with their radii intact.
+      check(j.reCount === 2, `${j.reCount} radius measurements restored, expected 2`);
+      check(JSON.stringify(j.reVals) === JSON.stringify(j.wantVals),
+        `restored ${JSON.stringify(j.reVals)} != saved ${JSON.stringify(j.wantVals)}`);
+    }
+  },
+  {
     name: 'markup — all 11 tools draw + export to PDF bytes',
     run: () => {
       const j = tagJson(runApp({ SMOKE_MARKUP: '1' }, [SAMPLE]), 'markup');

@@ -575,6 +575,16 @@
       e.preventDefault();
       App.Markup.inkStart(pl.page, pl.layer, e);
     });
+    // Center Radius: press-drag-release sweeps a section of the circle. Its own
+    // listener rather than a branch in the ink handler above, so the freehand
+    // path is untouched.
+    container.addEventListener('pointerdown', (e) => {
+      if (App.state.mode !== 'measure' || !App.Measure || !App.Measure.radiusDragStart) return;
+      const pl = pageLayerFor(e);
+      if (pl) App.Measure.radiusDragStart(pl.page, pl.layer, e);
+    });
+    window.addEventListener('pointerup', () => { if (App.Measure && App.Measure.radiusDragEnd) App.Measure.radiusDragEnd(); });
+    window.addEventListener('pointercancel', () => { if (App.Measure && App.Measure.radiusDragEnd) App.Measure.radiusDragEnd(); });
     window.addEventListener('pointerup', () => { if (App.Markup) App.Markup.inkEnd(); });
     window.addEventListener('pointercancel', () => { if (App.Markup) App.Markup.inkEnd(); });
 
