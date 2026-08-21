@@ -60,6 +60,15 @@
     if (type === 'count') return `${value}`;
     if (type === 'angle') return `${value.toFixed(1)}°`;
     if (type === 'area') return `${value.toFixed(2)} ${unit}²`;
+    // Radius reads as a length with an R prefix, so the feet-inches toggle
+    // applies to it exactly as it does to a length -- and so a reader can tell
+    // it apart from an arc length at a glance.
+    if (type === 'radius3' || type === 'radiusCenter') {
+      const body = (opts && opts.feetInches && unit === 'ft')
+        ? formatFeetInches(value, opts.denom)
+        : `${value.toFixed(2)} ${unit}`;
+      return `R ${body}`;
+    }
     // length / perimeter
     if (opts && opts.feetInches && unit === 'ft') return formatFeetInches(value, opts.denom);
     return `${value.toFixed(2)} ${unit}`;
@@ -77,6 +86,26 @@
     return segs;
   }
 
+  // The circle a radius measurement describes, or null when its points do not
+  // define one. Both radius tools store only what the user clicked, so the
+  // circle is derived here and every consumer -- the value, the drawn arc and
+  // the exported geometry -- reads the same one.
+  //   radiusCenter: [centre, point-on-circumference]
+  //   radius3:      three points along the arc
+  function circleOf(type, pts) {
+    if (!pts) return null;
+    if (type === 'radiusCenter') {
+      if (pts.length < 2) return null;
+      const r = Geom.dist(pts[0], pts[1]);
+      return r > 0 ? { vx: pts[0].vx, vy: pts[0].vy, r } : null;
+    }
+    if (type === 'radius3') {
+      if (pts.length < 3) return null;
+      return Geom.circumcircle(pts[0], pts[1], pts[2]);
+    }
+    return null;
+  }
+
   // Real-world value + unit for a point set. `scale` = { factor, unit } | null.
   function computeValue(type, pts, scale) {
     if (type === 'count') return { value: pts.length, unit: 'ct' };
@@ -84,6 +113,12 @@
       return { value: pts.length >= 3 ? Geom.angleAt(pts[0], pts[1], pts[2]) : 0, unit: '°' };
     }
     if (!scale) return { value: null, unit: null };
+    if (type === 'radius3' || type === 'radiusCenter') {
+      // A degenerate circle yields a null value, never NaN: the caller refuses
+      // to create the measurement rather than storing an unusable number.
+      const c = circleOf(type, pts);
+      return { value: c ? c.r * scale.factor : null, unit: scale.unit };
+    }
     if (type === 'area') return { value: Geom.shoelace(pts) * scale.factor * scale.factor, unit: scale.unit };
     // length / perimeter
     return { value: Geom.polyLen(pts) * scale.factor, unit: scale.unit };
@@ -96,5 +131,5 @@
     return realVal / drawPts;
   }
 
-  return { UNITS, fmtMeasure, formatFeetInches, computeValue, ratioToFactor, segmentLengths };
+  return { UNITS, fmtMeasure, formatFeetInches, computeValue, ratioToFactor, segmentLengths, circleOf };
 });
