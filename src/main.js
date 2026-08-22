@@ -2383,6 +2383,85 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_ROTPERSIST: the orientation you save in is the orientation the
+      // file has. Built on a synthetic document whose pages START at different
+      // rotations, because a fixture of all-zero pages cannot tell "added to
+      // what was there" apart from "replaced with the view rotation".
+      if (process.env.SMOKE_ROTPERSIST) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const { PDFDocument, degrees } = window.PDFLib;
+
+              // Three pages starting at 0, 90 and 270.
+              const mk = async () => {
+                const d = await PDFDocument.create();
+                [0, 90, 270].forEach((deg) => {
+                  const p = d.addPage([612, 792]);
+                  if (deg) p.setRotation(degrees(deg));
+                });
+                return await d.save();
+              };
+              const openBytes = async (u8, name) => {
+                const b = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+                await App.Viewer.load(b, name, null);
+                for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+                await new Promise(r=>setTimeout(r,600));
+              };
+              const rotsOf = async (u8) => {
+                const d = await pdfjsLib.getDocument({ data: u8.slice() }).promise;
+                const out = [];
+                for (let i = 1; i <= d.numPages; i++) out.push((await d.getPage(i)).rotate);
+                return out;
+              };
+
+              await openBytes(await mk(), 'rot.pdf');
+              const original = await rotsOf(await App.Save.buildBytes());
+
+              // AC-6: saving unrotated must move nothing.
+              const unrotated = await rotsOf(await App.Save.buildBytes());
+
+              // A measurement, to prove marks survive the rotated save (AC-4).
+              const A = App.state;
+              A.scales[1] = { factor: 0.5, unit: 'ft', ratioLabel: '1pt=0.5ft' };
+              A.measureSeq = 1;
+              A.measurements.push({ id: 1, page: 1, type: 'length',
+                pts: [{vx:100,vy:100},{vx:300,vy:100}], color: '#2f6fed', width: 1.4 });
+              App.Measure.recomputeAll();
+              const valueBefore = A.measurements[0].value;
+
+              // AC-1 / AC-2: rotate the view and save.
+              App.Viewer.rotate(90);
+              const stateRot = A.rotation, viewRot = App.Viewer.rotation();
+              const saved = await App.Save.buildBytes();
+              const afterSave = await rotsOf(saved);
+
+              // AC-3: reopen through the tab path.
+              await openBytes(saved, 'rot2.pdf');
+              const reViewRot = App.Viewer.rotation();
+              const rePageRots = [];
+              for (let i = 1; i <= App.state.numPages; i++) {
+                rePageRots.push((await App.state.pdfDoc.getPage(i)).rotate);
+              }
+              const valueAfter = App.state.measurements.length ? App.state.measurements[0].value : null;
+
+              // AC-5: turn the rest of the way and save again.
+              App.Viewer.rotate(270);
+              const backAgain = await rotsOf(await App.Save.buildBytes());
+
+              return JSON.stringify({
+                original, unrotated, stateRot, viewRot, afterSave,
+                reViewRot, rePageRots, valueBefore, valueAfter, backAgain
+              });
+            })()`, true);
+            console.log('[rotpersist] ' + r);
+          } catch (e) { console.log('[rotpersist] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SELECT) {
         setTimeout(async () => {
           try {

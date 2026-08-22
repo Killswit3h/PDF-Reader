@@ -545,6 +545,18 @@
     return { attempted, failed };
   }
 
+  // Turn every page of a pdf-lib document by the viewed rotation, added to
+  // whatever that page already carried. Shared by the saved output and the
+  // sidecar base so the two cannot disagree about which way is up.
+  function applyRotation(doc, viewRotation) {
+    const { degrees } = window.PDFLib;
+    doc.getPages().forEach((page) => {
+      let current = 0;
+      try { current = page.getRotation().angle; } catch (_) { current = 0; }
+      page.setRotation(degrees(App.addRotation(current, viewRotation)));
+    });
+  }
+
   // Build the final PDF bytes with all placements flattened onto their pages.
   // opts.noSidecar skips the editable round-trip attachments — used when signing,
   // where the output must be a final, flattened document (an embedded editable
@@ -820,6 +832,22 @@
         }
       }
 
+      // Bake the orientation being viewed into the pages themselves, so the
+      // file opens the way it was saved in every application. /Rotate is a
+      // display instruction and does not touch user space, so the page and
+      // every mark on it turn together and stay glued to the drawing -- which
+      // is why none of the label maths above needs to know about this.
+      // Added to what each page already carried, never substituted, so a set
+      // whose sheets differ in orientation keeps those differences.
+      if (App.state.rotation) {
+        try {
+          applyRotation(pdfDoc, App.state.rotation);
+        } catch (e) {
+          if (window.console) console.warn('rotation write failed:', e && e.message);
+          App.toast('Saved, but the page orientation could not be written to this file.', 'error', 7000);
+        }
+      }
+
       // Page bookmarks into the document's own /Outlines tree, so other PDF
       // applications show them. Failing to write them must not fail the save --
       // the marks matter more -- but it must not pass silently either.
@@ -858,6 +886,9 @@
           // flattened, so reopening restores editable marks over the filled form.
           const baseDoc = await PDFDocument.load(App.state.pdfBytes);
           await applyFormEdits(baseDoc);
+          // The orientation goes into the BASE too, for the same reason the
+          // bookmarks do: this is the copy Tabs.open reopens.
+          if (App.state.rotation) applyRotation(baseDoc, App.state.rotation);
           // Bookmarks go into the BASE as well as the flattened output. Writing
           // only the output is the #98 failure repeated: Tabs.open reopens this
           // base, so the bookmarks would be visible in Acrobat and gone the
@@ -965,6 +996,10 @@
         }
       }
       if (saved) App.state.dirty = false; // changes are now on disk
+      // The orientation is in the file now, so the view goes back to square.
+      // Leaving it rotated as well would show the sheet turned twice as far as
+      // it actually is, and a further save would compound that.
+      if (saved && App.state.rotation && App.Viewer.setRotation) App.Viewer.setRotation(0);
       if (saved && App.refreshDirtyIndicator) App.refreshDirtyIndicator();
     } catch (err) {
       console.error(err);

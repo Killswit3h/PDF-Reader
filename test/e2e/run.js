@@ -270,6 +270,35 @@ const SCENARIOS = [
     // A radius that is silently wrong prints on a sheet someone builds from,
     // so this checks the number, the refusal that keeps a bad one out of the
     // file, and that the value survives a save and reopen.
+    // Rotate a sheet, save, reopen — it must still be the way you left it.
+    // Built on a document whose pages START at different rotations, because a
+    // fixture of all-zero pages cannot tell "added to what was there" apart
+    // from "replaced with the view rotation".
+    name: 'rotation — the orientation you save in is the orientation the file has',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_ROTPERSIST: '1' }, [SAMPLE]), 'rotpersist');
+      const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+      check(eq(j.original, [0, 90, 270]), `fixture rotations ${JSON.stringify(j.original)}`);
+      // AC-6: an unrotated save moves nothing.
+      check(eq(j.unrotated, j.original), `unrotated save changed /Rotate: ${JSON.stringify(j.unrotated)}`);
+      // FR-1: the rotation is on the document, not only inside PDF.js.
+      check(j.stateRot === 90 && j.viewRot === 90, `state ${j.stateRot} / view ${j.viewRot}, expected 90`);
+      // AC-1 / AC-2: written, and ADDED to what each page already carried.
+      check(eq(j.afterSave, [90, 180, 0]),
+        `expected [90,180,0] (added), got ${JSON.stringify(j.afterSave)}`);
+      // AC-3: reopened at that orientation, with the view back to square — a
+      // document turned twice is as wrong as one not turned at all.
+      check(eq(j.rePageRots, [90, 180, 0]), `reopened at ${JSON.stringify(j.rePageRots)}`);
+      check(j.reViewRot === 0, `view rotation ${j.reViewRot} after reopen — document would show turned twice`);
+      // AC-4: marks come through the rotated save unharmed.
+      check(j.valueAfter === j.valueBefore,
+        `measurement read ${j.valueBefore} before, ${j.valueAfter} after`);
+      // AC-5: undone by the same action that made it.
+      check(eq(j.backAgain, j.original),
+        `rotating the rest of the way gave ${JSON.stringify(j.backAgain)}, expected ${JSON.stringify(j.original)}`);
+    }
+  },
+  {
     // Real PDF outline entries, so bookmarks travel with the file. Two failures
     // matter more than the rest: bookmarks that reach Acrobat but vanish when
     // the file is reopened here (the sidecar base swap, i.e. the #98 shape), and
