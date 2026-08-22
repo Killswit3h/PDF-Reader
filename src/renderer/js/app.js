@@ -501,8 +501,13 @@
         if (sel) {
           e.preventDefault();
           const s = e.shiftKey ? 10 : 1;
-          const dx = e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0;
-          const dy = e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0;
+          const kx = e.key === 'ArrowLeft' ? -s : e.key === 'ArrowRight' ? s : 0;
+          const ky = e.key === 'ArrowUp' ? -s : e.key === 'ArrowDown' ? s : 0;
+          // The arrow key names a direction ON SCREEN, but every nudge() works in
+          // unrotated page space, so a rotated page needs the same inverse
+          // rotation the drag tools use — otherwise Left walks the item upward.
+          // Already in page units, so no zoom division (z = 1).
+          const { dx, dy } = App.Geom.unrotateDelta(kx, ky, App.Viewer.rotation(), 1);
           if (sel === 'placement') App.Placement.nudge(dx, dy);
           else if (sel === 'markup') App.Markup.nudge(dx, dy);
           else App.Measure.nudge(dx, dy);

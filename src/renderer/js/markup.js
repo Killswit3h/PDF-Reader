@@ -311,7 +311,10 @@
     const orig = an.pts.map((p) => ({ vx: p.vx, vy: p.vy }));
     snapshot();
     function move(ev) {
-      let dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+      // Screen motion → unrotated page motion. Everything below works in page
+      // space, so the axis lock and the snap search stay orientation-agnostic.
+      const d = App.Viewer.deltaFromEvent(ev.clientX - sx, ev.clientY - sy);
+      let dx = d.dx, dy = d.dy;
       // Shift → orthogonal (lock to the dominant axis).
       if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
       // Snap the anchor point onto a nearby vertex of another shape.
@@ -334,12 +337,15 @@
   function startResize(an, e) {
     e.preventDefault(); e.stopPropagation();
     K.select(an.id);
-    const z = App.state.zoom, sx = e.clientX, sy = e.clientY;
+    const sx = e.clientX, sy = e.clientY;
     const b = bbox(an.pts);
     const orig = an.pts.map((p) => ({ vx: p.vx, vy: p.vy }));
     snapshot();
     function move(ev) {
-      const dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+      // The handle sits at the bbox corner in page space, so the drag that pulls
+      // it has to be measured in page space too — else a rotated page grows the
+      // shape along the wrong edge.
+      const { dx, dy } = App.Viewer.deltaFromEvent(ev.clientX - sx, ev.clientY - sy);
       const sw = b.w ? (b.w + dx) / b.w : 1;
       const sh = b.h ? (b.h + dy) / b.h : 1;
       an.pts = orig.map((p) => ({ vx: b.x + (p.vx - b.x) * sw, vy: b.y + (p.vy - b.y) * sh }));
