@@ -192,6 +192,11 @@
 
   App.ScaleDetect.isRunning = () => running;
 
+  // `opts.force` is accepted for the Re-detect button's benefit but is
+  // deliberately a no-op: a scale this module set is ALWAYS re-applied on a
+  // re-run, and a scale the user set is never touched on any run (FR-6). There
+  // is no third case for a flag to select, and pretending otherwise would
+  // suggest a way to override the user that does not, and should not, exist.
   App.ScaleDetect.run = async function (opts) {
     opts = opts || {};
     if (running) return;                      // spec §5: ignore a second invocation
@@ -261,6 +266,21 @@
               });
             }
 
+            // A region BEATS the page scale in measure.js scaleFor, so adding
+            // one over a page the user calibrated by hand would silently
+            // override that calibration for anything drawn inside the box -
+            // the exact surprise FR-4 exists to prevent. Hold them instead.
+            if (regions.length && !canWriteScale(p)) {
+              const f = regions[0];
+              entry.state = 'review';
+              entry.candidates = [{
+                factor: f.factor, unit: f.unit, ratioLabel: f.ratioLabel, confidence: 'high'
+              }];
+              entry.reason = 'this page already has a scale you set';
+              review++;
+              continue;
+            }
+
             if (regions.length) {
               setEmbeddedViewports(p, regions);                       // FR-12
               // FR-13: when every region agrees, the page as a whole is that
@@ -268,7 +288,7 @@
               const first = regions[0];
               const uniform = regions.every((r) => r.unit === first.unit
                 && Math.abs(r.factor - first.factor) <= 1e-9 * Math.max(r.factor, first.factor));
-              if (uniform && canWriteScale(p)) {
+              if (uniform) {
                 // FR-32: embedded metadata already describes the plotted
                 // geometry - a half-size correction on top would double-count.
                 setPageScale(p, {
@@ -282,9 +302,8 @@
                 ratioLabel: first.ratioLabel, confidence: 'high'
               }];
               entry.reason = regions.length > 1
-                ? regions.length + ' embedded regions'
+                ? regions.length + ' embedded regions, each with its own scale'
                 : 'embedded page scale';
-              if (!canWriteScale(p)) entry.reason += ' (page scale kept: set by you)';
               applied++;
               continue;                                                // FR-3
             }
@@ -388,7 +407,10 @@
       factor: c.factor, unit: c.unit, ratioLabel: c.ratioLabel,
       source: 'note', confidence: confidence
     };
-    if (halfInfo && halfInfo.half) {
+    // Doubling is the only arithmetic done to a factor after the pure module
+    // validated it, so re-check rather than let the invariant "everything in
+    // state.scales passed plausibleFactor" hold only by arithmetic luck.
+    if (halfInfo && halfInfo.half && S.plausibleFactor(c.factor * 2)) {
       scale.factor = c.factor * 2;
       scale.halfSize = true;
       scale.ratioLabel = c.ratioLabel + ' (half-size)';
@@ -446,7 +468,7 @@
   App.ScaleDetect.renderTab = function () {
     const list = App.$('#sd-list');
     const summary = App.$('#sd-summary');
-    if (!list) return;
+    if (!list || !summary) return;
     const det = App.state.scaleDetect;
 
     if (!det || det.status === 'idle') {

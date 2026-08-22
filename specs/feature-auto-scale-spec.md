@@ -91,6 +91,7 @@ overridden. Sheets FieldMark cannot read honestly say so instead of guessing.
 - **FR-12** — When a page yields one or more valid viewports, the system shall add them to `state.viewports[page]` with `source: 'embedded'`, `confidence: 'high'`, and a `ratioLabel` derived from `/R` when present.
 - **FR-13** — When every valid viewport on a page carries the same factor and unit, the system shall additionally set `state.scales[page]` to that scale with `source: 'embedded'`, so measurements outside any viewport box still read correctly.
 - **FR-14** — If a viewport's `/BBox` is missing, degenerate, or maps to a zero-area rectangle, then the system shall reject that viewport.
+- **FR-14a** *(clarification added during build)* — Where a page already has a scale whose `source` is `user` or absent, the system shall **not** add embedded regions to that page either, and shall record the embedded scale as an unapplied candidate. A region beats the page scale in `measure.js scaleFor`, so adding one over a hand-calibrated page would silently override that calibration for anything drawn inside the box — the precise surprise FR-4 exists to prevent. FR-4 and FR-12 did not say which won; this resolves it in FR-4's favour.
 
 ### 3.3 Tier B — title-block scale notes
 
