@@ -52,10 +52,31 @@ base copy as well as the saved output.
 > orientation in Acrobat and the original one on reopening here — the #98
 > failure shape, for the third time.
 
-**FR-5** — After a save, the system shall reset the view rotation to zero.
+**FR-5** — After a save, the system shall leave the view rotation exactly as the
+user set it.
 
-> The rotation is now in the file. Leaving the view rotated as well would show
-> the document turned twice as far as it is.
+> ~~After a save, the system shall reset the view rotation to zero.~~ *Corrected
+> after release: the reset was the bug.* Its premise was that the orientation is
+> now in the pages, so a rotated view on top would show the document turned twice
+> — but the document on screen is not the one just written. `buildBytes()` rotates
+> a copy of `App.state.pdfBytes`, and `pdfBytes` is only assigned on open, so a
+> save never rewrites the working document. Straightening the view therefore
+> re-rendered the *original* orientation the instant the file was saved, which
+> reads as "rotating a page and saving reverts it."
+>
+> It also cost more than the view. With the rotation zeroed, the *next* save
+> applied 0° to the same pristine bytes and wrote the pages back at their
+> original orientation — so "rotate, save, save again" silently undid the
+> rotation **in the file**, not just on screen. Measured on the released code:
+> `viewAfterRealSave: 0, secondSave: [0,90,270]` against a `[0,90,270]` fixture
+> that should hold at `[90,180,0]`.
+>
+> Nothing compounds either: every save applies the current view rotation to the
+> same pristine bytes, so a second save writes the same orientation (see AC-9)
+> and rotating back to square writes the original one (FR-8). The case the reset
+> was aimed at — reopening the saved file — is covered where it belongs, in
+> `Tabs.open`, which builds fresh state at rotation 0 over pages that already
+> carry the baked-in orientation (AC-3).
 
 **FR-6** — Markups, measurements and placements shall remain correctly
 positioned and oriented on a document saved rotated.
@@ -95,6 +116,15 @@ saved, *then* no page's `/Rotate` differs from the original.
 **AC-7 — Tabs.** *Given* two open documents, one rotated, *when* the user
 switches away and back, *then* the rotation is still applied.
 
+**AC-9 — It stays turned (FR-5).** *Given* a document rotated 90° in the view,
+*when* it is saved through the real save path, *then* the sheet is still shown at
+90° afterwards, and saving a second time writes the same `/Rotate` as the first —
+not one turned twice as far.
+
+> Must be driven through `App.Save.save()`, not `buildBytes()`. The defect lived
+> in `doSave`'s tail, so a test that stops at the built bytes cannot see it —
+> which is exactly how it shipped.
+
 ## Error handling
 
 | Condition | Response |
@@ -106,8 +136,8 @@ switches away and back, *then* the rotation is still applied.
 ## Scope boundaries
 
 **In scope:** persisting the uniform view rotation into `/Rotate` on save, into
-both the output and the sidecar base, per-tab rotation state, and the view reset
-after saving.
+both the output and the sidecar base, per-tab rotation state, and what the view
+shows after saving.
 
 **Not in scope:**
 - Rotating a **single page** independently. The viewer's rotation is uniform

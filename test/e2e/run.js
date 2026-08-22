@@ -286,6 +286,15 @@ const SCENARIOS = [
       // AC-1 / AC-2: written, and ADDED to what each page already carried.
       check(eq(j.afterSave, [90, 180, 0]),
         `expected [90,180,0] (added), got ${JSON.stringify(j.afterSave)}`);
+      // AC-9: the sheet is still turned after the save. Saving used to straighten
+      // the view, which showed the original orientation back on screen and read
+      // as "the rotation was not saved" — the file was right, the window lied.
+      check(j.wrote === true, 'the real save path did not report a write');
+      check(j.viewAfterRealSave === 90 && j.stateAfterRealSave === 90,
+        `view ${j.viewAfterRealSave} / state ${j.stateAfterRealSave} after saving, expected 90 — the sheet straightened itself`);
+      // ...and the next save writes the same orientation, not one turned twice.
+      check(eq(j.secondSave, [90, 180, 0]),
+        `saving twice gave ${JSON.stringify(j.secondSave)}, expected [90,180,0] — rotation compounded`);
       // AC-3: reopened at that orientation, with the view back to square — a
       // document turned twice is as wrong as one not turned at all.
       check(eq(j.rePageRots, [90, 180, 0]), `reopened at ${JSON.stringify(j.rePageRots)}`);
