@@ -10,7 +10,7 @@
  *   big.pdf    — 12 pages; named big.pdf because the SMOKE_WARM scenario asserts
  *                the second document's fileName switches to "big.pdf".
  */
-const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const { PDFDocument, StandardFonts, rgb, PDFName, PDFArray, PDFNumber, PDFString } = require('pdf-lib');
 const fs = require('fs');
 const path = require('path');
 
@@ -43,12 +43,124 @@ async function buildForm() {
   return doc.save();
 }
 
+// A 4-page ANSI D drawing set exercising every branch of automatic scale
+// detection (SMOKE_AUTOSCALE), one branch per page:
+//
+//   1  an embedded ISO 32000 s12.9 /VP viewport, 1 in = 20 ft  -> tier A
+//   2  a clean title-block note, SCALE: 1/4" = 1'-0"           -> tier B, applied
+//   3  SCALE: AS NOTED plus two detail scales                  -> declared, unscaled
+//   4  a bare "1:50" that the word SCALE never introduces      -> held for review
+async function buildScaleSet() {
+  const W = 22 * 72; const H = 34 * 72; // ANSI D
+  const doc = await PDFDocument.create();
+  const ctx = doc.context;
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const say = (pg, text, y, size) =>
+    pg.drawText(text, { x: 60, y, size: size || 18, font, color: rgb(0, 0, 0) });
+
+  // -- page 1: embedded measurement viewport --
+  const p1 = doc.addPage([W, H]);
+  say(p1, 'PLAN — embedded measurement viewport', H - 80);
+  const nf = ctx.obj({});
+  nf.set(PDFName.of('Type'), PDFName.of('NumberFormat'));
+  nf.set(PDFName.of('U'), PDFString.of('ft'));
+  nf.set(PDFName.of('C'), PDFNumber.of(20 / 72)); // 1 in = 20 ft
+  const md = ctx.obj({});
+  md.set(PDFName.of('Type'), PDFName.of('Measure'));
+  md.set(PDFName.of('Subtype'), PDFName.of('RL'));
+  md.set(PDFName.of('R'), PDFString.of('1 in = 20 ft'));
+  const xa = PDFArray.withContext(ctx); xa.push(nf);
+  md.set(PDFName.of('X'), xa);
+  const vp = ctx.obj({});
+  vp.set(PDFName.of('Type'), PDFName.of('Viewport'));
+  const bb = PDFArray.withContext(ctx);
+  [72, 72, W - 72, H - 200].forEach((n) => bb.push(PDFNumber.of(n)));
+  vp.set(PDFName.of('BBox'), bb);
+  vp.set(PDFName.of('Name'), PDFString.of('Site plan'));
+  vp.set(PDFName.of('Measure'), md);
+  const vpArr = PDFArray.withContext(ctx);
+  vpArr.push(ctx.register(vp)); // indirect, so the reader must resolve it
+  p1.node.set(PDFName.of('VP'), vpArr);
+
+  // -- page 2: a clean title-block note --
+  const p2 = doc.addPage([W, H]);
+  say(p2, 'FLOOR PLAN', H - 80);
+  say(p2, 'SCALE: 1/4" = 1\'-0"', 90, 14);
+
+  // -- page 3: AS NOTED detail sheet --
+  const p3 = doc.addPage([W, H]);
+  say(p3, 'DETAILS', H - 80);
+  say(p3, 'SCALE: AS NOTED', 90, 14);
+  say(p3, '1  JAMB   SCALE: 1 1/2" = 1\'-0"', H - 200, 12);
+  say(p3, '2  SILL   SCALE: 3" = 1\'-0"', H - 240, 12);
+
+  // -- page 4: a bare ratio with no SCALE keyword --
+  const p4 = doc.addPage([W, H]);
+  say(p4, 'SITE', H - 80);
+  say(p4, 'ratio 1:50 shown for reference', 90, 12);
+
+  return doc.save();
+}
+
+// Build one /VP viewport dictionary carrying a rectilinear /Measure of
+// `perInch` feet to the inch, covering the whole page.
+function measuredViewport(ctx, w, h, perInch, label) {
+  const nf = ctx.obj({});
+  nf.set(PDFName.of('Type'), PDFName.of('NumberFormat'));
+  nf.set(PDFName.of('U'), PDFString.of('ft'));
+  nf.set(PDFName.of('C'), PDFNumber.of(perInch / 72));
+  const md = ctx.obj({});
+  md.set(PDFName.of('Type'), PDFName.of('Measure'));
+  md.set(PDFName.of('Subtype'), PDFName.of('RL'));
+  md.set(PDFName.of('R'), PDFString.of(`1 in = ${perInch} ft`));
+  const xa = PDFArray.withContext(ctx); xa.push(nf);
+  md.set(PDFName.of('X'), xa);
+  const vp = ctx.obj({});
+  vp.set(PDFName.of('Type'), PDFName.of('Viewport'));
+  const bb = PDFArray.withContext(ctx);
+  [36, 36, w - 36, h - 36].forEach((n) => bb.push(PDFNumber.of(n)));
+  vp.set(PDFName.of('BBox'), bb);
+  vp.set(PDFName.of('Name'), PDFString.of(label));
+  vp.set(PDFName.of('Measure'), md);
+  return vp;
+}
+
+// A set plotted half size: every sheet 11x17, which is ANSI D (22x34) with both
+// dimensions halved, and no full-size sheet anywhere in the document.
+//
+//   1  embedded /VP, 1 in = 20 ft  -> must be applied AS IS (FR-32 / AC-14):
+//      the metadata already describes the plotted geometry, so doubling it
+//      would count the reduction twice.
+//   2  a title-block note           -> must be DOUBLED (FR-30 / AC-12): the
+//      note describes the original sheet, not this reduced print.
+async function buildHalfSizeSet() {
+  const W = 11 * 72; const H = 17 * 72;
+  const doc = await PDFDocument.create();
+  const ctx = doc.context;
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  const p1 = doc.addPage([W, H]);
+  p1.drawText('HALF SIZE — embedded viewport', { x: 40, y: H - 60, size: 12, font });
+  const vpArr = PDFArray.withContext(ctx);
+  vpArr.push(ctx.register(measuredViewport(ctx, W, H, 20, 'Reduced plan')));
+  p1.node.set(PDFName.of('VP'), vpArr);
+
+  const p2 = doc.addPage([W, H]);
+  p2.drawText('HALF SIZE — title block only', { x: 40, y: H - 60, size: 12, font });
+  p2.drawText('SCALE: 1/4" = 1\'-0"', { x: 40, y: 40, size: 10, font });
+
+  return doc.save();
+}
+
 async function main() {
   const dir = __dirname;
   fs.writeFileSync(path.join(dir, 'sample.pdf'), await build(3, 'Sample drawing'));
   fs.writeFileSync(path.join(dir, 'big.pdf'), await build(12, 'Big plan set'));
   fs.writeFileSync(path.join(dir, 'form.pdf'), await buildForm());
-  console.log('Wrote test/fixtures/sample.pdf (3 pages), big.pdf (12 pages), form.pdf (AcroForm).');
+  fs.writeFileSync(path.join(dir, 'scale-detect.pdf'), await buildScaleSet());
+  fs.writeFileSync(path.join(dir, 'scale-half.pdf'), await buildHalfSizeSet());
+  console.log('Wrote test/fixtures/sample.pdf (3 pages), big.pdf (12 pages), form.pdf (AcroForm), '
+    + 'scale-detect.pdf (4 pages), scale-half.pdf (2 pages, half-size).');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

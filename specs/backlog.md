@@ -172,3 +172,42 @@ A curved run that changes radius mid-way — a reverse curve, or a curb return
 tangent into a bulb — currently needs one arc length measurement per segment,
 added by hand. A running total across several arcs (the way `continuous` sums
 polyline legs) would match how such a run is actually called out on a sheet.
+
+## Graphic bar-scale detection (auto-scale tier C)
+
+Automatic scale detection ships with two tiers: embedded `/VP` + `/Measure`
+metadata, and title-block text notes. The third source a drawing carries is the
+drawn bar scale — a ruler with tick labels — which is the only one that stays
+true when a sheet has been rescaled, since it is reduced along with the
+geometry. That makes it the honest answer to the half-size problem FR-29
+currently *infers* from sheet size (spec §9 records the residual risk).
+
+It is materially harder: find a run of evenly spaced vector ticks, associate the
+numeric labels beside them, and convert tick spacing to a factor. Deferred
+deliberately rather than half-built, because a bar scale read wrongly is exactly
+the confident-wrong-number failure the whole feature is built to avoid.
+
+## Learn a scale correction from the user's first calibration
+
+When auto-detection applies a scale and the user immediately recalibrates that
+page by hand, the ratio between the two is information about the whole document
+— most often a uniform plot reduction. Offering that correction to sibling
+sheets ("apply this same correction to the other 47 sheets?") would turn one
+manual fix into a document-wide one, and would sidestep the sheet-size guess in
+FR-29 entirely.
+
+## Read /Measure off incoming annotations, not just page /VP
+
+Tier A reads the page-level `/VP` array. A document marked up in Bluebeam or
+Acrobat also carries `/Measure` dictionaries on its measurement *annotations* —
+the same ones `save.js:469-484` writes on the way out. Reading those back would
+recover a scale from a file that has been measured but never carried viewport
+metadata, and would make FieldMark's own exports round-trip their scale.
+
+## Per-document OCR results are not a tab field
+
+`App.state.ocr` is not in `tabs.js` DOC_FIELDS, so recognition results do not
+follow their document across a tab switch the way `scales`, `viewports` and
+(now) `scaleDetect` do. Noticed while adding `scaleDetect` to that list;
+pre-existing and out of scope for the auto-scale feature, but it means OCR
+output can appear against the wrong document after switching tabs.

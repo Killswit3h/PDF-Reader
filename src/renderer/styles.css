@@ -726,6 +726,32 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 .scale-hint { font-size: var(--fs-sm); color: var(--text-dim); margin: 6px 0 0; }
 .scale-apply { padding: 0 20px 6px; }
 
+/* ---- Detected tab: what FieldMark read out of the file itself ---- */
+.sd-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.sd-head .scale-hint { margin: 0; flex: 1; }
+.sd-list { margin-top: 10px; max-height: 320px; overflow-y: auto; }
+.sd-empty { font-size: var(--fs-sm); color: var(--text-dim); padding: 12px 2px; }
+.sd-row {
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--panel-2); margin-bottom: 6px;
+}
+.sd-row-main { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.sd-page { font-size: var(--fs-md); font-weight: 600; }
+.sd-val { font-size: var(--fs-md); color: var(--text-dim); margin-left: auto; }
+.sd-reason { font-size: var(--fs-xs); color: var(--text-dim); margin-top: 4px; }
+.sd-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sd-actions .tb-btn { font-size: var(--fs-xs); padding: 3px 8px; }
+.sd-badge {
+  font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 7px; border-radius: var(--r-pill); border: 1px solid transparent;
+  white-space: nowrap;
+}
+.sd-ok    { color: var(--success); border-color: var(--success); }
+.sd-warn  { color: var(--warning); border-color: var(--warning); }
+.sd-bad   { color: var(--danger);  border-color: var(--danger); }
+.sd-muted { color: var(--text-dim); border-color: var(--border); }
+.sd-src   { color: var(--text-dim); border-color: var(--border); text-transform: none; letter-spacing: 0; }
+
 /* ===================== OCR (text recognition) ===================== */
 #ocr-setup, #ocr-progress { padding: 0 20px 6px; }
 #ocr-setup .field-label { margin-top: var(--sp-4); }

@@ -29,6 +29,8 @@ const FIX = path.join(ROOT, 'test', 'fixtures');
 const SAMPLE = path.join(FIX, 'sample.pdf');
 const BIG = path.join(FIX, 'big.pdf');
 const FORM = path.join(FIX, 'form.pdf');
+const SCALESET = path.join(FIX, 'scale-detect.pdf');
+const SCALEHALF = path.join(FIX, 'scale-half.pdf');
 const PER_TEST_TIMEOUT = 45000;
 
 let passed = 0, failed = 0;
@@ -187,6 +189,81 @@ const SCENARIOS = [
       // AC-3: a model with no base is reported, never swallowed.
       check(j.askedAboutOrphan === true, 'orphan model opened flat with no message');
       check(j.orphanFlat === true, 'orphan model was drawn over an already-flattened page');
+    }
+  },
+  {
+    // Automatic per-page scale detection. A wrong auto-scale is worse than none
+    // — it turns into confident numbers on a bid — so this asserts the value a
+    // user reads off the page rather than an internal factor, and pins the two
+    // refusals that keep a bad scale out: a sheet that declares AS NOTED, and a
+    // ratio the word SCALE never introduced.
+    name: 'auto-scale — per-page detection from embedded metadata and title blocks',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_AUTOSCALE: '1', SMOKE_AUTOSCALE_HALF: SCALEHALF }, [SCALESET]), 'autoscale');
+      check(j.status === 'done', `detection did not finish: ${j.status}`);
+
+      // FR-12 / FR-13 / AC-2: page 1's embedded /VP became a scaled region AND
+      // a page scale, and 1 in = 20 ft means a 72-point line reads 20 ft.
+      check(j.states[0] === 'applied', `p1 embedded scale not applied: ${j.states[0]}`);
+      check(j.sources[0] === 'embedded', `p1 source ${j.sources[0]}, expected embedded`);
+      check(j.reads[0] === 20, `p1 72pt line reads ${j.reads[0]} ft, expected 20`);
+      check(j.regions.length === 1, `p1 should have 1 embedded region, has ${j.regions.length}`);
+      check(j.regions[0].src === 'embedded', `region source ${j.regions[0].src}`);
+      // The /BBox maps through convertToViewportPoint, so a hand-rolled Y flip
+      // would put this box in the wrong half of the page.
+      check(JSON.stringify(j.regions[0].box) === '[72,200,1440,2176]',
+        `region box ${JSON.stringify(j.regions[0].box)}, expected [72,200,1440,2176]`);
+
+      // FR-26 / AC-6: SCALE: 1/4" = 1'-0" -> a 72-point line reads 4 ft.
+      check(j.states[1] === 'applied', `p2 note not applied: ${j.states[1]}`);
+      check(j.sources[1] === 'note', `p2 source ${j.sources[1]}, expected note`);
+      check(j.reads[1] === 4, `p2 72pt line reads ${j.reads[1]} ft, expected 4`);
+      check(j.units[1] === 'ft', `p2 unit ${j.units[1]}, expected ft`);
+
+      // FR-22 / AC-10: AS NOTED is a declaration, so the page stays unscaled.
+      check(j.reads[2] === null, `p3 was scaled despite AS NOTED: ${j.reads[2]}`);
+      check(/AS NOTED/.test(j.p3reason || ''), `p3 reason ${j.p3reason}`);
+
+      // FR-24 / FR-27: a bare ratio is held for review, not applied.
+      check(j.states[3] === 'review', `p4 state ${j.states[3]}, expected review`);
+      check(j.reads[3] === null, `p4 applied an unlabelled ratio: ${j.reads[3]}`);
+      check(j.p4cands.indexOf('1:50') >= 0, `p4 candidates ${JSON.stringify(j.p4cands)}`);
+
+      // FR-35: the review list is reachable and the form footer gets out of its way.
+      check(j.tabRows >= 4, `Detected tab rendered ${j.tabRows} rows, expected >= 4`);
+      check(j.applyHidden === true, 'the Apply-scale button is still showing on the Detected tab');
+
+      // FR-36 / AC-11: accepting the held candidate applies it. 1:50 in metres.
+      check(j.p4after !== null, 'accepting the reviewed candidate did not apply it');
+      check(j.p4unit === 'm', `p4 unit after accept ${j.p4unit}, expected m`);
+      check(Math.abs(j.p4after - 1.27) < 0.001, `p4 reads ${j.p4after} m, expected 1.27`);
+      check(j.p4src === 'note', `p4 source after accept ${j.p4src}`);
+
+      // FR-37: clearing leaves the page genuinely unscaled.
+      check(j.p2cleared === null, `clearing p2 left a scale: ${JSON.stringify(j.p2cleared)}`);
+
+      // FR-4 / AC-15: the user's own scale survives an explicit re-detect, and
+      // a re-run does not duplicate the embedded regions it already created.
+      check(j.userKept === 'MINE', `re-detect overwrote the user's scale: ${j.userKept}`);
+      check(j.userSrc === 'user', `user scale source became ${j.userSrc}`);
+      check(j.regionsAfterRerun === 1, `re-detect duplicated regions: ${j.regionsAfterRerun}`);
+
+      // ---- half-size set: every sheet 11x17, i.e. ANSI D with both dimensions
+      // halved and no full-size sheet anywhere in the document.
+      // AC-14 / FR-32: embedded metadata already describes the PRINTED
+      // geometry, so it is applied as written. Doubling it here would count the
+      // reduction twice and every takeoff on that sheet would be 2x out.
+      check(j.halfEmbedded === 20,
+        `half-size embedded scale was altered: reads ${j.halfEmbedded} ft, expected 20`);
+      check(j.halfEmbeddedFlag === false, 'embedded scale wrongly flagged half-size');
+      // AC-12 / FR-30: the title-block note describes the ORIGINAL sheet, so on
+      // a half-size print 1/4" = 1'-0" really measures 8 ft to the inch, not 4.
+      check(j.halfNote === 8, `half-size note not doubled: reads ${j.halfNote} ft, expected 8`);
+      check(j.halfNoteFlag === true, 'doubled scale not marked halfSize');
+      check(/half-size/.test(j.halfNoteLabel || ''),
+        `half-size label missing: ${j.halfNoteLabel}`);
+      // FR-31: applied, but never silently — it always asks to be checked.
+      check(j.halfConfirm === true, 'half-size correction was not flagged for confirmation');
     }
   },
   {

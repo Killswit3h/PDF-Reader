@@ -49,6 +49,11 @@ App.state = {
   measureSeq: 0,
   viewportSeq: 0,
   measureSelectedId: null,
+  // What automatic scale detection found, per page. Derived from the open
+  // document and NOT persisted to the sidecar — the scales it produces are,
+  // via the `source`/`confidence`/`halfSize` fields on `scales` above.
+  // { status, pages: { [page]: { state, source, candidates, reason, half } } }
+  scaleDetect: { status: 'idle', pages: {} },
 
   // ---- Markup / annotation feature ----
   annotations: [],
