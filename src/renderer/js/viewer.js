@@ -102,6 +102,10 @@
       } else {
         pdfViewer.currentScaleValue = 'page-width';
       }
+      // Reapply the document's own rotation. On a fresh open this is 0 — the
+      // orientation is baked into the pages themselves, so rotating the view as
+      // well would show the sheet turned twice as far as it is.
+      try { pdfViewer.pagesRotation = App.normalizeRotation(App.state.rotation); } catch (_) { /* ignore */ }
       App.state.zoom = cssScale();
       updateZoomLabel();
       Viewer._updateControls(true);
@@ -629,7 +633,17 @@
   // placements/measurements stay pinned to the page.
   Viewer.rotate = (delta = 90) => {
     if (!pdfViewer) return;
-    pdfViewer.pagesRotation = (((pdfViewer.pagesRotation || 0) + delta) % 360 + 360) % 360;
+    Viewer.setRotation((pdfViewer.pagesRotation || 0) + delta);
+  };
+
+  // Set the view rotation and record it on the document's state, so it survives
+  // a tab switch and can be written into the file on save. Holding it only in
+  // pdfViewer.pagesRotation is why a rotated sheet used to come back straight.
+  Viewer.setRotation = (deg) => {
+    if (!pdfViewer) return;
+    const r = App.normalizeRotation(deg);
+    pdfViewer.pagesRotation = r;
+    App.state.rotation = r;
   };
   // Current view rotation, normalized to 0/90/180/270.
   Viewer.rotation = () => (pdfViewer ? (((pdfViewer.pagesRotation || 0) % 360) + 360) % 360 : 0);
