@@ -27,7 +27,7 @@
     'pageEls', 'mode', 'placements', 'selectedId', 'placementSeq',
     'scales', 'viewports', 'measurements', 'measureSeq', 'viewportSeq', 'measureSelectedId',
     'annotations', 'annoSeq', 'annoSelectedId', 'annoUndo', 'annoRedo', 'saveAnnots', 'flattenForms',
-    'dirty', 'docStamp'
+    'dirty', 'docStamp', 'scaleDetect'
   ];
 
   let sessions = [];   // { id, state, history:{undo,redo}, scaleValue, page }
@@ -58,7 +58,8 @@
       scales: {}, viewports: {}, measurements: [], measureSeq: 0, viewportSeq: 0, measureSelectedId: null,
       annotations: [], annoSeq: 0, annoSelectedId: null, annoUndo: [], annoRedo: [], saveAnnots: true, flattenForms: false,
       bookmarks: [],
-      dirty: false, docStamp: null
+      dirty: false, docStamp: null,
+      scaleDetect: { status: 'idle', pages: {} }
     };
   }
 
@@ -119,6 +120,16 @@
       App.toast(`Opened ${session.state.fileName}`, 'success');
       // Model with no base: recoverable data that must not vanish without a word.
       if (sidecar && !sidecar.base) App.Viewer._offerOrphanModel(sidecar.data);
+      // Read the document's own scales (FR-1). This has to happen HERE for the
+      // same reason the base swap above does: opening a file goes through the
+      // tab manager, so a hook in Viewer.load alone never fires on the path
+      // users actually take. Deliberately not awaited — the open has already
+      // succeeded and the viewer stays interactive while a large set is
+      // scanned (NFR-1). It runs after applyModel(), so any scale restored
+      // from the sidecar is already in place and is left alone (FR-5).
+      if (App.ScaleDetect && App.ScaleDetect.run) {
+        App.ScaleDetect.run().catch(() => { /* detection is best-effort */ });
+      }
       return true;
     } catch (err) {
       console.error(err);

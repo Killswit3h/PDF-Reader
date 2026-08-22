@@ -517,6 +517,7 @@
       <div class="modal-tabs">
         <button class="scale-tab active" data-stab="enter">Enter scale</button>
         <button class="scale-tab" data-stab="calibrate">Calibrate by drawing</button>
+        <button class="scale-tab" data-stab="detected">Detected</button>
       </div>
 
       <!-- Enter-scale panel -->
@@ -546,6 +547,17 @@
             <select id="calib-real-unit" class="unit-sel" aria-label="Real-world length unit"></select>
           </div>
         </div>
+      </div>
+
+      <!-- Detected panel: what FieldMark read out of the file itself -->
+      <div class="scale-panel hidden" data-spanel="detected">
+        <div class="sd-head">
+          <p id="sd-summary" class="scale-hint">Open a drawing and FieldMark will read its scale.</p>
+          <button id="sd-redetect" class="tb-btn" aria-label="Read scales from this document again">
+            <svg class="ico" aria-hidden="true"><use href="#i-rotate"/></svg>Re-detect
+          </button>
+        </div>
+        <div id="sd-list" class="sd-list" role="list"></div>
       </div>
 
       <div class="scale-apply">
@@ -1054,6 +1066,7 @@
   <script src="../shared/digital-ids.js"></script>
   <script src="../shared/pdf-sign.js"></script>
   <script src="../shared/ocr-layout.js"></script>
+  <script src="../shared/scale-detect.js"></script>
   <script src="../shared/outline.js"></script>
   <script src="../shared/markup-model.js"></script>
 
@@ -1065,6 +1078,7 @@
   <script src="js/viewer.js"></script>
   <script src="js/snap.js"></script>
   <script src="js/measure.js"></script>
+  <script src="js/scaledetect.js"></script>
   <script src="js/markup.js"></script>
   <script src="js/organize.js"></script>
   <script src="js/ocr.js"></script>

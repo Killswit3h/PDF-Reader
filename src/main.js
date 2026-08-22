@@ -2210,6 +2210,75 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_AUTOSCALE: automatic per-page scale detection over a set whose
+      // four sheets each take a different branch -- embedded /VP metadata, a
+      // clean title-block note, an AS NOTED detail sheet, and a bare ratio the
+      // word SCALE never introduces. Asserts the numbers a user would read off
+      // the page, that a user's own scale is never overwritten, and that the
+      // review list can apply and clear.
+      if (process.env.SMOKE_AUTOSCALE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              // Detection is fired off unawaited by viewer.js, so wait it out.
+              for (let i=0;i<100&&App.state.scaleDetect.status!=='done';i++) await new Promise(r=>setTimeout(r,100));
+              const A = App.state, SD = App.ScaleDetect;
+              const det = () => A.scaleDetect.pages;
+              // What a 72-point line measures on a page -- the number the user
+              // actually sees, not the internal factor.
+              const reads = (p) => A.scales[p] ? +(72 * A.scales[p].factor).toFixed(4) : null;
+              const out = {
+                status: A.scaleDetect.status,
+                states: [1,2,3,4].map(p => det()[p] && det()[p].state),
+                sources: [1,2,3,4].map(p => A.scales[p] ? A.scales[p].source : null),
+                reads: [1,2,3,4].map(reads),
+                units: [1,2,3,4].map(p => A.scales[p] ? A.scales[p].unit : null),
+                // FR-12: the embedded viewport became a real scaled region.
+                regions: (A.viewports[1]||[]).map(v => ({
+                  src: v.source, label: v.label,
+                  box: [Math.round(v.vx),Math.round(v.vy),Math.round(v.vw),Math.round(v.vh)]
+                })),
+                p3reason: det()[3] && det()[3].reason,
+                p4reason: det()[4] && det()[4].reason,
+                p4cands: (det()[4] && det()[4].candidates || []).map(c => c.ratioLabel)
+              };
+
+              // FR-35: the Detected tab renders a row per page with something to say.
+              App.Measure.openScaleModal({ kind: 'page', page: 1 });
+              document.querySelector('.scale-tab[data-stab="detected"]').click();
+              out.tabRows = document.querySelectorAll('#sd-list .sd-row').length;
+              out.applyHidden = document.querySelector('#scale-apply').style.display === 'none';
+
+              // FR-36 / AC-11: accepting page 4's held candidate applies it.
+              SD.accept(4, 0);
+              out.p4after = reads(4);
+              out.p4unit = A.scales[4] && A.scales[4].unit;
+              out.p4src = A.scales[4] && A.scales[4].source;
+
+              // FR-37: clearing a detected scale leaves the page unscaled.
+              SD.clear(2);
+              out.p2cleared = A.scales[2] || null;
+
+              // FR-4 / AC-15: a scale the user set is never overwritten, not even
+              // by an explicit re-detect.
+              App.Measure._scaleTarget = { kind: 'page', page: 2 };
+              A.scales[2] = { factor: 1, unit: 'ft', ratioLabel: 'MINE', source: 'user' };
+              await SD.run({ force: true });
+              for (let i=0;i<100&&A.scaleDetect.status!=='done';i++) await new Promise(r=>setTimeout(r,100));
+              out.userKept = A.scales[2].ratioLabel;
+              out.userSrc = A.scales[2].source;
+              // and page 1's embedded region did not get duplicated by the re-run
+              out.regionsAfterRerun = (A.viewports[1]||[]).length;
+
+              return JSON.stringify(out);
+            })()`, true);
+            console.log('[autoscale] ' + r);
+          } catch (e) { console.log('[autoscale] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_BOOKMARK: real PDF outline entries -- toggle, the button following
       // the page, the shelf, and the two failures that matter: bookmarks that
       // reach other viewers but vanish on reopening here, and a save that

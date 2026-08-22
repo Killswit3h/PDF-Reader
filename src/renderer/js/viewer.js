@@ -565,6 +565,14 @@
       // Deliberately not awaited: the open has already succeeded, and this only
       // adds a prompt on top of it.
       if (sidecar && !sidecar.base) Viewer._offerOrphanModel(sidecar.data);
+      // Read the document's own scales (FR-1). Deliberately not awaited: the
+      // open has already succeeded and the viewer must stay interactive while
+      // a 200-sheet set is scanned (NFR-1). It runs AFTER _rehydrate above, so
+      // any scale restored from the sidecar is already in place and carries
+      // source:'user' — which makes it untouchable (FR-5).
+      if (App.ScaleDetect && App.ScaleDetect.run) {
+        App.ScaleDetect.run().catch(() => { /* detection is best-effort */ });
+      }
       return true;
     } catch (err) {
       console.error(err);
@@ -611,6 +619,7 @@
     App.state.annoRedo = [];
     App.state.flattenForms = false;
     App.state.ocr = {}; // recognition results are per-document
+    App.state.scaleDetect = { status: 'idle', pages: {} }; // as are detections
     if (App.Snap) App.Snap.clear(); // page geometry is per-document; drop stale index
     if (App.History) App.History.reset();
     App.setMode && App.setMode(null);

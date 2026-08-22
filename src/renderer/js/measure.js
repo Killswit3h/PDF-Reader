@@ -694,10 +694,25 @@
   function switchScaleTab(tab) {
     App.$$('.scale-tab').forEach((b) => b.classList.toggle('active', b.dataset.stab === tab));
     App.$$('.scale-panel').forEach((p) => p.classList.toggle('hidden', p.dataset.spanel !== tab));
+    // The Detected tab is a review list, not a form: its rows carry their own
+    // Use/Clear buttons, so the shared "Apply to / Apply scale" footer would
+    // apply nothing and only confuse. Hide it while that tab is up.
+    const detected = tab === 'detected';
+    // "Apply to" is also hidden for a region target (openScaleModal), so derive
+    // from both conditions rather than resetting it to '' and undoing that.
+    const regionTarget = !!(M._scaleTarget && M._scaleTarget.kind === 'viewport');
+    const applyRow = App.$('.scale-apply');
+    const applyBtn = App.$('#scale-apply');
+    if (applyRow) applyRow.style.display = (detected || regionTarget) ? 'none' : '';
+    if (applyBtn) applyBtn.style.display = detected ? 'none' : '';
+    if (detected && App.ScaleDetect) App.ScaleDetect.renderTab();
   }
 
   function applyScale() {
     const activeTab = App.$('.scale-tab.active').dataset.stab;
+    // The Detected tab applies through its own per-row buttons; there is no
+    // form here to read.
+    if (activeTab === 'detected') return;
     let factor, unit, ratioLabel;
 
     if (activeTab === 'calibrate') {
@@ -722,10 +737,14 @@
     const target = M._scaleTarget;
     if (target.kind === 'viewport') {
       const list = App.state.viewports[target.page] || (App.state.viewports[target.page] = []);
-      list.push({ id: ++App.state.viewportSeq, ...target.rect, factor, unit, ratioLabel, label: ratioLabel });
+      // source:'user' is what makes this region immune to auto-detection
+      // replacing it on the next run (FR-38).
+      list.push({ id: ++App.state.viewportSeq, ...target.rect, factor, unit, ratioLabel, label: ratioLabel, source: 'user' });
     } else {
       const applyTo = App.$('#scale-apply-to').value;
-      const scale = { factor, unit, ratioLabel };
+      // Stamped 'user' so scaledetect.js will never overwrite it, on this run
+      // or any re-detect (FR-33, FR-38).
+      const scale = { factor, unit, ratioLabel, source: 'user' };
       if (applyTo === 'all') {
         for (let p = 1; p <= App.state.numPages; p++) App.state.scales[p] = { ...scale };
       } else {
@@ -1082,6 +1101,7 @@
     });
 
     App.$$('.scale-tab').forEach((b) => b.addEventListener('click', () => switchScaleTab(b.dataset.stab)));
+    if (App.ScaleDetect && App.ScaleDetect.initUI) App.ScaleDetect.initUI();
     App.$('#scale-close').addEventListener('click', closeScaleModal);
     App.$('#scale-cancel').addEventListener('click', closeScaleModal);
     App.$('#scale-apply').addEventListener('click', applyScale);
