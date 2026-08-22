@@ -27,6 +27,11 @@
     'pageEls', 'mode', 'placements', 'selectedId', 'placementSeq',
     'scales', 'viewports', 'measurements', 'measureSeq', 'viewportSeq', 'measureSelectedId',
     'annotations', 'annoSeq', 'annoSelectedId', 'annoUndo', 'annoRedo', 'saveAnnots', 'flattenForms',
+    // View rotation is per document, not per window: switching tabs must not
+    // straighten a sheet you turned. `bookmarks` belongs here for the same
+    // reason and was missed when it was added -- without it, switching tabs
+    // showed the previous document's bookmarks.
+    'rotation', 'bookmarks',
     'dirty', 'docStamp'
   ];
 
@@ -57,7 +62,7 @@
       mode: null, placements: [], selectedId: null, placementSeq: 0,
       scales: {}, viewports: {}, measurements: [], measureSeq: 0, viewportSeq: 0, measureSelectedId: null,
       annotations: [], annoSeq: 0, annoSelectedId: null, annoUndo: [], annoRedo: [], saveAnnots: true, flattenForms: false,
-      bookmarks: [],
+      bookmarks: [], rotation: 0,
       dirty: false, docStamp: null
     };
   }
