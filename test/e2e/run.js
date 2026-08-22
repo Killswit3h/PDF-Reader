@@ -30,6 +30,7 @@ const SAMPLE = path.join(FIX, 'sample.pdf');
 const BIG = path.join(FIX, 'big.pdf');
 const FORM = path.join(FIX, 'form.pdf');
 const SCALESET = path.join(FIX, 'scale-detect.pdf');
+const SCALEHALF = path.join(FIX, 'scale-half.pdf');
 const PER_TEST_TIMEOUT = 45000;
 
 let passed = 0, failed = 0;
@@ -198,7 +199,7 @@ const SCENARIOS = [
     // ratio the word SCALE never introduced.
     name: 'auto-scale — per-page detection from embedded metadata and title blocks',
     run: () => {
-      const j = tagJson(runApp({ SMOKE_AUTOSCALE: '1' }, [SCALESET]), 'autoscale');
+      const j = tagJson(runApp({ SMOKE_AUTOSCALE: '1', SMOKE_AUTOSCALE_HALF: SCALEHALF }, [SCALESET]), 'autoscale');
       check(j.status === 'done', `detection did not finish: ${j.status}`);
 
       // FR-12 / FR-13 / AC-2: page 1's embedded /VP became a scaled region AND
@@ -246,6 +247,23 @@ const SCENARIOS = [
       check(j.userKept === 'MINE', `re-detect overwrote the user's scale: ${j.userKept}`);
       check(j.userSrc === 'user', `user scale source became ${j.userSrc}`);
       check(j.regionsAfterRerun === 1, `re-detect duplicated regions: ${j.regionsAfterRerun}`);
+
+      // ---- half-size set: every sheet 11x17, i.e. ANSI D with both dimensions
+      // halved and no full-size sheet anywhere in the document.
+      // AC-14 / FR-32: embedded metadata already describes the PRINTED
+      // geometry, so it is applied as written. Doubling it here would count the
+      // reduction twice and every takeoff on that sheet would be 2x out.
+      check(j.halfEmbedded === 20,
+        `half-size embedded scale was altered: reads ${j.halfEmbedded} ft, expected 20`);
+      check(j.halfEmbeddedFlag === false, 'embedded scale wrongly flagged half-size');
+      // AC-12 / FR-30: the title-block note describes the ORIGINAL sheet, so on
+      // a half-size print 1/4" = 1'-0" really measures 8 ft to the inch, not 4.
+      check(j.halfNote === 8, `half-size note not doubled: reads ${j.halfNote} ft, expected 8`);
+      check(j.halfNoteFlag === true, 'doubled scale not marked halfSize');
+      check(/half-size/.test(j.halfNoteLabel || ''),
+        `half-size label missing: ${j.halfNoteLabel}`);
+      // FR-31: applied, but never silently — it always asks to be checked.
+      check(j.halfConfirm === true, 'half-size correction was not flagged for confirmation');
     }
   },
   {

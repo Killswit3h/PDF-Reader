@@ -2219,6 +2219,14 @@ function createWindow() {
       if (process.env.SMOKE_AUTOSCALE) {
         setTimeout(async () => {
           try {
+            // The half-size set is opened from inlined bytes further down; read
+            // it here in the main process so no new renderer API is needed.
+            let halfB64 = '';
+            try {
+              if (process.env.SMOKE_AUTOSCALE_HALF) {
+                halfB64 = fs.readFileSync(process.env.SMOKE_AUTOSCALE_HALF).toString('base64');
+              }
+            } catch (_) { halfB64 = ''; }
             const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
               for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
               // Detection is fired off unawaited by viewer.js, so wait it out.
@@ -2270,6 +2278,27 @@ function createWindow() {
               out.userSrc = A.scales[2].source;
               // and page 1's embedded region did not get duplicated by the re-run
               out.regionsAfterRerun = (A.viewports[1]||[]).length;
+
+              // AC-12 / AC-14: a set plotted half size. The title-block note
+              // describes the ORIGINAL sheet so it doubles; the embedded
+              // metadata describes the PRINTED geometry so it must not.
+              // Bytes are inlined by the main process rather than read through
+              // a new window.api method — this feature adds none.
+              const halfB64 = ${JSON.stringify(halfB64)};
+              if (halfB64) {
+                const bin = atob(halfB64);
+                const u8 = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                await App.Tabs.open(u8.buffer, 'scale-half.pdf', null);
+                for (let i=0;i<80&&!A.numPages;i++) await new Promise(r=>setTimeout(r,100));
+                for (let i=0;i<100&&A.scaleDetect.status!=='done';i++) await new Promise(r=>setTimeout(r,100));
+                out.halfEmbedded = reads(1);
+                out.halfEmbeddedFlag = !!(A.scales[1] && A.scales[1].halfSize);
+                out.halfNote = reads(2);
+                out.halfNoteFlag = !!(A.scales[2] && A.scales[2].halfSize);
+                out.halfNoteLabel = A.scales[2] && A.scales[2].ratioLabel;
+                out.halfConfirm = !!(A.scaleDetect.pages[2] && A.scaleDetect.pages[2].needsConfirm);
+              }
 
               return JSON.stringify(out);
             })()`, true);

@@ -102,13 +102,65 @@ async function buildScaleSet() {
   return doc.save();
 }
 
+// Build one /VP viewport dictionary carrying a rectilinear /Measure of
+// `perInch` feet to the inch, covering the whole page.
+function measuredViewport(ctx, w, h, perInch, label) {
+  const nf = ctx.obj({});
+  nf.set(PDFName.of('Type'), PDFName.of('NumberFormat'));
+  nf.set(PDFName.of('U'), PDFString.of('ft'));
+  nf.set(PDFName.of('C'), PDFNumber.of(perInch / 72));
+  const md = ctx.obj({});
+  md.set(PDFName.of('Type'), PDFName.of('Measure'));
+  md.set(PDFName.of('Subtype'), PDFName.of('RL'));
+  md.set(PDFName.of('R'), PDFString.of(`1 in = ${perInch} ft`));
+  const xa = PDFArray.withContext(ctx); xa.push(nf);
+  md.set(PDFName.of('X'), xa);
+  const vp = ctx.obj({});
+  vp.set(PDFName.of('Type'), PDFName.of('Viewport'));
+  const bb = PDFArray.withContext(ctx);
+  [36, 36, w - 36, h - 36].forEach((n) => bb.push(PDFNumber.of(n)));
+  vp.set(PDFName.of('BBox'), bb);
+  vp.set(PDFName.of('Name'), PDFString.of(label));
+  vp.set(PDFName.of('Measure'), md);
+  return vp;
+}
+
+// A set plotted half size: every sheet 11x17, which is ANSI D (22x34) with both
+// dimensions halved, and no full-size sheet anywhere in the document.
+//
+//   1  embedded /VP, 1 in = 20 ft  -> must be applied AS IS (FR-32 / AC-14):
+//      the metadata already describes the plotted geometry, so doubling it
+//      would count the reduction twice.
+//   2  a title-block note           -> must be DOUBLED (FR-30 / AC-12): the
+//      note describes the original sheet, not this reduced print.
+async function buildHalfSizeSet() {
+  const W = 11 * 72; const H = 17 * 72;
+  const doc = await PDFDocument.create();
+  const ctx = doc.context;
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+
+  const p1 = doc.addPage([W, H]);
+  p1.drawText('HALF SIZE — embedded viewport', { x: 40, y: H - 60, size: 12, font });
+  const vpArr = PDFArray.withContext(ctx);
+  vpArr.push(ctx.register(measuredViewport(ctx, W, H, 20, 'Reduced plan')));
+  p1.node.set(PDFName.of('VP'), vpArr);
+
+  const p2 = doc.addPage([W, H]);
+  p2.drawText('HALF SIZE — title block only', { x: 40, y: H - 60, size: 12, font });
+  p2.drawText('SCALE: 1/4" = 1\'-0"', { x: 40, y: 40, size: 10, font });
+
+  return doc.save();
+}
+
 async function main() {
   const dir = __dirname;
   fs.writeFileSync(path.join(dir, 'sample.pdf'), await build(3, 'Sample drawing'));
   fs.writeFileSync(path.join(dir, 'big.pdf'), await build(12, 'Big plan set'));
   fs.writeFileSync(path.join(dir, 'form.pdf'), await buildForm());
   fs.writeFileSync(path.join(dir, 'scale-detect.pdf'), await buildScaleSet());
-  console.log('Wrote test/fixtures/sample.pdf (3 pages), big.pdf (12 pages), form.pdf (AcroForm), scale-detect.pdf (4 pages).');
+  fs.writeFileSync(path.join(dir, 'scale-half.pdf'), await buildHalfSizeSet());
+  console.log('Wrote test/fixtures/sample.pdf (3 pages), big.pdf (12 pages), form.pdf (AcroForm), '
+    + 'scale-detect.pdf (4 pages), scale-half.pdf (2 pages, half-size).');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
