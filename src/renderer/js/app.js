@@ -304,24 +304,50 @@
   }
 
   // ---------- Drag & drop ----------
+  // Only a drag carrying FILES from outside the app raises the "Drop PDF to
+  // open" scrim. Dragging a tab within the window is an INTERNAL drag: it
+  // carries no files, and treating it as a file drop used to throw the
+  // full-window scrim (z-index above the tab bar) over the tab strip mid-drag,
+  // swallowing the tab's own dragover/drop and killing drag-to-reorder outright.
+  function carriesFiles(e) {
+    const types = e.dataTransfer && e.dataTransfer.types;
+    if (!types) return false;
+    return Array.prototype.indexOf.call(types, 'Files') !== -1;
+  }
+
   function setupDragDrop() {
     const overlay = App.$('#drop-overlay');
     let depth = 0;
+    let fileDrag = false;   // latched on the first file dragenter; the later
+                            // events reuse it so one stray reading of
+                            // dataTransfer.types can't strand the scrim on-screen
+    const hide = () => { depth = 0; fileDrag = false; overlay.classList.add('hidden'); };
     window.addEventListener('dragenter', (e) => {
+      if (!carriesFiles(e)) return;    // a tab being dragged — not ours to handle
       e.preventDefault();
+      fileDrag = true;
       depth++;
       overlay.classList.remove('hidden');
     });
-    window.addEventListener('dragover', (e) => e.preventDefault());
+    // preventDefault here is what makes the window a valid drop target. Doing it
+    // for internal drags too would let a tab "drop" onto the page area; leaving
+    // it to the file case means an off-strip tab drop is simply refused, and the
+    // tab springs back where it was.
+    window.addEventListener('dragover', (e) => { if (fileDrag) e.preventDefault(); });
     window.addEventListener('dragleave', (e) => {
+      if (!fileDrag) return;
       e.preventDefault();
       depth = Math.max(0, depth - 1);
-      if (depth === 0) overlay.classList.add('hidden');
+      if (depth === 0) hide();
     });
+    // A drag that ends without a drop (Esc, or a tab torn off into its own
+    // window) never fires `drop` — clear the scrim here so it can't linger.
+    window.addEventListener('dragend', hide);
     window.addEventListener('drop', async (e) => {
+      const wasFileDrag = fileDrag || carriesFiles(e);
+      hide();
+      if (!wasFileDrag) return;        // internal drag — the tab strip handled it
       e.preventDefault();
-      depth = 0;
-      overlay.classList.add('hidden');
       const dropped = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
       if (!dropped.length) return;
       // Drop several PDFs at once → open every one as its own tab. Non-PDFs are
@@ -450,6 +476,16 @@
         }
       }
       if (inEditable(e.target)) return;
+
+      // Rearrange the open documents from the keyboard: Ctrl/Cmd+Shift+PageUp /
+      // PageDown carries the ACTIVE tab one slot along the strip (the same keys
+      // browsers use for this). Handled ahead of the bare PageUp/PageDown page
+      // navigation below, which would otherwise swallow it.
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+        e.preventDefault();
+        if (App.Tabs) App.Tabs.moveActive(e.key === 'PageDown' ? 1 : -1);
+        return;
+      }
 
       // Copy / paste / duplicate the selected placed object (text box, image,
       // markup, measurement). An in-app clipboard — PDF-text copy stays native.
@@ -1039,6 +1075,11 @@
       { combos: [['←'], ['→']], label: 'Previous / next page' },
       { combos: [['PageUp'], ['PageDown']], label: 'Page up / down' },
       { combos: [['?'], ['F1']], label: 'Show this help' }
+    ] },
+    { title: 'Document tabs', rows: [
+      { combos: [['mod', 'Shift', 'PageUp'], ['mod', 'Shift', 'PageDown']], label: 'Move this tab left / right' },
+      { combos: [['drag']], label: 'Drag a tab to reorder' },
+      { combos: [['right-click']], label: 'Tab menu: move, or open in a new window' }
     ] }
   ];
 

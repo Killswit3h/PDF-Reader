@@ -996,12 +996,38 @@ const SCENARIOS = [
     }
   },
   {
-    name: 'tab reorder — dragging a tab reorders the sessions and the tab DOM',
+    name: 'tab reorder — a real drag, the keyboard, and the menu all rearrange tabs',
     run: () => {
       const j = tagJson(runApp({ SMOKE_TABREORDER: BIG }, [SAMPLE]), 'tabreorder');
       check(j.before.join(',') === 'sample.pdf,big.pdf', `initial order ${JSON.stringify(j.before)}`);
-      check(j.after.join(',') === 'big.pdf,sample.pdf', `reordered wrong ${JSON.stringify(j.after)}`);
+
+      // Regression guard for the bug that made drag-to-reorder look unimplemented:
+      // starting a tab drag raised the full-window "Drop PDF to open" scrim over
+      // the tab strip, so the tabs never saw the dragover/drop and nothing moved.
+      // An internal drag carries no files and must not raise the scrim at all —
+      // and the scrim must never hit-test, so it can't intercept a drag again.
+      check(j.scrimUp === false, 'dragging a TAB raised the file-drop overlay — it will swallow the drop');
+      check(j.scrimClickThrough === true, 'the drop overlay still hit-tests; it can intercept a tab drag');
+      check(j.hitId === '1', `the tab strip is covered mid-drag — the point over tab 1 hit "${j.hitId}"`);
+      check(j.acceptsDrop === true, 'the tab refused the dragover, so a drop can never land on it');
+      check(j.marked === true, 'no insertion marker appeared on the tab being dragged over');
+
+      // The drag itself, end to end.
+      check(j.afterDrag.join(',') === 'big.pdf,sample.pdf', `drag reordered wrong ${JSON.stringify(j.afterDrag)}`);
       check(j.activeStayed === 'big.pdf', `reorder changed the active doc (${j.activeStayed})`);
+
+      // Keyboard: Ctrl+Shift+PageDown moves the active tab (big.pdf) back to the
+      // right, and must not fall through to plain PageDown page navigation.
+      check(j.afterKey.join(',') === 'sample.pdf,big.pdf', `keyboard move wrong ${JSON.stringify(j.afterKey)}`);
+      check(j.pageStayed === 1, `the tab shortcut also paged the document (page ${j.pageStayed})`);
+
+      // The order is real state, so re-rendering the strip must not resurrect
+      // the original order.
+      check(j.afterRender.join(',') === 'sample.pdf,big.pdf', `order lost on re-render ${JSON.stringify(j.afterRender)}`);
+
+      // A pointer-free path exists for anyone who can't drag.
+      const menu = (j.menuItems || []).join('|');
+      check(/Move Right/.test(menu) && /Move to End/.test(menu), `tab menu is missing the move items: ${menu}`);
     }
   },
   {
@@ -1079,8 +1105,17 @@ const SCENARIOS = [
 // Scenarios may be sync or async — awaiting a sync one's undefined is harmless,
 // and a few need to parse an exported PDF, which is promise-based.
 (async function main() {
-  console.log(`E2E smoke suite — ${SCENARIOS.length} scenarios (electron: ${path.basename(electronPath)})\n`);
-  for (const sc of SCENARIOS) {
+  // `node test/e2e/run.js <substring>` runs just the matching scenarios — the
+  // whole suite launches Electron once per scenario, which is far too slow a
+  // loop when you're iterating on one of them. CI passes no argument.
+  const grep = process.argv[2];
+  const scenarios = grep ? SCENARIOS.filter((s) => s.name.includes(grep)) : SCENARIOS;
+  if (grep && !scenarios.length) {
+    console.log(`No scenario matches "${grep}".`);
+    process.exit(1);
+  }
+  console.log(`E2E smoke suite — ${scenarios.length} scenarios (electron: ${path.basename(electronPath)})\n`);
+  for (const sc of scenarios) {
     const t0 = Date.now();
     try {
       await sc.run();

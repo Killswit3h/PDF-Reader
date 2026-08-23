@@ -184,6 +184,18 @@ body.has-tabs #viewerContainer { top: var(--tab-h); }
 .tab.dragging { opacity: 0.4; }
 .tab.drop-before { box-shadow: inset 2px 0 0 0 var(--accent); }
 .tab.drop-after { box-shadow: inset -2px 0 0 0 var(--accent); }
+/* A drag is in flight: suppress the hover/transition churn as tabs slide past
+   the cursor, which otherwise flickers every tab the drag crosses. */
+#tab-bar.reordering .tab { transition: none; }
+#tab-bar.reordering .tab:hover:not(.active) { background: var(--bg-canvas); }
+/* Touch drag (press and hold): the tab is carried under the finger, lifted off
+   the strip so the insertion bar behind it stays readable. It must not hit-test,
+   or elementFromPoint would only ever find the tab being dragged. */
+.tab.touch-dragging {
+  opacity: 0.85; pointer-events: none;
+  position: relative; z-index: var(--z-page);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.35);
+}
 .tab-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tab-close {
   flex: none; border: none; background: transparent; color: var(--text-faint);
@@ -477,10 +489,15 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 .hint { font-size: var(--fs-sm); margin-top: 16px; }
 
 /* ===================== Drop overlay ===================== */
+/* Purely a visual scrim — the drag/drop listeners live on `window`, so this
+   layer never needs to receive a pointer or drag event itself. `pointer-events:
+   none` keeps it from hit-testing above the tab strip (it sits at --z-scrim,
+   the tab bar at --z-chrome) and swallowing a tab drag-to-reorder. */
 #drop-overlay {
   position: fixed; inset: 0; z-index: var(--z-scrim);
   background: var(--scrim-heavy);
   display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
 }
 .drop-msg {
   border: 3px dashed var(--accent); border-radius: var(--r-lg);
