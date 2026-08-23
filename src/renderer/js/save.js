@@ -996,10 +996,25 @@
         }
       }
       if (saved) App.state.dirty = false; // changes are now on disk
-      // The orientation is in the file now, so the view goes back to square.
-      // Leaving it rotated as well would show the sheet turned twice as far as
-      // it actually is, and a further save would compound that.
-      if (saved && App.state.rotation && App.Viewer.setRotation) App.Viewer.setRotation(0);
+      // The view deliberately stays where the user left it.
+      //
+      // Straightening it here (as this used to) turned the sheet back to its
+      // original orientation the instant it was saved — the rotation looked
+      // lost, even though the file on disk was correct. The reasoning for that
+      // reset was that the orientation is now in the pages, so a rotated view
+      // on top would show the sheet turned twice; but the document on screen is
+      // NOT the document just written. buildBytes() rotates a *copy* of
+      // App.state.pdfBytes, and pdfBytes is only ever assigned on open — a save
+      // never rewrites the working document. So the pages in front of the user
+      // still carry their original /Rotate, the view rotation is still the only
+      // thing turning them, and dropping it drops the change from view.
+      //
+      // Nothing compounds, for the same reason: every save applies the current
+      // view rotation to the same pristine bytes, so saving twice writes the
+      // same orientation twice, and rotating back to square writes the original
+      // one (FR-8). Reopening the saved file is the case the reset was really
+      // aimed at, and that is already covered — Tabs.open builds fresh state
+      // with rotation 0 over pages that carry the baked-in orientation.
       if (saved && App.refreshDirtyIndicator) App.refreshDirtyIndicator();
     } catch (err) {
       console.error(err);

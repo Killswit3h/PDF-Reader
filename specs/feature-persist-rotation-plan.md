@@ -53,8 +53,13 @@ approach needs revisiting before anything else is done.
 - Guarded so a failure warns rather than failing the save.
 
 ### `src/renderer/js/app.js` (or the save path)
-- After a successful save, reset the view rotation to 0 (FR-5). The document now
-  carries the rotation; leaving the view rotated would show it twice over.
+- ~~After a successful save, reset the view rotation to 0 (FR-5). The document now
+  carries the rotation; leaving the view rotated would show it twice over.~~
+- **Corrected after release — this step was the bug.** Leave the view exactly as
+  the user set it (FR-5, AC-9). The document on screen is not the one just
+  written: `buildBytes()` rotates a copy of `App.state.pdfBytes`, which is only
+  assigned on open, so nothing shows twice over and straightening the view just
+  re-renders the original orientation.
 
 ## Work order
 
@@ -63,8 +68,9 @@ approach needs revisiting before anything else is done.
 | 1 | `src/shared/rotation.js` + unit tests | FR-3, error table |
 | 2 | Rotation into document + per-tab state, restored on activate | FR-1 |
 | 3 | Bake into output and base on save | FR-2, FR-3, FR-4 |
-| 4 | Reset the view after saving | FR-5 |
+| 4 | ~~Reset the view after saving~~ → leave the view as set | FR-5 |
 | 5 | Tests: `SMOKE_ROTPERSIST`, and confirm `textrot` unmodified | AC-1..7 |
+| 6 | Drive `SMOKE_ROTPERSIST` through the real `App.Save.save()` | AC-9 |
 
 ## Test plan
 

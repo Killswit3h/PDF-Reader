@@ -2388,6 +2388,9 @@ function createWindow() {
       // rotations, because a fixture of all-zero pages cannot tell "added to
       // what was there" apart from "replaced with the view rotation".
       if (process.env.SMOKE_ROTPERSIST) {
+        // A throwaway destination, so the scenario can drive the real save path
+        // (write to disk included) instead of stopping at the built bytes.
+        const rotTmpPath = path.join(app.getPath('temp'), 'fieldmark-rotpersist.pdf');
         setTimeout(async () => {
           try {
             const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
@@ -2438,6 +2441,21 @@ function createWindow() {
               const saved = await App.Save.buildBytes();
               const afterSave = await rotsOf(saved);
 
+              // AC-9: the sheet stays turned after a save. This has to go
+              // through App.Save.save(), not buildBytes(): the defect was in
+              // doSave's tail, so a test that only builds bytes cannot see it.
+              // Give it a path it has already acknowledged, so the overwrite
+              // confirm does not block a headless run.
+              A.filePath = ${JSON.stringify(rotTmpPath)};
+              A.fileName = 'rot-saved.pdf';
+              App.Save._ackedPath = A.filePath;
+              const wrote = await App.Save.save();
+              const viewAfterRealSave = App.Viewer.rotation();
+              const stateAfterRealSave = A.rotation;
+              // ...and saving again writes the same orientation, not one turned
+              // twice as far -- the fear the old reset was there to prevent.
+              const secondSave = await rotsOf(await App.Save.buildBytes());
+
               // AC-3: reopen through the tab path.
               await openBytes(saved, 'rot2.pdf');
               const reViewRot = App.Viewer.rotation();
@@ -2453,11 +2471,13 @@ function createWindow() {
 
               return JSON.stringify({
                 original, unrotated, stateRot, viewRot, afterSave,
+                wrote, viewAfterRealSave, stateAfterRealSave, secondSave,
                 reViewRot, rePageRots, valueBefore, valueAfter, backAgain
               });
             })()`, true);
             console.log('[rotpersist] ' + r);
           } catch (e) { console.log('[rotpersist] error', e && e.message); }
+          try { fs.unlinkSync(rotTmpPath); } catch (_) { /* never written */ }
           app.quit();
         }, 1200);
         return;
