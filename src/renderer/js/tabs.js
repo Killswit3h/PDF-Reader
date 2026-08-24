@@ -208,18 +208,50 @@
   }
   T.requestCloseActive = () => { if (activeId != null) requestClose(activeId); };
 
-  // Move the dragged tab so it sits before/after the target tab, then re-render.
-  // Order in `sessions` IS the tab order, so reordering is just an array splice.
-  T.reorder = function (fromId, targetId, placeBefore) {
-    if (fromId === targetId) return;
-    const from = sessions.findIndex((s) => s.id === fromId);
-    if (from === -1) return;
-    const [moved] = sessions.splice(from, 1);
-    let to = sessions.findIndex((s) => s.id === targetId);
-    if (to === -1) { sessions.splice(from, 0, moved); return; } // target gone; undo
-    if (!placeBefore) to += 1;
-    sessions.splice(to, 0, moved);
+  // ---- Rearranging tabs ----
+  // Order in `sessions` IS the tab order, so every rearrangement is just a
+  // permutation of the session ids. The arithmetic lives in the shared
+  // TabOrder module (unit-tested in Node); this end only maps ids back to
+  // sessions and re-renders. Reordering never changes which document is
+  // active — you're rearranging the strip, not navigating it.
+  const orderIds = () => sessions.map((s) => s.id);
+
+  function applyOrder(ids) {
+    if (App.TabOrder.sameOrder(orderIds(), ids)) return false;   // nothing moved
+    const byId = new Map(sessions.map((s) => [s.id, s]));
+    const next = ids.map((id) => byId.get(id)).filter(Boolean);
+    if (next.length !== sessions.length) return false;           // lost a tab — refuse
+    sessions = next;
     renderBar();
+    return true;
+  }
+
+  // Drop `fromId` before (or after) `targetId` — the drag-and-drop path.
+  T.reorder = function (fromId, targetId, placeBefore) {
+    return applyOrder(App.TabOrder.moveTab(orderIds(), fromId, targetId, !!placeBefore));
+  };
+
+  // Nudge a tab one or more slots along the strip — the keyboard path.
+  T.move = function (id, delta) {
+    return applyOrder(App.TabOrder.shiftTab(orderIds(), id, delta));
+  };
+
+  // Send a tab to the far start/end — the right-click menu path.
+  T.moveToEdge = function (id, edge) {
+    return applyOrder(App.TabOrder.moveTabToEdge(orderIds(), id, edge));
+  };
+
+  // Where a tab sits now, 1-based — used for the screen-reader/toast readout.
+  T.positionOf = (id) => sessions.findIndex((s) => s.id === id) + 1;
+
+  // Keyboard shortcut target: move the ACTIVE tab and say where it landed, so
+  // the move is announced rather than only visible.
+  T.moveActive = function (delta) {
+    if (activeId == null || sessions.length < 2) return false;
+    if (!T.move(activeId, delta)) return false;
+    const name = App.state.fileName || 'PDF';
+    App.toast(`${name} moved to ${T.positionOf(activeId)} of ${sessions.length}`, 'info', 1400);
+    return true;
   };
 
   // ---- Tear-off: pop a tab into its own window (desktop only) ----
@@ -323,6 +355,14 @@
       else b.addEventListener('click', () => { closeTabMenu(); fn(); });
       menu.appendChild(b);
     };
+    // Rearranging without a drag — the discoverable path, and the only one that
+    // works when a tab strip is too crowded to drag comfortably.
+    const at = T.positionOf(id);
+    const last = sessions.length;
+    item(App.icon('chevron-left') + 'Move Left', () => T.move(id, -1), at <= 1);
+    item(App.icon('chevron-right') + 'Move Right', () => T.move(id, 1), at >= last);
+    item(App.icon('chevrons-left') + 'Move to Start', () => T.moveToEdge(id, 'start'), at <= 1);
+    item(App.icon('chevrons-right') + 'Move to End', () => T.moveToEdge(id, 'end'), at >= last);
     item(App.icon('window') + 'Open in New Window', () => T.tearOff(id), !T.canTearOff());
     document.body.appendChild(menu);
     // Keep the menu on-screen (flip left/up near the edges).
@@ -335,28 +375,194 @@
 
   let dragId = null;
 
+  // ---- Shared drag plumbing (mouse drag-and-drop AND the touch gesture) ----
+
+  const tabEls = () => App.$$('#tab-bar .tab');
+  const clearDropMarks = () => tabEls().forEach((t) => t.classList.remove('drop-before', 'drop-after'));
+  const tabElById = (id) => App.$(`#tab-bar .tab[data-tab-id="${id}"]`);
+  function focusTabEl(id) { const el = tabElById(id); if (el) el.focus(); }
+
+  // Which tab is under this point, and which half of it — the insertion side.
+  // Both drag paths ask the same question, so they agree on where a drop lands.
+  function dropTargetAt(x, y, exceptEl) {
+    const hit = document.elementFromPoint(x, y);
+    const tab = hit && hit.closest ? hit.closest('#tab-bar .tab') : null;
+    if (!tab || tab === exceptEl || tab.dataset.tabId == null) return null;
+    const r = tab.getBoundingClientRect();
+    return { tab, id: Number(tab.dataset.tabId), before: x < r.left + r.width / 2 };
+  }
+
+  // Paint the insertion bar on the tab under the cursor and nowhere else.
+  function markDropTarget(hit) {
+    clearDropMarks();
+    if (!hit) return;
+    hit.tab.classList.toggle('drop-before', hit.before);
+    hit.tab.classList.toggle('drop-after', !hit.before);
+  }
+
+  // A crowded strip scrolls, so a drag that reaches either edge has to pull the
+  // off-screen tabs into view — otherwise you can only reorder what you can see.
+  const EDGE_ZONE = 48;
+  function autoScroll(x) {
+    const bar = App.$('#tab-bar');
+    if (!bar || bar.scrollWidth <= bar.clientWidth) return;
+    const r = bar.getBoundingClientRect();
+    if (x < r.left + EDGE_ZONE) bar.scrollLeft -= Math.max(6, (r.left + EDGE_ZONE - x) / 2);
+    else if (x > r.right - EDGE_ZONE) bar.scrollLeft += Math.max(6, (x - (r.right - EDGE_ZONE)) / 2);
+  }
+
+  // ---- Rearranging by touch ----
+  // HTML5 drag events never fire on a touchscreen, so Android/iOS get their own
+  // gesture: press and hold a tab to pick it up, slide to the slot you want, and
+  // lift to drop it. The hold delay is what lets an ordinary swipe still scroll a
+  // crowded strip instead of grabbing whichever tab it started on.
+  const HOLD_MS = 350;
+  const HOLD_SLOP = 10;      // movement (px) before the hold fires = a scroll, not a grab
+  let touchDrag = null;      // { id, el, pointerId, timer, x0, y0, active }
+  let swallowClick = false;  // a completed drag must not also read as a tap that switches tabs
+
+  function endTouchDrag() {
+    if (!touchDrag) return;
+    clearTimeout(touchDrag.timer);
+    const { el, pointerId, active } = touchDrag;
+    if (el) {
+      el.classList.remove('dragging', 'touch-dragging');
+      el.style.transform = '';
+      try { if (el.hasPointerCapture && el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId); } catch (_) { /* already gone */ }
+    }
+    clearDropMarks();
+    const bar = App.$('#tab-bar');
+    if (bar) bar.classList.remove('reordering');
+    touchDrag = null;
+    return active;
+  }
+
+  function beginTouchDrag() {
+    if (!touchDrag || touchDrag.active) return;
+    touchDrag.active = true;
+    touchDrag.el.classList.add('dragging', 'touch-dragging');
+    const bar = App.$('#tab-bar');
+    if (bar) bar.classList.add('reordering');
+    try { touchDrag.el.setPointerCapture(touchDrag.pointerId); } catch (_) { /* capture is a nicety */ }
+    // A short buzz is the only signal a touch user gets that the tab is now held.
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (_) { /* unsupported */ }
+  }
+
+  function onTabPointerDown(e, id, el) {
+    if (e.pointerType !== 'touch' || !e.isPrimary || sessions.length < 2) return;
+    endTouchDrag();
+    touchDrag = { id, el, pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, active: false, timer: null };
+    touchDrag.timer = setTimeout(beginTouchDrag, HOLD_MS);
+  }
+
+  function onTabPointerMove(e) {
+    if (!touchDrag || e.pointerId !== touchDrag.pointerId) return;
+    if (!touchDrag.active) {
+      // Moved before the hold fired — the user is scrolling the strip, not
+      // picking a tab up. Let the browser have the gesture.
+      if (Math.abs(e.clientX - touchDrag.x0) > HOLD_SLOP || Math.abs(e.clientY - touchDrag.y0) > HOLD_SLOP) endTouchDrag();
+      return;
+    }
+    e.preventDefault();
+    // Carry the tab under the finger so the gesture reads as picking it up.
+    touchDrag.el.style.transform = `translateX(${e.clientX - touchDrag.x0}px)`;
+    autoScroll(e.clientX);
+    markDropTarget(dropTargetAt(e.clientX, e.clientY, touchDrag.el));
+  }
+
+  function onTabPointerUp(e) {
+    if (!touchDrag || e.pointerId !== touchDrag.pointerId) return;
+    const hit = touchDrag.active ? dropTargetAt(e.clientX, e.clientY, touchDrag.el) : null;
+    const fromId = touchDrag.id;
+    const wasActive = endTouchDrag();
+    if (wasActive) {
+      swallowClick = true;                       // the tap that follows a drop is not a tab switch
+      setTimeout(() => { swallowClick = false; }, 0);
+      if (hit) T.reorder(fromId, hit.id, hit.before);
+    }
+  }
+
+  // touch-action can't be flipped mid-gesture, so stop the strip scrolling under
+  // an active drag the one way that always works: refuse the touchmove outright.
+  // Must be non-passive, or preventDefault() is ignored.
+  function installTouchGuard(bar) {
+    bar.addEventListener('touchmove', (e) => {
+      if (touchDrag && touchDrag.active) e.preventDefault();
+    }, { passive: false });
+  }
+
   // ---- Tab bar UI ----
   T.renderBar = renderBar;
   function renderBar() {
     const bar = App.$('#tab-bar');
     if (!bar) return;
+    // Rebuilding the strip destroys the focused element, which would drop a
+    // keyboard user back to the document body in the middle of a move. Note
+    // which tab held focus so it can be handed back after the rebuild.
+    const focusedEl = document.activeElement && document.activeElement.closest
+      ? document.activeElement.closest('#tab-bar .tab') : null;
+    const refocusId = focusedEl && focusedEl.dataset.tabId != null ? Number(focusedEl.dataset.tabId) : null;
     bar.innerHTML = '';
     // Hide the bar entirely with 0–1 documents (no need for a single tab); the
     // body class shifts the viewer down to make room when it's shown.
     const show = sessions.length >= 2;
     bar.classList.toggle('hidden', !show);
     document.body.classList.toggle('has-tabs', show);
+    bar.setAttribute('role', 'tablist');
+    bar.setAttribute('aria-label', 'Open documents');
+    if (!bar._touchGuard) { installTouchGuard(bar); bar._touchGuard = true; }
     if (show) {
-      sessions.forEach((s) => {
+      sessions.forEach((s, i) => {
         const isActive = s.id === activeId;
         const name = (isActive ? App.state.fileName : s.state.fileName) || 'PDF';
         const dirty = isActive ? App.state.dirty : s.state.dirty;
         const tab = document.createElement('div');
         tab.className = 'tab' + (isActive ? ' active' : '');
         tab.title = name;
-        tab.addEventListener('click', () => T.switchTo(s.id));
-        // Right-click → tab actions (Open in New Window).
-        tab.addEventListener('contextmenu', (e) => { e.preventDefault(); showTabMenu(e.clientX, e.clientY, s.id); });
+        tab.dataset.tabId = String(s.id);
+        tab.setAttribute('role', 'tab');
+        tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        // Position is spoken aloud, so a screen-reader user hears a move land.
+        tab.setAttribute('aria-label',
+          `${name}${dirty ? ', unsaved changes' : ''}, tab ${i + 1} of ${sessions.length}`);
+        // Roving tabindex: one stop for the whole strip, arrows walk within it.
+        tab.tabIndex = isActive ? 0 : -1;
+        tab.addEventListener('click', () => { if (!swallowClick) T.switchTo(s.id); });
+        // Right-click → tab actions (rearrange, Open in New Window).
+        tab.addEventListener('contextmenu', (e) => {
+          if (touchDrag && touchDrag.active) { e.preventDefault(); return; } // long-press is a grab here
+          e.preventDefault();
+          showTabMenu(e.clientX, e.clientY, s.id);
+        });
+
+        // Keyboard: arrows walk the strip, and with Ctrl/Cmd+Shift they carry
+        // the tab along instead — the no-pointer equivalent of dragging it.
+        tab.addEventListener('keydown', (e) => {
+          const rearrange = (e.ctrlKey || e.metaKey) && e.shiftKey;
+          const ids = orderIds();
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            const dir = e.key === 'ArrowRight' ? 1 : -1;
+            if (rearrange) { T.move(s.id, dir); return; }
+            const at = ids.indexOf(s.id) + dir;
+            if (at >= 0 && at < ids.length) focusTabEl(ids[at]);
+            return;
+          }
+          if (e.key === 'Home' || e.key === 'End') {
+            e.preventDefault();
+            if (rearrange) { T.moveToEdge(s.id, e.key === 'Home' ? 'start' : 'end'); return; }
+            focusTabEl(e.key === 'Home' ? ids[0] : ids[ids.length - 1]);
+            return;
+          }
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); T.switchTo(s.id); return; }
+          if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); requestClose(s.id); }
+        });
+
+        // Touch: press and hold to pick the tab up, slide, lift to drop.
+        tab.addEventListener('pointerdown', (e) => onTabPointerDown(e, s.id, tab));
+        tab.addEventListener('pointermove', onTabPointerMove);
+        tab.addEventListener('pointerup', onTabPointerUp);
+        tab.addEventListener('pointercancel', endTouchDrag);
 
         // Drag to reorder. Order in `sessions` drives the tab order, so a drop
         // just splices the dragged tab before/after the tab under the cursor
@@ -365,17 +571,20 @@
         tab.addEventListener('dragstart', (e) => {
           dragId = s.id;
           tab.classList.add('dragging');
+          bar.classList.add('reordering');
           if (e.dataTransfer) {
             e.dataTransfer.effectAllowed = 'move';
             try { e.dataTransfer.setData('text/plain', String(s.id)); } catch (_) { /* IE/Safari quirk */ }
           }
         });
         tab.addEventListener('dragend', (e) => {
+          const draggedId = dragId;
           dragId = null;
-          bar.querySelectorAll('.tab').forEach((t) => t.classList.remove('dragging', 'drop-before', 'drop-after'));
-          // Dragged out of the window → tear the tab off into its own window.
-          // (A drop back inside the bar is a reorder, handled by the drop below.)
-          if (T.canTearOff() && e.screenX != null) {
+          bar.classList.remove('reordering');
+          tabEls().forEach((t) => t.classList.remove('dragging', 'drop-before', 'drop-after'));
+          // Dragged clean out of the window → tear the tab off into its own
+          // window. (A drop back inside the strip is a reorder, handled below.)
+          if (draggedId != null && T.canTearOff() && e.screenX != null) {
             const outside = e.screenX < window.screenX || e.screenX > window.screenX + window.outerWidth ||
               e.screenY < window.screenY || e.screenY > window.screenY + window.outerHeight;
             if (outside) T.tearOff(s.id);
@@ -385,6 +594,7 @@
           if (dragId == null || dragId === s.id) return;
           e.preventDefault();
           if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+          autoScroll(e.clientX);
           const r = tab.getBoundingClientRect();
           const before = e.clientX < r.left + r.width / 2;
           tab.classList.toggle('drop-before', before);
@@ -396,7 +606,10 @@
           e.preventDefault(); e.stopPropagation();
           const r = tab.getBoundingClientRect();
           const before = e.clientX < r.left + r.width / 2;
-          T.reorder(dragId, s.id, before);
+          const moved = dragId;
+          dragId = null;          // a completed drop is not a tear-off, whatever dragend sees next
+          clearDropMarks();
+          T.reorder(moved, s.id, before);
         });
         const label = document.createElement('span');
         label.className = 'tab-label';
@@ -416,6 +629,29 @@
       add.title = 'Open another PDF';
       add.addEventListener('click', () => { if (App.openViaDialog) App.openViaDialog(); });
       bar.appendChild(add);
+
+      // Dropping in the empty run past the last tab (or on the + button) is the
+      // natural way to say "put it at the end" — without this the gap is dead
+      // space and the drag springs back for no visible reason.
+      if (!bar._stripDrop) {
+        bar._stripDrop = true;
+        bar.addEventListener('dragover', (e) => {
+          if (dragId == null || e.target.closest('.tab')) return;
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        });
+        bar.addEventListener('drop', (e) => {
+          if (dragId == null || e.target.closest('.tab')) return;
+          e.preventDefault();
+          const moved = dragId;
+          dragId = null;
+          clearDropMarks();
+          T.moveToEdge(moved, 'end');
+        });
+      }
+
+      // Hand focus back to the tab that had it before the rebuild.
+      if (refocusId != null) focusTabEl(refocusId);
     }
   }
 

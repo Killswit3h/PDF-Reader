@@ -456,13 +456,59 @@ function createWindow() {
               `(async()=>{for(let i=0;i<100;i++){await new Promise(r=>setTimeout(r,100));if(App.state.fileName==='big.pdf'&&App.state.numPages)break;}})()`, true);
             const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
               const names=()=>Array.from(document.querySelectorAll('#tab-bar .tab .tab-label')).map(n=>n.textContent.replace(/^• /,''));
+              const tabEl=(id)=>document.querySelector('#tab-bar .tab[data-tab-id="'+id+'"]');
+              const settle=()=>new Promise(r=>setTimeout(r,120));
+              const overlay=document.getElementById('drop-overlay');
               const before=names();               // [sample.pdf, big.pdf]
-              // Drag tab id 2 (big.pdf) to sit before tab id 1 (sample.pdf).
-              App.Tabs.reorder(2, 1, true);
-              await new Promise(r=>setTimeout(r,100));
-              const after=names();                 // expect [big.pdf, sample.pdf]
-              const activeStayed=App.state.fileName; // reordering must not switch docs
-              return JSON.stringify({ before, after, activeStayed });
+
+              // --- Drive the REAL drag, not the API behind it. ---
+              // Calling App.Tabs.reorder() directly (what this scenario used to
+              // do) passes even when the drag UI is completely dead, which is
+              // exactly how the drop-scrim bug shipped: a tab dragstart raised
+              // the full-window "Drop PDF to open" overlay over the tab strip,
+              // and it ate every dragover/drop the tabs needed to see.
+              const dt=new DataTransfer();
+              const src=tabEl(2), dst=tabEl(1);
+              const rS=src.getBoundingClientRect(), rD=dst.getBoundingClientRect();
+              const at=(r)=>[r.left+Math.min(6,r.width/4), r.top+r.height/2];
+              const fire=(el,type,x,y)=>{const ev=new DragEvent(type,{bubbles:true,cancelable:true,clientX:x,clientY:y,dataTransfer:dt});el.dispatchEvent(ev);return ev;};
+              const [sx,sy]=at(rS), [dx,dy]=at(rD);
+              fire(src,'dragstart',sx,sy);
+              fire(window,'dragenter',dx,dy);        // the event that used to raise the scrim
+              const scrimUp=!overlay.classList.contains('hidden');
+              const scrimClickThrough=getComputedStyle(overlay).pointerEvents==='none';
+              // Whatever is on top at the target point must be the TAB. This is
+              // the assertion the old bug failed.
+              const topEl=document.elementFromPoint(dx,dy);
+              const topTab=topEl&&topEl.closest?topEl.closest('#tab-bar .tab'):null;
+              const hitId=topTab?topTab.dataset.tabId:(topEl?(topEl.id||topEl.className||topEl.tagName):'none');
+              const over=fire(dst,'dragover',dx,dy);
+              const acceptsDrop=over.defaultPrevented;   // false => a drop can never land
+              const marked=dst.classList.contains('drop-before');
+              fire(dst,'drop',dx,dy);
+              fire(src,'dragend',sx,sy);
+              await settle();
+              const afterDrag=names();                   // expect [big.pdf, sample.pdf]
+              const activeStayed=App.state.fileName;     // reordering must not switch docs
+
+              // --- Keyboard: Ctrl+Shift+PageDown carries the ACTIVE tab right. ---
+              window.dispatchEvent(new KeyboardEvent('keydown',{key:'PageDown',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}));
+              await settle();
+              const afterKey=names();
+              const pageStayed=App.state.currentPage;    // must NOT have paged the document
+
+              // --- Right-click menu offers the no-drag moves. ---
+              App.Tabs._showTabMenu(10,10,1);
+              const menuItems=Array.from(document.querySelectorAll('#tab-menu .tab-menu-item')).map(b=>b.textContent.trim());
+              const m=document.getElementById('tab-menu'); if(m) m.remove();
+
+              // --- Order survives a re-render (it is real state, not just DOM). ---
+              App.Tabs.renderBar();
+              await settle();
+              const afterRender=names();
+
+              return JSON.stringify({ before, afterDrag, afterKey, afterRender, activeStayed,
+                scrimUp, scrimClickThrough, hitId, acceptsDrop, marked, pageStayed, menuItems });
             })()`, true);
             console.log('[tabreorder] ' + r);
           } catch (e) { console.log('[tabreorder] error', e && e.message); }

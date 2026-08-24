@@ -344,6 +344,130 @@ function serve(dir) {
         focusRestored, unnamed, missingLive: live };
     });
 
+    // ---- Rearranging document tabs ----
+    // Opens a second PDF so the tab strip appears, then drives the ACTUAL drag
+    // (real DragEvents through the real elements), the keyboard shortcut, and
+    // the touch gesture Android depends on — HTML5 drag events never fire on a
+    // touchscreen, so the WebView has nothing but the press-and-hold path.
+    //
+    // Driving the DOM rather than calling App.Tabs.reorder() is the point: the
+    // bug this covers left the reorder API perfectly functional while the drag
+    // was dead, because the full-window file-drop scrim was being raised over
+    // the tab strip and eating every dragover/drop the tabs needed to see.
+    result.tabs = await page.evaluate(async (b64) => {
+      const bin = atob(b64);
+      const u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      await App.Viewer.load(u8.buffer, 'second.pdf', null);
+      for (let i = 0; i < 80 && App.Tabs.count() < 2; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 400));
+
+      const settle = () => new Promise((r) => setTimeout(r, 120));
+      const names = () => Array.from(document.querySelectorAll('#tab-bar .tab .tab-label'))
+        .map((n) => n.textContent.replace(/^• /, ''));
+      const tabEl = (id) => document.querySelector(`#tab-bar .tab[data-tab-id="${id}"]`);
+      const ids = App.Tabs.list().map((t) => t.id);
+      const barShown = !document.querySelector('#tab-bar').classList.contains('hidden');
+      const before = names();
+      // Earlier checks in this run leave their own documents open, so how many
+      // tabs there are and which one is active are both unknown here. Every
+      // expectation below is derived from the order observed at that moment
+      // rather than hard-coded, and swap() is the shared "these two traded
+      // places, nothing else moved" prediction.
+      const swap = (list) => [list[1], list[0], ...list.slice(2)].join(',');
+
+      // --- Mouse drag: carry the second tab in front of the first. ---
+      const dt = new DataTransfer();
+      const src = tabEl(ids[1]), dst = tabEl(ids[0]);
+      const rS = src.getBoundingClientRect(), rD = dst.getBoundingClientRect();
+      const pt = (r) => [r.left + Math.min(6, r.width / 4), r.top + r.height / 2];
+      const fire = (el, type, x, y) => {
+        const ev = new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: dt });
+        el.dispatchEvent(ev);
+        return ev;
+      };
+      const [sx, sy] = pt(rS), [dx, dy] = pt(rD);
+      fire(src, 'dragstart', sx, sy);
+      fire(window, 'dragenter', dx, dy);          // the event that used to raise the scrim
+      const overlay = document.getElementById('drop-overlay');
+      const scrimUp = !overlay.classList.contains('hidden');
+      const scrimClickThrough = getComputedStyle(overlay).pointerEvents === 'none';
+      const topEl = document.elementFromPoint(dx, dy);
+      const topTab = topEl && topEl.closest ? topEl.closest('#tab-bar .tab') : null;
+      const stripReachable = !!topTab && topTab.dataset.tabId === String(ids[0]);
+      const acceptsDrop = fire(dst, 'dragover', dx, dy).defaultPrevented;
+      const marked = dst.classList.contains('drop-before');
+      fire(dst, 'drop', dx, dy);
+      fire(src, 'dragend', sx, sy);
+      await settle();
+      const afterDrag = names();
+      const dragOk = afterDrag.join(',') === swap(before);
+      const activeStayed = App.state.fileName === 'second.pdf';
+
+      // --- Keyboard: Ctrl/Cmd+Shift+PageUp/PageDown carries the active tab. ---
+      // Aim toward the middle of the strip, so the move can't be a legitimate
+      // clamp at the end and read as a failure.
+      const activeName = App.state.fileName;
+      const keyFrom = afterDrag.indexOf(activeName);
+      const keyDir = keyFrom > 0 ? -1 : 1;
+      window.dispatchEvent(new KeyboardEvent('keydown',
+        { key: keyDir < 0 ? 'PageUp' : 'PageDown', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }));
+      await settle();
+      const afterKey = names();
+      const keyOk = keyFrom >= 0 && afterKey.indexOf(activeName) === keyFrom + keyDir;
+      const pageStayed = App.state.currentPage;
+
+      // --- Touch: press and hold, slide, lift. The only path Android has. ---
+      const order = App.Tabs.list().map((t) => t.id);
+      const grab = tabEl(order[0]), onto = tabEl(order[1]);
+      const rG = grab.getBoundingClientRect(), rO = onto.getBoundingClientRect();
+      const touch = (el, type, x, y) => el.dispatchEvent(new PointerEvent(type, {
+        bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch', isPrimary: true, clientX: x, clientY: y
+      }));
+      const gx = rG.left + rG.width / 2, gy = rG.top + rG.height / 2;
+      const beforeFlick = names();
+      touch(grab, 'pointerdown', gx, gy);
+      // A quick flick must NOT grab the tab — that gesture scrolls the strip.
+      touch(grab, 'pointermove', gx + 40, gy);
+      const grabbedOnFlick = grab.classList.contains('touch-dragging');
+      touch(grab, 'pointerup', gx + 40, gy);
+      await settle();
+      const flickKeptOrder = names().join(',') === beforeFlick.join(',');
+
+      // Now hold still long enough for the press to register, then slide.
+      const beforeTouch = names();
+      touch(grab, 'pointerdown', gx, gy);
+      await new Promise((r) => setTimeout(r, 450));
+      const heldAfterPress = grab.classList.contains('touch-dragging');
+      const ox = rO.left + rO.width - 6, oy = rO.top + rO.height / 2;
+      touch(grab, 'pointermove', ox, oy);
+      const touchMarked = onto.classList.contains('drop-after');
+      touch(grab, 'pointerup', ox, oy);
+      await settle();
+      const afterTouch = names();
+      const touchOk = afterTouch.join(',') === swap(beforeTouch);
+
+      // --- The right-click menu's pointer-free moves. ---
+      App.Tabs._showTabMenu(10, 10, order[0]);
+      const menuItems = Array.from(document.querySelectorAll('#tab-menu .tab-menu-item')).map((b) => b.textContent.trim());
+      const menu = document.getElementById('tab-menu'); if (menu) menu.remove();
+
+      // --- Order is state, not just DOM: it must survive a re-render. ---
+      App.Tabs.renderBar();
+      await settle();
+      const afterRender = names();
+      const renderOk = afterRender.join(',') === afterTouch.join(',');
+      // Whatever moved where, the same set of documents must still be open —
+      // a reorder that quietly drops a tab would lose that PDF's unsaved marks.
+      const sorted = (l) => l.slice().sort().join(',');
+      const keptEvery = sorted(before) === sorted(afterRender) && before.length >= 2;
+
+      return { barShown, before, afterDrag, afterKey, afterTouch, afterRender,
+        dragOk, keyOk, touchOk, renderOk, keptEvery, activeStayed,
+        scrimUp, scrimClickThrough, stripReachable, acceptsDrop, marked, pageStayed,
+        grabbedOnFlick, flickKeptOrder, heldAfterPress, touchMarked, menuItems };
+    }, pdfB64);
+
     // ---- Layout at every supported size (Track D) ----
     // These specific breakages recur, so they get an automated sweep rather than
     // a one-time fix: nothing may overflow the viewport horizontally, and a tall
@@ -416,9 +540,24 @@ function serve(dir) {
   const ocrOk = o.recognized === 1 && o.words > 0 && !o.failed &&
     !o.before && o.found && o.positioned && o.measurementsKept === 1 && o.dirty;
 
+  // Tab rearranging: the drag must actually reach the tabs (the scrim must not
+  // cover them), and every input path — mouse, keyboard, touch — must land.
+  const t = result.tabs || {};
+  const tabsOk = t.barShown === true && t.keptEvery === true &&
+    // The scrim must stay down for an internal drag, and must never hit-test —
+    // this pair is the regression guard for the bug that killed reordering.
+    t.scrimUp === false && t.scrimClickThrough === true && t.stripReachable === true &&
+    t.acceptsDrop === true && t.marked === true &&
+    t.dragOk === true && t.activeStayed === true &&
+    t.keyOk === true && t.pageStayed === 1 &&
+    t.grabbedOnFlick === false && t.flickKeptOrder === true &&
+    t.heldAfterPress === true && t.touchMarked === true && t.touchOk === true &&
+    t.renderOk === true &&
+    (t.menuItems || []).some((s) => /Move to End/.test(s));
+
   const ok = !errors.length && !offsite.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
-    dropdownsOk && iconsOk && layoutOk && a11yOk && ocrOk;
+    dropdownsOk && iconsOk && layoutOk && a11yOk && ocrOk && tabsOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
   if (offsite.length) {
@@ -430,6 +569,7 @@ function serve(dir) {
   if (!layoutOk) console.log('[verify-web] layout FAILED at:', JSON.stringify(layoutBad, null, 2));
   if (!a11yOk) console.log('[verify-web] a11y FAILED:', JSON.stringify(a, null, 2));
   if (!ocrOk) console.log('[verify-web] OCR check FAILED:', JSON.stringify(o, null, 2));
+  if (!tabsOk) console.log('[verify-web] tab rearranging FAILED:', JSON.stringify(t, null, 2));
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });
