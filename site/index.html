@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<!-- This page ships no JavaScript at all, so the policy can be maximally tight.
+     Everything it needs is same-origin: one stylesheet and a few PNGs. -->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self' data:; style-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />
+
+<title>FieldMark — free offline PDF markup, measurement &amp; signing</title>
+<meta name="description" content="FieldMark is a free, offline PDF viewer for plan sets: redline drawings, measure to scale, do takeoffs, stamp, fill forms and sign. Runs in your browser, on Windows, macOS and Android. No account, no subscription, no telemetry." />
+<link rel="canonical" href="https://killswit3h.github.io/PDF-Reader/" />
+<meta name="theme-color" content="#0e1621" />
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content="FieldMark — free offline PDF markup, measurement &amp; signing" />
+<meta property="og:description" content="Redline drawings, measure to scale, stamp and sign. Free, offline, no account. Try it in your browser." />
+<meta property="og:image" content="img/hero.png" />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="icon" href="app/icons/icon-192.png" />
+<link rel="apple-touch-icon" href="app/icons/apple-touch-icon.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="FieldMark home">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2.5" y="2.5" width="19" height="19" rx="2.5" />
+        <path d="M2.5 8.5h19M8.5 2.5v19" class="thin" />
+        <path d="M6 17l4.5-6 3 3.6L17.5 9" class="mark" />
+      </svg>
+      <span>FieldMark</span>
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#shots">Screenshots</a>
+      <a href="#download">Download</a>
+      <a href="#privacy">Privacy</a>
+      <a href="https://github.com/Killswit3h/PDF-Reader">GitHub</a>
+    </nav>
+    <a class="btn btn-sm" href="app/">Open the app</a>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- ============================ HERO ============================ -->
+<section class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow">Free &middot; Offline &middot; No account</p>
+    <h1>Mark up, measure and sign plan&nbsp;sets &mdash; without a subscription.</h1>
+    <p class="lede">
+      FieldMark is a PDF tool built for drawings, not documents. Redline a sheet,
+      measure to scale, run a takeoff, stamp and number a set, fill forms and sign
+      &mdash; on Windows, macOS, Android, or right here in your browser.
+    </p>
+
+    <div class="cta">
+      <a class="btn btn-lg" href="app/?demo=1">
+        Try it in your browser
+        <span class="btn-sub">Opens a sample drawing &mdash; nothing to install</span>
+      </a>
+      <a class="btn btn-lg btn-ghost" href="#download">Download for desktop &amp; Android</a>
+    </div>
+
+    <p class="micro">No sign-up. No upload. Your file never leaves your device.</p>
+
+    <figure class="shot hero-shot">
+      <img src="img/hero.png" alt="FieldMark showing an architectural drawing with redline markups and a measurement callout" width="3200" height="2000" />
+    </figure>
+  </div>
+</section>
+
+<!-- ========================= TRUST STRIP ========================= -->
+<section class="strip">
+  <div class="wrap strip-in">
+    <div><strong>100%</strong><span>offline at runtime</span></div>
+    <div><strong>0</strong><span>trackers or telemetry</span></div>
+    <div><strong>3</strong><span>platforms + the web</span></div>
+    <div><strong>MIT</strong><span>open source</span></div>
+  </div>
+</section>
+
+<!-- ========================== FEATURES ========================== -->
+<section id="features" class="band">
+  <div class="wrap">
+    <h2>Everything a plan set needs</h2>
+    <p class="sub">Built around the way drawings actually get reviewed in the field and the office.</p>
+
+    <div class="grid">
+      <article class="card">
+        <h3>Measure to scale</h3>
+        <p>Set the scale from the drawing (or let FieldMark detect it), then measure
+           lengths, arc lengths, radii, areas and angles. Snap to geometry for
+           repeatable numbers.</p>
+      </article>
+      <article class="card">
+        <h3>Redline and markup</h3>
+        <p>Clouds, callouts, arrows, freehand, text, highlight, underline and
+           strikeout &mdash; with a markup list you can filter and step through.</p>
+      </article>
+      <article class="card">
+        <h3>Takeoff-ready totals</h3>
+        <p>Measurements collect into a panel you can review per page or per sheet,
+           so quantities come off the drawing instead of a separate spreadsheet.</p>
+      </article>
+      <article class="card">
+        <h3>Organize a set</h3>
+        <p>Merge, split, reorder, rotate and delete pages. Number a set and apply
+           watermarks or stamps across every sheet at once.</p>
+      </article>
+      <article class="card">
+        <h3>Sign and fill</h3>
+        <p>Fill AcroForm fields, drop signatures, initials and dates, then flatten.
+           Certified PKI digital signatures are supported too.</p>
+      </article>
+      <article class="card">
+        <h3>Text recognition</h3>
+        <p>Run OCR on a scanned sheet so you can search and select text on drawings
+           that arrived as flat images.</p>
+      </article>
+      <article class="card">
+        <h3>Compare revisions</h3>
+        <p>Overlay two revisions of the same sheet and see what moved, side by side
+           or superimposed.</p>
+      </article>
+      <article class="card">
+        <h3>Big sets stay fast</h3>
+        <p>Built on a virtualised viewer, so a several-hundred-page set scrolls and
+           zooms without loading the whole thing into memory.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ======================== SCREENSHOTS ======================== -->
+<section id="shots" class="band alt">
+  <div class="wrap">
+    <h2>What it looks like</h2>
+    <p class="sub">Dark "drafting table" by default, with a light blueprint-vellum theme a keystroke away.</p>
+
+    <div class="gallery">
+      <figure class="shot">
+        <img src="img/measure.png" alt="A measurement being taken across a floor plan, with the scale and running total shown in the measurement panel" width="3200" height="2000" loading="lazy" />
+        <figcaption>Measure to scale, with totals collected as you go.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="img/markup.png" alt="Redline markups including a revision cloud and callout on a drawing sheet" width="3200" height="2000" loading="lazy" />
+        <figcaption>Redlines that export as real PDF annotations.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="img/organize.png" alt="The page organizer showing thumbnails of a multi-page drawing set" width="3200" height="2000" loading="lazy" />
+        <figcaption>Reorder, merge and split a set from one grid.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="img/signature.png" alt="A signature being placed on a PDF form field" width="3200" height="2000" loading="lazy" />
+        <figcaption>Sign, initial and date &mdash; then flatten.</figcaption>
+      </figure>
+      <figure class="shot narrow">
+        <img src="img/mobile.png" alt="FieldMark running on a phone showing redlines on a drawing" width="860" height="1864" loading="lazy" />
+        <figcaption>The same app on Android &mdash; not a cut-down version.</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ========================= COMPARISON ========================= -->
+<section id="why" class="band">
+  <div class="wrap narrow-col">
+    <h2>Looking for a free alternative to a paid PDF markup suite?</h2>
+    <p class="sub">
+      FieldMark was written for people who need drawing markup and scaled
+      measurement, but don't want a per-seat annual licence to get it. Here is
+      exactly what it is and is not.
+    </p>
+
+    <div class="tablewrap">
+      <table class="cmp">
+        <caption class="visually-hidden">What FieldMark offers</caption>
+        <thead>
+          <tr><th scope="col">&nbsp;</th><th scope="col">FieldMark</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Price</th><td><span class="yes">Free, MIT licensed</span></td></tr>
+          <tr><th scope="row">Account required</th><td><span class="yes">None</span></td></tr>
+          <tr><th scope="row">Works offline</th><td><span class="yes">Always &mdash; no network at runtime</span></td></tr>
+          <tr><th scope="row">Markup &amp; redlining</th><td><span class="yes">Yes</span></td></tr>
+          <tr><th scope="row">Scaled measurement &amp; takeoff</th><td><span class="yes">Yes</span></td></tr>
+          <tr><th scope="row">Page organize, stamp, number</th><td><span class="yes">Yes</span></td></tr>
+          <tr><th scope="row">Forms, signatures, PKI signing</th><td><span class="yes">Yes</span></td></tr>
+          <tr><th scope="row">OCR on scanned sheets</th><td><span class="yes">Yes</span></td></tr>
+          <tr><th scope="row">Windows / macOS / Android / browser</th><td><span class="yes">All four</span></td></tr>
+          <tr><th scope="row">Real-time multi-user collaboration</th><td><span class="no">No &mdash; by design, it's an offline tool</span></td></tr>
+          <tr><th scope="row">Cloud project hosting</th><td><span class="no">No &mdash; your files stay on your device</span></td></tr>
+          <tr><th scope="row">Vendor support contract</th><td><span class="no">No &mdash; community issues on GitHub</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="micro">
+      If your workflow depends on shared cloud sessions or a support SLA, a
+      commercial product is the right call. If you mainly need to open a set,
+      mark it up, measure it and send it back, that is the whole point of this one.
+    </p>
+  </div>
+</section>
+
+<!-- ========================== DOWNLOAD ========================== -->
+<section id="download" class="band alt">
+  <div class="wrap">
+    <h2>Get FieldMark</h2>
+    <p class="sub">Same app everywhere. Start in the browser, install it if you like it.</p>
+
+    <div class="grid dl">
+      <article class="card dlcard">
+        <h3>In your browser</h3>
+        <p>Nothing to install. Works offline once loaded, and installs to your home
+           screen or dock from the browser menu.</p>
+        <a class="btn" href="app/">Open FieldMark</a>
+        <p class="micro">Chrome, Edge, Safari, Firefox</p>
+      </article>
+
+      <article class="card dlcard">
+        <h3>Windows</h3>
+        <p>Standard installer. Associates with <code>.pdf</code> if you want it to,
+           and updates itself from GitHub releases.</p>
+        <a class="btn" href="https://github.com/Killswit3h/PDF-Reader/releases/latest/download/Field-Mark-Setup.exe">Download installer</a>
+        <p class="micro">64-bit Windows 10 and 11</p>
+      </article>
+
+      <article class="card dlcard">
+        <h3>macOS</h3>
+        <p>Universal build for Intel and Apple Silicon. Grab the
+           <code>.dmg</code> from the release page.</p>
+        <a class="btn" href="https://github.com/Killswit3h/PDF-Reader/releases/latest">Download for macOS</a>
+        <p class="micro">Universal &middot; macOS 11+</p>
+      </article>
+
+      <article class="card dlcard">
+        <h3>Android</h3>
+        <p>Sideload the APK. The full desktop feature set, laid out for touch and
+           a smaller screen.</p>
+        <a class="btn" href="https://github.com/Killswit3h/PDF-Reader/releases/latest/download/FieldMark.apk">Download APK</a>
+        <p class="micro">Android 6+</p>
+      </article>
+    </div>
+
+    <p class="micro center">
+      All builds come from the same
+      <a href="https://github.com/Killswit3h/PDF-Reader/releases/latest">latest release</a>,
+      built in public by GitHub Actions.
+    </p>
+  </div>
+</section>
+
+<!-- =========================== PRIVACY =========================== -->
+<section id="privacy" class="band">
+  <div class="wrap narrow-col">
+    <h2>Your drawings stay yours</h2>
+    <p>
+      FieldMark makes no network requests while you use it. There is no account,
+      no sync, no cloud storage, no analytics inside the app and no crash
+      reporting. Files you open are read on your own device and never uploaded &mdash;
+      including in the browser version, which does all its work locally.
+    </p>
+    <p>
+      The single exception is deliberate and optional: the desktop app can check
+      GitHub for a newer release when you ask it to. Nothing about your documents
+      is involved in that request.
+    </p>
+    <p class="micro">
+      This page is static and carries no analytics or third-party scripts either.
+      The source for both the app and this site is
+      <a href="https://github.com/Killswit3h/PDF-Reader">public on GitHub</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ============================= FAQ ============================= -->
+<section id="faq" class="band alt">
+  <div class="wrap narrow-col">
+    <h2>Questions</h2>
+
+    <details>
+      <summary>Is it really free?</summary>
+      <p>Yes. MIT licensed, no paid tier, no trial period, no feature gates. You
+         can read the source, build it yourself, and fork it.</p>
+    </details>
+
+    <details>
+      <summary>Does the browser version upload my PDF anywhere?</summary>
+      <p>No. It parses and edits the file entirely in your browser. There is no
+         server to upload to &mdash; the site is static files.</p>
+    </details>
+
+    <details>
+      <summary>Can I open my marked-up file in another PDF app?</summary>
+      <p>Yes. Markups export as standard PDF annotations and measurements are
+         written into PDF user space, so other readers show them correctly,
+         including on rotated pages.</p>
+    </details>
+
+    <details>
+      <summary>How big a set can it handle?</summary>
+      <p>Large ones. Pages render on demand rather than all at once, so
+         several-hundred-page sets stay responsive.</p>
+    </details>
+
+    <details>
+      <summary>Why does Windows or macOS warn me on first launch?</summary>
+      <p>The builds are not paid code-signing-certificate signed. The installers
+         come straight from the public GitHub Actions build, and the steps to get
+         past the warning are in the
+         <a href="https://github.com/Killswit3h/PDF-Reader#readme">README</a>.</p>
+    </details>
+
+    <details>
+      <summary>I found a bug / I want a feature.</summary>
+      <p>Please open an issue &mdash; there is a <em>Send feedback</em> item in the
+         app's Help menu that pre-fills your version and platform, or you can go
+         straight to the
+         <a href="https://github.com/Killswit3h/PDF-Reader/issues">issue tracker</a>.</p>
+    </details>
+  </div>
+</section>
+
+<!-- ========================== FINAL CTA ========================== -->
+<section class="band final">
+  <div class="wrap center">
+    <h2>Open a drawing and see.</h2>
+    <p class="sub">It takes about ten seconds and costs nothing.</p>
+    <a class="btn btn-lg" href="app/?demo=1">Try it in your browser</a>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <p><strong>FieldMark</strong> &mdash; offline PDF markup, measurement and signing.</p>
+    <nav aria-label="Footer">
+      <a href="app/">Open the app</a>
+      <a href="https://github.com/Killswit3h/PDF-Reader">Source</a>
+      <a href="https://github.com/Killswit3h/PDF-Reader/releases">Releases</a>
+      <a href="https://github.com/Killswit3h/PDF-Reader/issues">Report a bug</a>
+    </nav>
+    <p class="micro">MIT licensed. Built in public.</p>
+  </div>
+</footer>
+
+</body>
+</html>

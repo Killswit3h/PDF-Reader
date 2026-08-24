@@ -26,6 +26,8 @@
     "verify:tools": "npm run build:web && node scripts/verify-tools.js",
     "build:pwa": "node scripts/build-pwa.js",
     "verify:pwa": "npm run build:pwa && node scripts/verify-pwa.js",
+    "build:site": "node scripts/build-site.js",
+    "verify:site": "npm run build:site && node scripts/verify-pwa.js",
     "verify:rotate": "npm run build:web && node scripts/verify-rotate.js",
     "screenshots": "npm run build:web && node scripts/make-screenshots.js",
     "android:icons": "node build/make-android-icons.js android/app/src/main/res",
