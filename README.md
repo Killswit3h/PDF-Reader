@@ -142,14 +142,26 @@ new APK to sideload over the top.
 ### iPhone / iPad / any device — install the web app (free, no App Store)
 
 FieldMark also ships as an installable **web app (PWA)** — the same renderer,
-running in the browser. On **iPhone/iPad**, open the hosted URL in **Safari** →
-**Share → Add to Home Screen**; it launches full-screen and works **offline**. No
-Apple Developer account, no App Store, no fee. Android Chrome and desktop
-Chrome/Edge show an **Install** button. This is the free route onto iOS/iPadOS.
+running in the browser:
+
+### [**Try it in your browser →**](https://killswit3h.github.io/PDF-Reader/app/?demo=1)
+
+Opens a sample drawing, nothing to install. On **iPhone/iPad**, open it in
+**Safari** → **Share → Add to Home Screen**; it launches full-screen and works
+**offline**. No Apple Developer account, no App Store, no fee. Android Chrome and
+desktop Chrome/Edge show an **Install** button. This is the free route onto
+iOS/iPadOS.
+
+The project site is published from the same repo:
+
+| | |
+|---|---|
+| [killswit3h.github.io/PDF-Reader/](https://killswit3h.github.io/PDF-Reader/) | landing page — what it does, screenshots, downloads |
+| [killswit3h.github.io/PDF-Reader/app/](https://killswit3h.github.io/PDF-Reader/app/) | the app itself |
 
 See **[docs/pwa-hosting.md](docs/pwa-hosting.md)** for hosting (a one-click GitHub
-Pages workflow is included) and per-device install steps. Build locally with
-`npm run build:pwa` → `dist-pwa/`.
+Pages workflow is included), how to point your own domain at it, and per-device
+install steps. Build locally with `npm run build:site` → `dist-pwa/`.
 
 **macOS:** grab the `.dmg` from the [latest release](https://github.com/Killswit3h/PDF-Reader/releases/latest)
 (universal, Intel + Apple Silicon). The app is **ad-hoc signed but not notarized**
@@ -725,9 +737,16 @@ PDF Reader/
 │  ├─ prepush.sh           # local pre-push gate (npm run verify)
 │  ├─ build-web.js         # assemble the self-contained www/ bundle (Capacitor webDir)
 │  ├─ verify-web.js        # drive www/ in headless Chromium (WebView-parity check)
+│  ├─ build-pwa.js         # www/ + manifest + service worker + icons → installable PWA
+│  ├─ build-site.js        # landing page at /, the PWA at /app/ → dist-pwa/ (published)
+│  ├─ verify-pwa.js        # assert the published tree is a valid, installable site
 │  └─ make-screenshots.js  # regenerate docs/screenshots/ from the running app
+├─ site/                   # marketing landing page (static HTML/CSS, no JS)
+│  ├─ index.html           # published at the site root
+│  ├─ styles.css           # palette mirrors src/renderer/styles/tokens.css
+│  └─ CNAME                # OPTIONAL — add to publish on your own domain
 ├─ docs/
-│  └─ screenshots/         # README screenshots (generated, committed)
+│  └─ screenshots/         # README + landing-page screenshots (generated, committed)
 ├─ build/
 │  ├─ icon.ico             # desktop app/installer icon (256x256)
 │  ├─ make-icon.js         # regenerates the desktop icon (pure Node)
@@ -767,6 +786,7 @@ PDF Reader/
 │  ├─ e2e/run.js           # headless Electron smoke suite (SMOKE_* harness)
 │  └─ fixtures/            # committed sample.pdf + big.pdf (make-fixtures.js)
 ├─ www/                    # (generated) self-contained web bundle — git-ignored
+├─ dist-pwa/               # (generated) the published site — git-ignored
 └─ android/                # (generated) Capacitor native project — git-ignored
 ```
 

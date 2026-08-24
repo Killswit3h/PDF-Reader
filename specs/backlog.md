@@ -211,3 +211,41 @@ follow their document across a tab switch the way `scales`, `viewports` and
 (now) `scaleDetect` do. Noticed while adding `scaleDetect` to that list;
 pre-existing and out of scope for the auto-scale feature, but it means OCR
 output can appear against the wrong document after switching tabs.
+
+## Name the product one thing everywhere
+
+The repo is `PDF-Reader`, the npm package is `pdf-signer`, the app and the new
+landing page both say **FieldMark**. The site standardises on FieldMark, but the
+repo URL a visitor sees in the address bar (and every clone command in the
+README) still says `PDF-Reader`. Renaming the repo keeps its old URLs working
+via GitHub's automatic redirect; renaming the npm package is free since it is
+never published. Deferred out of the marketing-site build because it touches
+release asset names, the Android applicationId, and every doc link at once.
+
+## Buy a domain and add `site/CNAME`
+
+`scripts/build-site.js` copies `site/CNAME` to the published root when it
+exists, so this is a one-file change with no code edit — see
+`docs/pwa-hosting.md`. Nothing hard-codes a hostname today. Worth doing before
+the project gets posted anywhere, since a bare `github.io` sub-path URL is the
+weakest part of the first impression.
+
+## Move the site off GitHub Pages if OCR ever needs threads
+
+GitHub Pages cannot set custom response headers. Multi-threaded Tesseract needs
+`SharedArrayBuffer`, which needs `COOP`/`COEP` cross-origin isolation, which
+needs headers. If browser OCR performance becomes a complaint, Cloudflare Pages
+/ Netlify / Vercel all serve the same `dist-pwa/` tree and can send them.
+
+## Privacy-respecting analytics on the landing page only
+
+The landing page currently ships zero JavaScript, and `verify-pwa.js` asserts
+that. If basic traffic numbers become useful, they belong on the marketing page
+and never in the app — and the page's own privacy section should say so
+explicitly, since it currently claims the site carries no analytics either.
+
+## Bump `NOTES.rev` in `tour.js` for the What's-New card
+
+Still at 1, so returning users updating in do not see a What's-New card matching
+the OCR work, the UI overhaul, or the new web app. Carried over from the v1.22.0
+release notes.

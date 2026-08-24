@@ -29,9 +29,16 @@ bundle plus PWA packaging. No feature is rebuilt.
 ## How it’s built
 
 ```bash
-npm run build:pwa    # assembles dist-pwa/ (app + manifest + service worker + icons)
-npm run verify:pwa   # build + assert it's a valid, installable PWA (CI runs this)
+npm run build:site   # the whole published tree: landing page at /, app at /app/
+npm run verify:site  # build + assert both are intact (CI runs this)
+
+npm run build:pwa    # just the app bundle, at the root of dist-pwa/
+npm run verify:pwa   # build + assert it's a valid, installable PWA
 ```
+
+`build:site` is what ships. `build:pwa` still works standalone for testing the
+app bundle in isolation; `verify-pwa.js` detects which layout it's looking at and
+runs the landing-page checks only when a landing page is present.
 
 `scripts/build-pwa.js` takes the shared `www/` bundle produced by
 `scripts/build-web.js` (the same one Capacitor loads on Android), copies it to
@@ -60,19 +67,44 @@ A workflow is included at `.github/workflows/pages.yml`.
 
 **One-time setup (repo owner):**
 1. GitHub → **Settings → Pages → Build and deployment → Source: “GitHub Actions.”**
-2. Merge to `main` (or run the **Deploy PWA to GitHub Pages** workflow manually via
+2. Merge to `main` (or run the **Deploy site to GitHub Pages** workflow manually via
    *Actions → Run workflow*).
 
-The workflow builds `dist-pwa/`, verifies it, and publishes it to:
+The workflow builds `dist-pwa/`, verifies it, and publishes:
 
 ```
-https://killswit3h.github.io/PDF-Reader/
+https://killswit3h.github.io/PDF-Reader/        the landing page
+https://killswit3h.github.io/PDF-Reader/app/    the installable app
 ```
 
 Every later push to `main` republishes automatically.
 
+> **The app moved to `/app/`.** It used to be published at the site root. Anyone
+> who *installed* the PWA from the old root URL keeps a service worker scoped
+> there and will not follow the app automatically — they need to reinstall from
+> `/app/`. Plain bookmarks are fine: `/app.html` redirects to the new location,
+> and unknown paths fall back to the landing page via `404.html`.
+
 > Prefer a different host? `dist-pwa/` drops straight onto Netlify, Vercel,
 > Cloudflare Pages, or any static HTTPS server — no config needed.
+
+### Using your own domain
+
+1. Buy a domain and point it at GitHub Pages (an `ALIAS`/`ANAME` on the apex to
+   `killswit3h.github.io`, or a `CNAME` on a subdomain).
+2. Create `site/CNAME` containing just the hostname, e.g. `fieldmark.tools`.
+3. Push. `build-site.js` copies it to the published root and GitHub Pages issues
+   a free certificate.
+
+The file is optional by design — the build succeeds without it and publishes on
+the default `github.io` domain — so the domain can be added later with no code
+change. Nothing in the landing page hard-codes a hostname.
+
+> **One host limitation worth knowing.** GitHub Pages cannot set custom response
+> headers. If OCR ever needs multi-threaded WebAssembly, that requires
+> `SharedArrayBuffer`, which requires the `COOP`/`COEP` cross-origin-isolation
+> headers — and the site would have to move to a host that can send them
+> (Cloudflare Pages, Netlify, Vercel all can). Single-threaded OCR is unaffected.
 
 ---
 
