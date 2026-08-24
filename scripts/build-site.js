@@ -138,6 +138,21 @@ if (!fs.existsSync(DEMO_SRC)) {
 const demoOut = path.join(APP, 'demo');
 fs.mkdirSync(demoOut, { recursive: true });
 fs.copyFileSync(DEMO_SRC, path.join(demoOut, DEMO_NAME));
+
+// Tell the renderer a demo exists, by declaring it in the app's own HTML.
+//
+// The alternative — having the renderer probe for the file at boot — makes every
+// build that DOESN'T ship one (Electron over file://, the Capacitor bundle, and
+// the plain www/ bundle that verify-web.js drives) emit a failed request. This
+// way the deployment that actually ships a sample is the thing that says so, no
+// probe and no platform branch in the app code.
+const appHtmlPath = path.join(APP, 'index.html');
+let appHtml = fs.readFileSync(appHtmlPath, 'utf8');
+const demoMeta = '\n  <meta name="fieldmark-demo" content="demo/' + DEMO_NAME + '" />\n';
+if (!appHtml.includes('name="fieldmark-demo"')) {
+  appHtml = appHtml.replace(/<\/head>/, demoMeta + '</head>');
+  fs.writeFileSync(appHtmlPath, appHtml, 'utf8');
+}
 console.log('[build-site] demo drawing copied -> dist-pwa/app/demo/' + DEMO_NAME);
 
 // ---------------------------------------------------------------------------

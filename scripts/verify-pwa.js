@@ -129,8 +129,12 @@ if (FULL_SITE) {
     ok(rootExists(src), 'landing image resolves: ' + src);
   }
 
-  // The demo drawing behind the hero CTA.
+  // The demo drawing behind the hero CTA, and the meta tag that tells the
+  // renderer it exists (without it the button never appears).
   ok(exists('demo/sample.pdf'), 'demo drawing present at app/demo/sample.pdf');
+  const demoMeta = html.match(/name="fieldmark-demo"\s+content="([^"]+)"/);
+  ok(!!demoMeta, 'app index.html declares the demo via <meta name="fieldmark-demo">');
+  if (demoMeta) ok(exists(demoMeta[1]), 'declared demo resolves: ' + demoMeta[1]);
 
   // CNAME is optional, but if site/CNAME exists it must have been published.
   const srcCname = path.join(ROOT, 'site', 'CNAME');

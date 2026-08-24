@@ -1,8 +1,14 @@
-name: Deploy PWA to GitHub Pages
+name: Deploy site to GitHub Pages
 
-# Publishes the installable web app (dist-pwa/) to GitHub Pages, giving the app a
-# free HTTPS URL that iOS/iPadOS Safari and Android/desktop Chrome can install via
-# "Add to Home Screen" — no App Store, no developer account. See docs/pwa-hosting.md.
+# Publishes the marketing landing page AND the installable web app (dist-pwa/) to
+# GitHub Pages:
+#
+#   /        the landing page — what FieldMark is, screenshots, downloads
+#   /app/    the installable PWA, on a free HTTPS URL that iOS/iPadOS Safari and
+#            Android/desktop Chrome can install via "Add to Home Screen" — no App
+#            Store, no developer account
+#
+# See docs/pwa-hosting.md.
 #
 # One-time setup by the repo owner: Settings -> Pages -> Source: "GitHub Actions".
 # After that, every push to main republishes; you can also run it on demand.
@@ -34,8 +40,9 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      # Assemble dist-pwa/ and assert it's a valid installable PWA before publish.
-      - run: npm run verify:pwa
+      # Assemble dist-pwa/ — the landing page at the root, the installable PWA
+      # under app/ — and assert both are intact before publish.
+      - run: npm run verify:site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
