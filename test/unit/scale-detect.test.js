@@ -266,6 +266,112 @@ describe('parseScaleNotes — false-positive guards', () => {
   });
 });
 
+/* ------------------------------------------- prime marks + the metric default */
+
+// Regression: an imperial title block written with the typographic primes a CAD
+// exporter emits (U+2032 for feet, U+2033 for inches) parsed as NOTHING, so a
+// stray plot stamp elsewhere on the sheet became the page's only candidate and
+// the page was auto-scaled in millimetres.
+describe('parseScaleNotes — prime and apostrophe marks', () => {
+  it('reads an engineering note written with primes', () => {
+    expect(reads(72, only('SCALE: 1″ = 20′'))).toBeCloseTo(20, 9);
+  });
+
+  it('reads an architectural note written with primes', () => {
+    const c = only('SCALE: 1/4″ = 1′-0″');
+    expect(c.unit).toBe('ft');
+    expect(reads(72, c)).toBeCloseTo(4, 9);
+  });
+
+  it('reads a doubled apostrophe as an inch mark', () => {
+    expect(reads(72, only("SCALE: 1/4'' = 1'-0''"))).toBeCloseTo(4, 9);
+  });
+
+  it('still reads the ASCII and curly forms it always did', () => {
+    for (const t of ['SCALE: 1/4" = 1\'-0"', 'SCALE: 1/4” = 1’-0”']) {
+      expect(reads(72, only(t)), t).toBeCloseTo(4, 9);
+    }
+  });
+
+  it('tags each candidate with how it was written', () => {
+    expect(only('SCALE: 1" = 20\'').kind).toBe('imperial');
+    expect(only('SCALE 1:100').kind).toBe('ratio');
+  });
+});
+
+describe('parseScaleNotes — imperialContext', () => {
+  it('sees feet-and-inches dimensions on the sheet', () => {
+    for (const t of ["50.49'", '50.49′', '12\'-6"', '12′-6″', 'TYP 24 FT O.C.']) {
+      expect(parseScaleNotes(t).imperialContext, t).toBe(true);
+    }
+  });
+
+  it('stays false on a metric sheet', () => {
+    expect(parseScaleNotes('SCALE 1:100   ALL DIMENSIONS IN MM').imperialContext).toBe(false);
+    expect(parseScaleNotes('15390 4570 2440').imperialContext).toBe(false);
+  });
+
+  it('is not fooled by an apostrophe in ordinary text', () => {
+    expect(parseScaleNotes("THE CONTRACTOR'S SCOPE").imperialContext).toBe(false);
+  });
+
+  it('never throws, whatever it is handed', () => {
+    for (const bad of [null, undefined, 42, {}, [], '']) {
+      expect(parseScaleNotes(bad).imperialContext).toBe(false);
+    }
+  });
+});
+
+describe('classify — a bare ratio is the weakest evidence', () => {
+  const noteScale = (text) => {
+    const n = parseScaleNotes(text);
+    return classify(n.candidates, { imperialContext: n.imperialContext });
+  };
+
+  it('a note carrying its own units beats a plot stamp on the same sheet', () => {
+    // Previously two "conflicting" scales, so the page got nothing at all.
+    const r = noteScale('SCALE: 1" = 20\'    PLOT SCALE: 1:1');
+    expect(r.apply).toBe(true);
+    expect(r.chosen.unit).toBe('ft');
+    expect(r.distinct).toHaveLength(1);
+  });
+
+  it('the reported bug: primes + a plot stamp no longer reads millimetres', () => {
+    const r = noteScale('SCALE: 1″ = 20′   PLOT SCALE: 1:1   50.49′');
+    expect(r.apply).toBe(true);
+    expect(r.chosen.unit).toBe('ft');
+    expect(reads(72, r.chosen)).toBeCloseTo(20, 9);
+  });
+
+  it('a bare ratio on a sheet dimensioned in feet waits for review', () => {
+    const r = noteScale('SCALE 1:5    TYP 12\'-6" O.C.');
+    expect(r.apply).toBe(false);
+    expect(r.unitlessOnImperialSheet).toBe(true);
+    expect(r.chosen).not.toBeNull();       // still offered, one click to accept
+    expect(r.chosen.unit).toBe('mm');
+  });
+
+  it('a metric sheet is untouched by any of this — AC-7, AC-8', () => {
+    expect(noteScale('SCALE 1:100').apply).toBe(true);
+    expect(noteScale('SCALE 1:100').chosen.unit).toBe('m');
+    expect(noteScale('SCALE 1:5').apply).toBe(true);
+    expect(noteScale('SCALE 1:5').chosen.unit).toBe('mm');
+  });
+
+  it('several imperial scales on one sheet still apply nothing — FR-25', () => {
+    const r = noteScale('SCALE: 1/4" = 1\'-0"   SCALE: 1/2" = 1\'-0"   PLOT SCALE: 1:1');
+    expect(r.apply).toBe(false);
+    expect(r.chosen).toBeNull();
+    expect(r.distinct).toHaveLength(2);    // the plot stamp is not a third scale
+  });
+
+  it('omitting the option only ever makes it more permissive', () => {
+    const n = parseScaleNotes('SCALE 1:5    TYP 12\'-6" O.C.');
+    expect(classify(n.candidates).apply).toBe(true);
+    expect(classify(n.candidates, { imperialContext: true }).apply).toBe(false);
+  });
+});
+
 /* --------------------------------------------------------------- confidence */
 
 describe('classify — FR-23, FR-24, FR-25 (AC-9, AC-11)', () => {

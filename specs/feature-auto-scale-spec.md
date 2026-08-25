@@ -108,6 +108,9 @@ overridden. Sheets FieldMark cannot read honestly say so instead of guessing.
 - **FR-25** — When a page yields two or more distinct parseable ratios, the system shall classify the detection `low`, apply nothing, and record every candidate in the review entry.
 - **FR-26** — When a tier-B detection is classified `high`, the system shall set `state.scales[page]` with `source: 'note'` and the parsed `ratioLabel`.
 - **FR-27** — When a tier-B detection is classified `low`, the system shall not set `state.scales[page]` and shall record the candidate for review.
+- **FR-46** — The system shall accept the typographic prime marks `′` (U+2032, feet) and `″` (U+2033, inches), the curly quotes `‘ ’ “ ”`, and a doubled apostrophe `''` (inches) wherever FR-16 and FR-17 accept `'` and `"`.
+- **FR-47** — Where a page yields both a ratio that states its own units (FR-16, FR-17) and a bare `<number>:<number>` ratio (FR-18), the system shall discard the bare ratio before applying FR-23 through FR-25.
+- **FR-48** — Where a page's text carries feet-and-inches dimension strings (e.g. `50.49'`, `12'-6"`, `24 FT`) and the page's only surviving candidate is a bare `<number>:<number>` ratio, the system shall classify the detection `low` regardless of an adjacent `SCALE` keyword, and shall record the candidate for review.
 
 ### 3.4 Half-size / reduced plots
 
@@ -173,6 +176,12 @@ overridden. Sheets FieldMark cannot read honestly say so instead of guessing.
 **AC-17 (FR-40)** — *Given* measurements already drawn on a page with no scale, *when* a detected scale is applied to that page, *then* every one of those measurements changes from `(set scale)` to a real value without being redrawn.
 
 **AC-18 (FR-43)** — *Given* a 50-page document where page 12 is malformed enough to throw during detection, *when* detection runs, *then* pages 1-11 and 13-50 still receive their detections and page 12 shows as failed.
+
+**AC-22 (FR-46)** — *Given* a sheet whose title block reads `SCALE: 1″ = 20′` using prime marks, *when* detection runs, *then* the page scale is `{ unit: 'ft' }` and a 72-point line measures 20 ft.
+
+**AC-23 (FR-47)** — *Given* a sheet reading `SCALE: 1" = 20'` alongside a plotting stamp `PLOT SCALE: 1:1`, *when* detection runs, *then* the page scale is the imperial note, applied, and the stamp is not recorded as a competing candidate.
+
+**AC-24 (FR-48)** — *Given* a sheet reading `SCALE 1:5` whose geometry is dimensioned `12'-6"`, *when* detection runs, *then* no scale is applied and the Detected tab holds `1:5` for review.
 
 **AC-19 (FR-44)** — *Given* a scanned PDF with no text layer and no OCR run, *when* it is opened, *then* no scale is set, no error is raised, and the Detected tab suggests running OCR (FR-45).
 

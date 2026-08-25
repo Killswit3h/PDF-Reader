@@ -229,6 +229,21 @@ const SCENARIOS = [
       check(j.reads[3] === null, `p4 applied an unlabelled ratio: ${j.reads[3]}`);
       check(j.p4cands.indexOf('1:50') >= 0, `p4 candidates ${JSON.stringify(j.p4cands)}`);
 
+      // Regression -- the automatic reader used to report millimetres on an
+      // imperial sheet. Page 5 states 1" = 20' in the title block and carries a
+      // "PLOT SCALE: 1:1" stamp; the stamp is not a second scale, and the note
+      // governs. Before the fix the note went unread and the stamp applied as a
+      // 1:1 millimetre scale, so a 50' dimension measured ~179 mm.
+      check(j.p5state === 'applied', `p5 note not applied: ${j.p5state}`);
+      check(j.p5unit === 'ft', `p5 unit ${j.p5unit}, expected ft — not a metric default`);
+      check(j.p5read === 20, `p5 72pt line reads ${j.p5read} ${j.p5unit}, expected 20 ft`);
+
+      // The other half: a bare ratio IS the only candidate here, but the sheet
+      // is dimensioned in feet and inches, so it is offered rather than applied.
+      check(j.p6state === 'review', `p6 state ${j.p6state}, expected review`);
+      check(j.p6read === null, `p6 auto-applied a metric ratio: ${j.p6read}`);
+      check(j.p6cands.indexOf('1:5') >= 0, `p6 candidates ${JSON.stringify(j.p6cands)}`);
+
       // FR-35: the review list is reachable and the form footer gets out of its way.
       check(j.tabRows >= 4, `Detected tab rendered ${j.tabRows} rows, expected >= 4`);
       check(j.applyHidden === true, 'the Apply-scale button is still showing on the Detected tab');

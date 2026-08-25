@@ -336,7 +336,7 @@
             continue;
           }
 
-          const cls = S.classify(notes.candidates);
+          const cls = S.classify(notes.candidates, { imperialContext: notes.imperialContext });
           entry.candidates = cls.distinct.map((c) => ({
             factor: c.factor, unit: c.unit, ratioLabel: c.ratioLabel, confidence: cls.confidence
           }));
@@ -362,7 +362,9 @@
               ? 'this page already has a scale you set'
               : (entry.candidates.length > 1
                 ? entry.candidates.length + ' different scales on this sheet'
-                : 'not labelled “SCALE” — confirm before using');
+                : cls.unitlessOnImperialSheet
+                  ? 'only a bare ratio, on a sheet dimensioned in feet and inches'
+                  : 'not labelled “SCALE” — confirm before using');
             review++;
           }
         } catch (err) {

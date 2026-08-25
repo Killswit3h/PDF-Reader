@@ -41,8 +41,10 @@
   // null-prototype object so a hostile label like "__proto__" or "constructor"
   // looks up as undefined instead of finding something on Object.prototype.
   const UNIT_ALIASES = Object.assign(Object.create(null), {
-    in: 'in', ins: 'in', inch: 'in', inches: 'in', '"': 'in', '”': 'in',
-    ft: 'ft', foot: 'ft', feet: 'ft', "'": 'ft', '’': 'ft',
+    in: 'in', ins: 'in', inch: 'in', inches: 'in',
+    '"': 'in', '“': 'in', '”': 'in', '″': 'in', "''": 'in',
+    ft: 'ft', foot: 'ft', feet: 'ft',
+    "'": 'ft', '‘': 'ft', '’': 'ft', '′': 'ft',
     yd: 'yd', yds: 'yd', yard: 'yd', yards: 'yd',
     mm: 'mm', millimeter: 'mm', millimeters: 'mm', millimetre: 'mm', millimetres: 'mm',
     cm: 'cm', centimeter: 'cm', centimeters: 'cm', centimetre: 'cm', centimetres: 'cm',
@@ -160,8 +162,17 @@
   const FRAC = '\\d{1,3}\\/\\d{1,3}';
   // "1 1/2" (mixed) must be tried before "1" (plain) or it parses as 1.
   const LEN = '(?:\\d{1,3}\\s{1,3}' + FRAC + '|' + FRAC + '|' + NUM + ')';
-  const INCH_U = '(?:"|\\u201d|in\\b|ins\\b|inch(?:es)?\\b)';
-  const FOOT_U = "(?:'|\\u2019|ft\\b|foot\\b|feet\\b)";
+  // Inch and foot marks as they actually reach the text layer. CAD exporters
+  // (AutoCAD, Civil 3D, MicroStation) routinely emit the typographic PRIMES -
+  // U+2032 for feet, U+2033 for inches - rather than ASCII quotes, and some
+  // write a doubled apostrophe for inches. Not matching them meant an imperial
+  // title block parsed as NOTHING, which let a stray "PLOT SCALE: 1:1"
+  // elsewhere on the sheet become the only candidate and report millimetres.
+  // '' leads the alternation so it is never half-matched as a foot mark.
+  const INCH_MARK = "(?:''|\"|\\u201c|\\u201d|\\u2033)";
+  const FOOT_MARK = "(?:'|\\u2018|\\u2019|\\u2032)";
+  const INCH_U = '(?:' + INCH_MARK + '|in\\b|ins\\b|inch(?:es)?\\b)';
+  const FOOT_U = '(?:' + FOOT_MARK + '|ft\\b|foot\\b|feet\\b)';
 
   // `1/4" = 1'-0"` / `1 1/2"=1'0"` / `1" = 20'` / `1 IN = 40 FT`
   // Covers architectural (FR-16) and engineering (FR-17) alike: they differ
@@ -186,6 +197,19 @@
   // kept in the reported marker; \b would refuse it and report "N.T.S".
   const RE_NTS = /\b(N\.?T\.?S\.?|NOT\s{1,3}TO\s{1,3}SCALE)(?![A-Za-z])/i;
   const RE_SOFT_MARKER = /\b(AS\s{1,3}NOTED|AS\s{1,3}SHOWN|VARIES)\b/i;
+
+  // Is this sheet DIMENSIONED in feet and inches? Not a scale note - the
+  // ordinary dimension strings a drafter puts on the geometry: `50.49'`,
+  // `12'-6"`, `24 FT`. It is the tiebreaker for a bare `A:B` ratio, which
+  // carries no units of its own and would otherwise be read as metric.
+  // Requiring a digit immediately before the mark keeps possessives
+  // ("CONTRACTOR'S") out of it.
+  const RE_IMPERIAL_DIM = new RegExp(
+    '\\d\\s{0,2}' + FOOT_MARK + '\\s{0,3}-?\\s{0,3}\\d{1,2}\\s{0,2}' + INCH_MARK +
+    '|\\d\\s{0,2}' + FOOT_MARK + '(?![A-Za-z0-9])' +
+    '|\\b' + NUM + '\\s{0,3}(?:ft|feet|foot)\\b',
+    'i'
+  );
 
   // How far back to look for the word SCALE when deciding whether a match is
   // a real title-block scale note or a number that merely looks like one.
@@ -240,16 +264,22 @@
 
   // Every scale expression on a page, plus any no-scale marker.
   //
-  // Returns { candidates: [{ factor, unit, ratioLabel, keyworded }],
-  //           noScaleMarker: string|null }
+  // Returns { candidates: [{ factor, unit, ratioLabel, keyworded, kind }],
+  //           noScaleMarker: string|null, imperialContext: boolean }
+  //
+  // `kind` is 'imperial' for a note that spells out its own units and 'ratio'
+  // for a bare `A:B`. `classify` uses it to break ties; the two are not equally
+  // good evidence and never were.
   //
   // Candidates are returned in the order found and are NOT deduped here -
   // `classify` does that, because "how many *distinct* scales does this sheet
   // claim" is the question that decides confidence.
   function parseScaleNotes(text) {
-    const out = { candidates: [], noScaleMarker: null };
+    const out = { candidates: [], noScaleMarker: null, imperialContext: false };
     if (typeof text !== 'string' || !text) return out;
     const src = text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) : text;
+
+    out.imperialContext = RE_IMPERIAL_DIM.test(src);
 
     // ---- no-scale markers (FR-21) ----
     const nts = RE_NTS.exec(src);
@@ -280,7 +310,8 @@
         factor,
         unit: 'ft',
         ratioLabel: m[1].trim().replace(/\s+/g, ' ') + 'in = ' + trimNum(realFeet) + 'ft',
-        keyworded: isKeyworded(src, m.index)
+        keyworded: isKeyworded(src, m.index),
+        kind: 'imperial'
       });
     }
 
@@ -302,7 +333,8 @@
         factor,
         unit,
         ratioLabel: trimNum(drawn) + ':' + trimNum(real),
-        keyworded: isKeyworded(src, m.index)
+        keyworded: isKeyworded(src, m.index),
+        kind: 'ratio'
       });
     }
 
@@ -336,19 +368,45 @@
   //   exactly one distinct scale, not introduced by SCALE       -> low, review
   //   two or more distinct scales (a detail sheet)              -> low, nothing
   // FR-23, FR-24, FR-25.
-  function classify(candidates) {
+  //
+  // Two things temper that, both about the bare `A:B` ratio, which is the one
+  // candidate shape carrying no units of its own:
+  //
+  //   1. A note that spells out its units BEATS a bare ratio on the same
+  //      sheet. `SCALE: 1" = 20'` next to a plotting stamp `PLOT SCALE: 1:1`
+  //      is one drawing scale and one piece of noise, not two scales in
+  //      conflict - so the ratio is dropped from the decision rather than
+  //      being allowed to force the page to review.
+  //   2. On a sheet DIMENSIONED in feet and inches, a surviving bare ratio is
+  //      never applied unasked. Reporting millimetres off a drawing whose own
+  //      dimensions read `50.49'` is the confident-wrong-number case this
+  //      module exists to avoid; the candidate still goes to the review list,
+  //      where accepting it is one click.
+  //
+  // `opts.imperialContext` is parseScaleNotes' `imperialContext` for the same
+  // page. Omitting it only makes this more permissive, never less.
+  function classify(candidates, opts) {
     const all = Array.isArray(candidates) ? candidates : [];
-    const list = distinct(all);
+    let list = distinct(all);
     if (list.length === 0) return { confidence: 'low', apply: false, chosen: null, distinct: [] };
+
+    // (1) unit-bearing notes win outright when the sheet has any.
+    const united = list.filter((c) => c.kind === 'imperial');
+    if (united.length) list = united;
+
     if (list.length > 1) return { confidence: 'low', apply: false, chosen: null, distinct: list };
     const only = list[0];
     // Prefer a keyworded instance if any occurrence of this scale was keyworded.
     const keyworded = all.some((c) => sameScale(c, only) && c.keyworded);
+    // (2) a bare ratio on an imperial sheet is a review item, never an apply.
+    const unitlessOnImperialSheet = only.kind === 'ratio' && !!(opts && opts.imperialContext);
+    const apply = keyworded && !unitlessOnImperialSheet;
     return {
-      confidence: keyworded ? 'high' : 'low',
-      apply: keyworded,
+      confidence: apply ? 'high' : 'low',
+      apply,
       chosen: only,
-      distinct: list
+      distinct: list,
+      unitlessOnImperialSheet
     };
   }
 

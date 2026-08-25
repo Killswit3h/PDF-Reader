@@ -2257,9 +2257,10 @@ function createWindow() {
         return;
       }
       // SMOKE_AUTOSCALE: automatic per-page scale detection over a set whose
-      // four sheets each take a different branch -- embedded /VP metadata, a
-      // clean title-block note, an AS NOTED detail sheet, and a bare ratio the
-      // word SCALE never introduces. Asserts the numbers a user would read off
+      // six sheets each take a different branch -- embedded /VP metadata, a
+      // clean title-block note, an AS NOTED detail sheet, a bare ratio the
+      // word SCALE never introduces, an imperial note sharing the sheet with a
+      // plotting stamp, and a bare ratio on a sheet dimensioned in feet. Asserts the numbers a user would read off
       // the page, that a user's own scale is never overwritten, and that the
       // review list can apply and clear.
       if (process.env.SMOKE_AUTOSCALE) {
@@ -2295,7 +2296,18 @@ function createWindow() {
                 })),
                 p3reason: det()[3] && det()[3].reason,
                 p4reason: det()[4] && det()[4].reason,
-                p4cands: (det()[4] && det()[4].candidates || []).map(c => c.ratioLabel)
+                p4cands: (det()[4] && det()[4].candidates || []).map(c => c.ratioLabel),
+                // Pages 5 and 6 are the metric-default regression: an imperial
+                // note beside a plotting stamp, and a bare ratio on a sheet
+                // dimensioned in feet. Both used to end up in millimetres.
+                p5state: det()[5] && det()[5].state,
+                p5read: reads(5),
+                p5unit: A.scales[5] && A.scales[5].unit,
+                p5label: A.scales[5] && A.scales[5].ratioLabel,
+                p6state: det()[6] && det()[6].state,
+                p6read: reads(6),
+                p6reason: det()[6] && det()[6].reason,
+                p6cands: (det()[6] && det()[6].candidates || []).map(c => c.ratioLabel)
               };
 
               // FR-35: the Detected tab renders a row per page with something to say.
