@@ -119,8 +119,20 @@
     if (sw) sw.style.background = M._color || 'linear-gradient(135deg,#2f6fed,#21a366)';
     const reset = App.$('#measure-color-reset');
     if (reset) reset.classList.toggle('hidden', !M._color);
+    M.syncFavColors();
     // Recolor the in-progress preview immediately if one is being drawn.
     if (M._active) M.repositionAll(M._active.page);
+  };
+
+  // Keep the favourites strip and its star in step with the colour picker.
+  // The strip outlines M._color (what new measurements will actually use, which
+  // is nothing while the per-type defaults are in play); the star reflects the
+  // wheel's own value, since that is what starring would save.
+  M.syncFavColors = function () {
+    if (!App.FavColors) return;
+    App.FavColors.refresh();
+    const input = App.$('#measure-color');
+    App.FavColors.syncStar(App.$('#measure-fav-toggle'), input ? input.value : null);
   };
 
   /* ---------------- tool lifecycle ---------------- */
@@ -1122,6 +1134,32 @@
     if (colorInput) colorInput.addEventListener('input', () => M.setColor(colorInput.value));
     const colorReset = App.$('#measure-color-reset');
     if (colorReset) colorReset.addEventListener('click', (e) => { e.stopPropagation(); M.setColor(null); });
+
+    // The user's saved plan-legend colours, one click each — same list the
+    // markup bar offers, so a colour saved in either place shows up in both.
+    if (App.FavColors) {
+      App.FavColors.mount(App.$('#measure-fav-strip'), {
+        current: () => M._color,
+        onPick: (hex) => {
+          if (colorInput) colorInput.value = hex;
+          M.setColor(hex);
+        }
+      });
+      const favStar = App.$('#measure-fav-toggle');
+      if (favStar) favStar.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        App.FavColors.toggle(colorInput ? colorInput.value : null);
+        M.syncFavColors();
+      });
+      const favManage = App.$('#measure-fav-manage');
+      if (favManage) favManage.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        // The dialog is modal; leaving the menu open behind it just stacks.
+        if (App.Dropdowns) App.Dropdowns.closeAll();
+        App.FavColors.open();
+      });
+      M.syncFavColors();
+    }
 
     // Snap-to-drawing toggle — snap the cursor to the PDF's own geometry.
     if (App.Snap) App.Snap.init();

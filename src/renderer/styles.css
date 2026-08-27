@@ -397,6 +397,36 @@ body.tool-active .markup-svg .handle { pointer-events: none; }
 .mk-sw.active { outline-offset: 1px; }
 .mk-custom { display: flex; align-items: center; padding-left: 4px; border-left: 1px solid var(--border); }
 .mk-custom input[type="color"] { width: 24px; height: 22px; border: none; background: none; cursor: pointer; padding: 0; }
+
+/* Favourite colours — the user's own palette, saved from a plan legend. Sits
+   after the generic presets on every toolbar that picks a colour. */
+.fav-star {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; padding: 0; flex: 0 0 auto;
+  background: none; border: none; border-radius: var(--r-sm);
+  color: var(--text-dim); cursor: pointer;
+}
+.fav-star:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+/* Saved: the glyph fills in, the way a starred item reads everywhere else. */
+.fav-star.is-fav { color: var(--accent); }
+.fav-star.is-fav .ico { fill: currentColor; }
+.fav-strip { display: flex; align-items: center; gap: 4px; }
+.fav-strip.is-empty { display: none; }
+.fav-sw {
+  width: 18px; height: 18px; padding: 0; border-radius: 4px; cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.25); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+  flex: 0 0 auto;
+}
+.fav-sw:hover { transform: scale(1.12); }
+.fav-sw.active { outline-offset: 1px; }
+.fav-manage {
+  flex: 0 0 auto; padding: 3px 8px; border-radius: 5px; cursor: pointer;
+  background: none; border: 1px solid var(--border); color: var(--text-dim);
+  font-size: var(--fs-sm); white-space: nowrap;
+}
+.fav-manage:hover { background: var(--bg-hover); color: var(--text); }
+/* In the Measure dropdown the strip is its own row under the colour picker. */
+.mtool-favs { display: flex; align-items: center; gap: 8px; padding: 2px 10px 8px; flex-wrap: wrap; }
 .mk-spacer { flex: 1; }
 
 /* viewer top offsets when the extra bars are visible */
@@ -941,6 +971,7 @@ body.tool-active .measure-layer .m-handle { pointer-events: none; }
 .dsig-corner-btn.selected,
 .font-choice.active,
 .mk-sw.active,
+.fav-sw.active,
 .tc-row.selected {
   background: var(--accent-quiet);
   box-shadow: inset 0 0 0 1px var(--accent);
@@ -966,6 +997,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
 .mr-btn:focus-visible, .mr-toggle:focus-visible, .mr-reopen:focus-visible,
 .rail-toggle:focus-visible, .tab:focus-visible, .tab-close:focus-visible,
 .tab-add:focus-visible, .tab-menu-item:focus-visible, .mk-sw:focus-visible,
+.fav-sw:focus-visible, .fav-star:focus-visible, .fav-manage:focus-visible,
+.fav-row-btn:focus-visible,
 .mtool-color-reset:focus-visible, .org-act:focus-visible, .org-tile:focus-visible,
 .mp-del:focus-visible, .tc-del:focus-visible, .tc-row:focus-visible,
 .mp-row:focus-visible, .pp-tile:focus-visible, .dsig-id:focus-visible,
@@ -982,7 +1015,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
  * menu item. */
 .tb-btn:disabled, .mr-btn:disabled, .mr-toggle:disabled, .rail-toggle:disabled,
 .tab-add:disabled, .tab-close:disabled, .org-act:disabled, .tc-del:disabled,
-.mp-del:disabled, .mk-sw:disabled, .modal-x:disabled, .link-btn:disabled,
+.mp-del:disabled, .mk-sw:disabled, .fav-sw:disabled, .fav-row-btn:disabled,
+.modal-x:disabled, .link-btn:disabled,
 .tb-menu button:disabled, .dsig-id:disabled, .dsig-corner-btn:disabled,
 #page-input:disabled, .pp-range:disabled, select:disabled, input:disabled {
   opacity: 0.45; cursor: default; pointer-events: none;
@@ -1000,10 +1034,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible,
    feedback at all, while the visually identical .tour-x did. */
 .modal-x:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); border-radius: var(--r-sm); }
 .modal-x:active, .tour-x:active, .tab-close:active, .org-act:active,
-.mk-sw:active, .tb-menu button:active { transform: translateY(1px); }
+.mk-sw:active, .fav-sw:active, .tb-menu button:active { transform: translateY(1px); }
 
 /* Swatches jumped instantly because a transform had no transition. */
-.mk-sw { transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.mk-sw, .fav-sw { transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
 
 /* ---- Brand ---- */
 .tb-group.brand { gap: var(--sp-2); padding-right: var(--sp-2); }
@@ -1938,3 +1972,35 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 .bm-foreign .bm-title { font-style: italic; color: var(--text-dim); }
 .bm-empty { padding: 12px 10px; color: var(--text-dim); font-size: var(--fs-sm);
   line-height: 1.4; }
+
+/* ---- Favourite colours dialog ---- */
+.fav-modal { width: 560px; }
+.fav-body { padding: 14px 20px 18px; display: flex; flex-direction: column; gap: 10px; }
+.fav-intro { margin: 0; color: var(--text-dim); font-size: var(--fs-md); }
+.fav-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.fav-empty {
+  padding: 18px 14px; text-align: center; color: var(--text-dim);
+  font-size: var(--fs-md); border: 1px dashed var(--border); border-radius: var(--r-md);
+}
+.fav-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 6px; border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--panel-2);
+}
+.fav-row-color { width: 30px; height: 26px; flex: 0 0 auto; border: none; background: none; padding: 0; cursor: pointer; }
+.fav-row-name { flex: 1 1 auto; min-width: 0; }
+/* Tabular so a column of codes lines up and a wrong digit is easy to spot. */
+.fav-row-hex { flex: 0 0 auto; font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-sm); color: var(--text-dim); }
+.fav-row-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; flex: 0 0 auto; padding: 0;
+  background: none; border: 1px solid transparent; border-radius: var(--r-sm);
+  color: var(--text-dim); cursor: pointer;
+}
+.fav-row-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
+.fav-row-del:hover:not(:disabled) { color: var(--danger); }
+.fav-paste-label { font-size: var(--fs-md); color: var(--text); margin-top: 4px; }
+.fav-hint { margin: 0; font-size: var(--fs-sm); color: var(--text-dim); }
+.fav-hint code { font-family: var(--font-mono, ui-monospace, monospace); }
+#fav-paste { width: 100%; resize: vertical; font-family: var(--font-mono, ui-monospace, monospace); font-size: var(--fs-sm); }
+.fav-paste-actions { display: flex; justify-content: flex-end; }

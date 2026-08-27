@@ -581,6 +581,73 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_FAVCOLOR: the favourite-colour palette — paste a plan legend into
+      // the manage dialog, then use the saved swatches from the markup bar and
+      // the Measure menu, and confirm the list survives a restart (it is a pref).
+      if (process.env.SMOKE_FAVCOLOR) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const tick=()=>new Promise(r=>setTimeout(r,80));
+              App.Prefs.set('favoriteColors',[]);
+              App.FavColors.refresh();
+              // Open the dialog and paste a legend exactly as it copies out of the plans.
+              document.querySelector('#mk-fav-manage').click();
+              await tick();
+              const dialogOpen=!document.querySelector('#favcolor-modal').classList.contains('hidden');
+              // Doubled escapes: this template literal is the SOURCE of the
+              // injected script, so a single \\n here would end up a real
+              // newline inside a string literal and fail to parse.
+              document.querySelector('#fav-paste').value=
+                'Description\\tReference Color\\n'+
+                'Guardrail (Green) - Hex: #3B7D23\\n'+
+                'Fence (Orange) - Hex: #FFC000\\n'+
+                'Attenuator (Red) - Hex: #EE0000';
+              document.querySelector('#fav-add-pasted').click();
+              await tick();
+              const saved=App.Prefs.get('favoriteColors',[]);
+              const rows=document.querySelectorAll('#fav-list .fav-row').length;
+              document.querySelector('#fav-done').click();
+              await tick();
+              const dialogClosed=document.querySelector('#favcolor-modal').classList.contains('hidden');
+              // The swatches reach both toolbars from the one list.
+              const mkSwatches=Array.from(document.querySelectorAll('#mk-fav-strip .fav-sw')).map(b=>b.dataset.color);
+              const msSwatches=Array.from(document.querySelectorAll('#measure-fav-strip .fav-sw')).map(b=>b.dataset.color);
+              // Clicking one applies the EXACT hex to the next markup.
+              App.Markup.startTool('rect');
+              await tick();
+              document.querySelector('#mk-fav-strip .fav-sw[data-color="#ffc000"]').click();
+              await tick();
+              const strokeAfterPick=App.state.annoStyle.stroke;
+              const activeMarked=document.querySelector('#mk-fav-strip .fav-sw[data-color="#ffc000"]').classList.contains('active');
+              const starFilled=document.querySelector('#mk-fav-toggle').classList.contains('is-fav');
+              // ...and on the Measure side too.
+              document.querySelector('#measure-fav-strip .fav-sw[data-color="#3b7d23"]').click();
+              await tick();
+              const measureColor=App.Measure._color;
+              // The star adds an unsaved colour and removes a saved one.
+              const el=document.querySelector('#mk-stroke');
+              el.value='#215f9a'; el.dispatchEvent(new Event('input',{bubbles:true}));
+              await tick();
+              document.querySelector('#mk-fav-toggle').click();
+              await tick();
+              const afterStar=App.Prefs.get('favoriteColors',[]).map(f=>f.hex);
+              document.querySelector('#mk-fav-toggle').click();
+              await tick();
+              const afterUnstar=App.Prefs.get('favoriteColors',[]).map(f=>f.hex);
+              return JSON.stringify({dialogOpen,dialogClosed,rows,
+                saved:saved.map(f=>f.hex+'|'+f.name),
+                mkSwatches,msSwatches,strokeAfterPick,activeMarked,starFilled,measureColor,
+                afterStar,afterUnstar});
+            })()`, true);
+            console.log('[favcolor] ' + r);
+          } catch (e) { console.log('[favcolor] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_TMARK: text markups (highlight/underline/strikeout) render + export.
       if (process.env.SMOKE_TMARK) {
         setTimeout(async () => {

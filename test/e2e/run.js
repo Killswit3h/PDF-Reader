@@ -623,6 +623,35 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'favorite colors — paste a plan legend, reuse it from the markup bar and Measure menu',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_FAVCOLOR: '1' }, [SAMPLE]), 'favcolor');
+      check(j.dialogOpen === true, 'Favorites… did not open the manage dialog');
+      check(j.dialogClosed === true, 'Done did not close the manage dialog');
+      // The whole point: exact codes, with their legend names, off one paste —
+      // and the tab-separated header row must not become a swatch.
+      check(j.rows === 3, `expected 3 saved colors, got ${j.rows}`);
+      check(
+        JSON.stringify(j.saved) === JSON.stringify([
+          '#3b7d23|Guardrail (Green)',
+          '#ffc000|Fence (Orange)',
+          '#ee0000|Attenuator (Red)'
+        ]),
+        'pasted legend did not parse into named colors: ' + JSON.stringify(j.saved)
+      );
+      check(
+        JSON.stringify(j.mkSwatches) === JSON.stringify(j.msSwatches) && j.mkSwatches.length === 3,
+        'the markup bar and the Measure menu did not show the same saved swatches'
+      );
+      check(j.strokeAfterPick === '#ffc000', `picking a favorite did not set the line color (got ${j.strokeAfterPick})`);
+      check(j.activeMarked === true, 'the picked favorite was not marked active');
+      check(j.starFilled === true, 'the star did not read as saved for a favorite color');
+      check(j.measureColor === '#3b7d23', `picking a favorite in the Measure menu did not set the measurement color (got ${j.measureColor})`);
+      check(j.afterStar.includes('#215f9a'), 'the star did not save the current color');
+      check(!j.afterUnstar.includes('#215f9a'), 'clicking a filled star did not remove the color');
+    }
+  },
+  {
     name: 'text markup — highlight/underline/strikeout render + export',
     run: () => {
       const j = tagJson(runApp({ SMOKE_TMARK: '1' }, [SAMPLE]), 'tmark');

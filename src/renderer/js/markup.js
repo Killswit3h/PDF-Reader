@@ -657,6 +657,11 @@
     // highlight the preset swatch matching the current line color (if any)
     const cur = String(s.stroke || '').toLowerCase();
     App.$$('#mk-stroke-presets .mk-sw').forEach((b) => b.classList.toggle('active', b.dataset.color.toLowerCase() === cur));
+    // Same for the user's own saved colors, and the star that adds to them.
+    if (App.FavColors) {
+      App.FavColors.refresh();
+      App.FavColors.syncStar(App.$('#mk-fav-toggle'), cur);
+    }
   }
   K.syncProps = syncPropBar;
   // The markup a style change should edit, or null to edit the defaults instead.
@@ -665,6 +670,14 @@
   // through highlighting applies to the next highlight rather than recolouring
   // the last one.
   function editTarget() { return K.tool ? null : annoById(App.state.annoSelectedId); }
+
+  // The line color the bar is showing — the selected markup's, or the default
+  // the next one will get. Starring and picking a favourite both act on this,
+  // so they follow the same selected-vs-armed rule as every other property.
+  function currentStroke() {
+    const an = editTarget();
+    return (an ? an.style : defaults()).stroke;
+  }
 
   function applyStyle(patch) {
     const an = editTarget();
@@ -677,7 +690,10 @@
     App.state.annotations = App.state.annotations || [];
     defaults();
     const wire = (id, ev, fn) => { const el = App.$(id); if (el) el.addEventListener(ev, fn); };
-    wire('#mk-stroke', 'input', (e) => applyStyle({ stroke: e.target.value }));
+    // syncPropBar() after the style change, not just before: the swatch outline
+    // and the favourites star both describe the current colour, and the wheel is
+    // a way to change that colour without touching either control.
+    wire('#mk-stroke', 'input', (e) => { applyStyle({ stroke: e.target.value }); syncPropBar(); });
     // preset swatches: set the color input + reuse its input handler (above)
     const presets = App.$('#mk-stroke-presets');
     if (presets) presets.querySelectorAll('.mk-sw').forEach((b) => {
@@ -685,9 +701,22 @@
         const el = App.$('#mk-stroke');
         el.value = b.dataset.color;
         el.dispatchEvent(new Event('input', { bubbles: true }));
-        syncPropBar();
       });
     });
+    // Favourite colors: the same click-to-apply as a preset, but the list is the
+    // user's own — the exact codes their plan legend is drawn with.
+    if (App.FavColors) {
+      App.FavColors.mount(App.$('#mk-fav-strip'), {
+        current: () => currentStroke(),
+        onPick: (hex) => {
+          const el = App.$('#mk-stroke');
+          el.value = hex;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+      wire('#mk-fav-toggle', 'click', () => { App.FavColors.toggle(currentStroke()); syncPropBar(); });
+      wire('#mk-fav-manage', 'click', () => App.FavColors.open());
+    }
     wire('#mk-fill', 'input', (e) => { if (App.$('#mk-fill-on').checked) applyStyle({ fill: e.target.value }); });
     wire('#mk-fill-on', 'change', (e) => applyStyle({ fill: e.target.checked ? App.$('#mk-fill').value : 'none' }));
     wire('#mk-width', 'input', (e) => applyStyle({ width: parseFloat(e.target.value) }));

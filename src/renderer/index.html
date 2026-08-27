@@ -86,6 +86,7 @@
       <symbol id="i-radius3" viewBox="0 0 24 24"><path d="M3 17a12 12 0 0 1 18 0"/><circle cx="4.6" cy="15.4" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="11.2" r="1.2" fill="currentColor" stroke="none"/><circle cx="19.4" cy="15.4" r="1.2" fill="currentColor" stroke="none"/></symbol>
       <symbol id="i-radius-center" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><path d="M12 12l5.9-5.9" stroke-dasharray="2.5 2"/></symbol>
       <symbol id="i-count" viewBox="0 0 24 24"><circle cx="6" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="6" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="18" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="18" r="1.4" fill="currentColor" stroke="none"/></symbol>
+      <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.93l-5.3 2.78 1.01-5.9-4.29-4.18 5.93-.86z"/></symbol>
       <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-1.6 1.1-2.3 2.4-2.3H18a3 3 0 0 0 3-3c0-5.8-4-11-9-11z"/><circle cx="8" cy="10" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="16" cy="10" r="1.2" fill="currentColor" stroke="none"/></symbol>
       <symbol id="i-magnet" viewBox="0 0 24 24"><path d="M5 4h4v9a3 3 0 0 0 6 0V4h4v9a7 7 0 0 1-14 0z"/><path d="M5 9h4M15 9h4"/></symbol>
       <symbol id="i-region" viewBox="0 0 24 24"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><path d="M9 9h6v6H9z"/></symbol>
@@ -251,6 +252,11 @@
             <input id="measure-color" type="color" value="#2f6fed" aria-label="Measurement color" />
             <button id="measure-color-reset" type="button" class="mtool-color-reset hidden" title="Use default colors per type">Reset</button>
           </label>
+          <div class="mtool-favs">
+            <button id="measure-fav-toggle" type="button" class="fav-star" title="Save this color to favorites" aria-label="Save this color to favorites" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></button>
+            <div id="measure-fav-strip" class="fav-strip" role="group" aria-label="Favorite colors"></div>
+            <button id="measure-fav-manage" type="button" class="fav-manage" title="Favorite colors — save your plan legend once and reuse the exact hex codes">Favorites…</button>
+          </div>
           <div class="tb-menu-sep"></div>
           <label class="mtool-toggle" title="Snap the cursor to the drawing's own lines, corners and endpoints">
             <input id="measure-snap" type="checkbox" checked />
@@ -332,6 +338,9 @@
         <button type="button" class="mk-sw" data-color="#1a1a1a" style="background:#1a1a1a" title="Black" aria-label="Black"></button>
       </div>
       <label class="mk-custom" title="Custom color (color wheel)"><input id="mk-stroke" type="color" value="#e5484d" aria-label="Custom line colour" /></label>
+      <button id="mk-fav-toggle" type="button" class="fav-star" title="Save this color to favorites" aria-label="Save this color to favorites" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-star"/></svg></button>
+      <div id="mk-fav-strip" class="fav-strip" role="group" aria-label="Favorite colors"></div>
+      <button id="mk-fav-manage" type="button" class="fav-manage" title="Favorite colors — save your plan legend once and reuse the exact hex codes">Favorites…</button>
     </div>
     <label class="mk-prop"><input id="mk-fill-on" type="checkbox" aria-label="Enable fill" /> Fill <input id="mk-fill" type="color" value="#ffcc00" aria-label="Fill colour" /></label>
     <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" aria-label="Line width" /></label>
@@ -842,6 +851,34 @@
     </div>
   </div>
 
+  <!-- ============ Favorite colors ============ -->
+  <div id="favcolor-modal" class="modal-backdrop hidden">
+    <div class="modal fav-modal" role="dialog" aria-modal="true" aria-labelledby="fav-title">
+      <div class="modal-head">
+        <h2 id="fav-title">Favorite colors</h2>
+        <button id="fav-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+      <div class="modal-body fav-body">
+        <p class="fav-intro">Save the exact colors your plans are coded with — the ones from your legend —
+          and pick them from any toolbar instead of re-typing hex codes.</p>
+        <div id="fav-list" class="fav-list"></div>
+        <label class="fav-paste-label" for="fav-paste">Paste a legend</label>
+        <p class="fav-hint">One item per line. The name and the code can be in either order —
+          <code>Guardrail (Green) – Hex: #3B7D23</code> works, so does <code>#FFC000 Fence</code>.
+          Lines with no hex code are ignored.</p>
+        <textarea id="fav-paste" rows="5" spellcheck="false"
+          placeholder="Guardrail (Green) - Hex: #3B7D23&#10;Fence (Orange) - Hex: #FFC000&#10;Attenuator (Red) - Hex: #EE0000"></textarea>
+        <div class="fav-paste-actions">
+          <button id="fav-add-pasted" class="tb-btn primary">Add these colors</button>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="fav-clear" class="tb-btn danger">Remove all</button>
+        <button id="fav-done" class="tb-btn primary">Done</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ Keyboard shortcuts help ============ -->
   <div id="shortcuts-modal" class="modal-backdrop hidden">
     <div class="modal" style="width:600px" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
@@ -1079,6 +1116,7 @@
   <script src="../shared/outline.js"></script>
   <script src="../shared/markup-model.js"></script>
   <script src="../shared/tab-order.js"></script>
+  <script src="../shared/favorite-colors.js"></script>
 
   <!-- ======= App modules ======= -->
   <script src="js/util.js"></script>
@@ -1093,6 +1131,7 @@
   <script src="js/organize.js"></script>
   <script src="js/ocr.js"></script>
   <script src="js/docstamp.js"></script>
+  <script src="js/favcolors.js"></script>
   <script src="js/toolchest.js"></script>
   <script src="js/print.js"></script>
   <script src="js/bookmarks.js"></script>

@@ -247,6 +247,17 @@ at runtime. Handwriting fonts are bundled with the app.
   *"Save markups as editable PDF annotations"* in the Markups List — interoperable
   with other PDF tools. (Existing annotations from other apps are displayed and
   preserved on save; importing them for in-app editing is planned.)
+- **Favorite colors** — plan sets are color-coded off a legend, and the legend
+  names exact hex codes per pay item. Instead of re-typing `#3B7D23` into the OS
+  color wheel for every markup, save the legend once: hit the **★** beside any
+  color control to save the color you are on, or open **Favorites…** and **paste
+  the legend table straight in** — one item per line, name and code in either
+  order (`Guardrail (Green) – Hex: #3B7D23`, `#FFC000 Fence`; lines with no hex
+  code are ignored, so a header row does no harm). Saved colors appear as named
+  swatches on the **markup properties bar** and in the **Measure** menu — the
+  same list in both, one click to apply the exact code. Rename, reorder and
+  recolor them in the Favorites dialog; the list is stored per device and
+  survives restarts.
 - **Right-hand markup toolbar** (Bluebeam-style) — a compact, icon-only strip
   docked to the right edge of the page gives **one-click access** to every drawing
   tool (no menu dive), with the active tool highlighted, Undo/Redo, and the Markups
@@ -759,6 +770,7 @@ PDF Reader/
 │  │  ├─ measure-math.js   # units, fmtMeasure, computeValue, ratio→factor
 │  │  ├─ date-util.js      # todayFormatted
 │  │  ├─ prefs.js          # localStorage-backed App.Prefs (injectable store)
+│  │  ├─ favorite-colors.js# saved colour palette: hex parsing, legend paste, list ops
 │  │  └─ update-utils.js   # semverCmp / repoSlug / fileFromArgv (main process)
 │  ├─ assets/fonts/        # bundled OFL fonts + license files
 │  └─ renderer/
@@ -778,6 +790,7 @@ PDF Reader/
 │        ├─ overlay.js     # Overlay Documents: tinted multiply-blend of two PDFs
 │        ├─ organize.js    # Page Organizer: reorder/rotate/delete/insert/merge/extract
 │        ├─ docstamp.js    # Bates numbering, header/footer, watermark (preview + export)
+│        ├─ favcolors.js   # favourite-colour strips + manage dialog (Prefs-backed)
 │        ├─ toolchest.js   # saved markup tools + reusable image stamps (Prefs-backed)
 │        ├─ save.js        # pdf-lib export + coordinate mapping (+ form fill / flatten)
 │        └─ app.js         # toolbar/rail wiring, drag-drop, keyboard, theme, modes
