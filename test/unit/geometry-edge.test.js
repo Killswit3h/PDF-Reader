@@ -145,6 +145,64 @@ describe('Geom.unrotatePoint', () => {
   });
 });
 
+describe('Geom.unrotateDelta', () => {
+  it('is a plain divide at rotation 0', () => {
+    expect(Geom.unrotateDelta(10, 20, 0, 1)).toEqual({ dx: 10, dy: 20 });
+  });
+  // At 90 the layer is turned clockwise, so dragging DOWN the screen walks the
+  // shape along the page's +x, and dragging LEFT walks it along +y.
+  it('swaps the axes at 90', () => {
+    expect(Geom.unrotateDelta(10, 20, 90, 1)).toEqual({ dx: 20, dy: -10 });
+  });
+  it('flips both axes at 180', () => {
+    expect(Geom.unrotateDelta(10, 20, 180, 1)).toEqual({ dx: -10, dy: -20 });
+  });
+  it('swaps the axes the other way at 270', () => {
+    expect(Geom.unrotateDelta(10, 20, 270, 1)).toEqual({ dx: -20, dy: 10 });
+  });
+  it('normalizes a negative rotation to its positive equivalent', () => {
+    expect(Geom.unrotateDelta(10, 20, -90, 1)).toEqual(Geom.unrotateDelta(10, 20, 270, 1));
+  });
+  it('normalizes rotations beyond 360', () => {
+    expect(Geom.unrotateDelta(10, 20, 450, 1)).toEqual(Geom.unrotateDelta(10, 20, 90, 1));
+  });
+  it('divides by zoom', () => {
+    expect(Geom.unrotateDelta(10, 20, 0, 2)).toEqual({ dx: 5, dy: 10 });
+  });
+  it('treats a zero/missing zoom as 1 rather than dividing by zero', () => {
+    expect(Geom.unrotateDelta(10, 20, 0, 0)).toEqual({ dx: 10, dy: 20 });
+  });
+  it('preserves length at every orientation', () => {
+    const len = (d) => Math.hypot(d.dx, d.dy);
+    [0, 90, 180, 270].forEach((rot) => {
+      expect(len(Geom.unrotateDelta(3, 4, rot, 1))).toBeCloseTo(5, 10);
+    });
+  });
+  // The whole point of the helper: dragging is a difference of two pointer
+  // positions, so unrotating the delta must equal the difference of the two
+  // unrotated points. If these ever diverge, a dragged shape slides away from
+  // the pointer on a rotated page.
+  it('agrees with the difference of two unrotatePoint results', () => {
+    const lw = 100, lh = 200, z = 1.75;
+    const from = { x: 12, y: 31 }, move = { x: 23, y: -17 };
+    [0, 90, 180, 270].forEach((rot) => {
+      const a = Geom.unrotatePoint(from.x, from.y, lw, lh, rot, z);
+      const b = Geom.unrotatePoint(from.x + move.x, from.y + move.y, lw, lh, rot, z);
+      const d = Geom.unrotateDelta(move.x, move.y, rot, z);
+      expect(d.dx).toBeCloseTo(b.vx - a.vx, 10);
+      expect(d.dy).toBeCloseTo(b.vy - a.vy, 10);
+    });
+  });
+  // Four quarter-turns of the same drag must cancel out, which pins the sign
+  // convention: getting one of the four backwards breaks this sum.
+  it('sums to zero over all four orientations', () => {
+    const sum = [0, 90, 180, 270]
+      .map((rot) => Geom.unrotateDelta(7, -3, rot, 1))
+      .reduce((acc, d) => ({ dx: acc.dx + d.dx, dy: acc.dy + d.dy }), { dx: 0, dy: 0 });
+    expect(sum).toEqual({ dx: 0, dy: 0 });
+  });
+});
+
 describe('Geom.arrowHeadPoints', () => {
   it('produces two wings symmetric about the shaft', () => {
     const [w1, w2] = Geom.arrowHeadPoints(P(0, 0), P(100, 0), 0);

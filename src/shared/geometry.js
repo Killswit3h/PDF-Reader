@@ -211,6 +211,25 @@
     return { vx: lx / z, vy: ly / z };
   }
 
+  // Map a pointer's on-screen MOTION (a delta, not a position) back into the
+  // layer's unrotated scale-1 viewport space. This is the vector counterpart of
+  // unrotatePoint: the same inverse rigid rotation, minus the `lw`/`lh`
+  // translation terms, which cancel in a difference of two points.
+  //
+  // Dragging a placed markup / measurement / placement moves it by a delta, so
+  // without this the naive `(dx, dy) / zoom` sends the shape sideways on a 90 or
+  // 270 page and backwards on a 180 one while the pointer goes the other way.
+  function unrotateDelta(dx, dy, rot, z) {
+    const r = (((rot || 0) % 360) + 360) % 360;
+    let ax, ay;
+    if (r === 90)       { ax = dy;  ay = -dx; }
+    else if (r === 180) { ax = -dx; ay = -dy; }
+    else if (r === 270) { ax = -dy; ay = dx; }
+    else                { ax = dx;  ay = dy; }
+    const s = z || 1;
+    return { dx: ax / s, dy: ay / s };
+  }
+
   // The two wing points of an arrow head pointing from `from` to `to`.
   // `width` widens the head with the stroke. Returns [{vx,vy},{vx,vy}].
   function arrowHeadPoints(from, to, width) {
@@ -336,7 +355,7 @@
   return {
     Geom: {
       dist, polyLen, shoelace, angleAt, centroid, bbox,
-      rectFrom, ortho, nearestVertex, arrowHeadPoints, unrotatePoint,
+      rectFrom, ortho, nearestVertex, arrowHeadPoints, unrotatePoint, unrotateDelta,
       simplify, smoothStroke,
       circumcircle, angleOf, arcPoints, arcToBezier, arcSpanThrough, arcTessellationSegments,
       matMul, matApply, constructPathVertices

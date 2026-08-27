@@ -674,6 +674,17 @@
     return App.Geom.unrotatePoint(
       e.clientX - rect.left, e.clientY - rect.top, lw, lh, Viewer.rotation(), z);
   };
+
+  // Map on-screen pointer MOTION to unrotated scale-1 viewport units {dx, dy}.
+  // The companion of pointFromEvent for the drag/resize tools, which track a
+  // delta from where the gesture began rather than an absolute point. Dividing
+  // the raw screen delta by the zoom is only right at 0 degrees — at 90/270 the
+  // axes swap and at 180 they flip, which is what sent a dragged markup or
+  // measurement off along the wrong axis on a rotated page.
+  Viewer.deltaFromEvent = function (dxScreen, dyScreen) {
+    return App.Geom.unrotateDelta(
+      dxScreen, dyScreen, Viewer.rotation(), App.state.zoom || 1);
+  };
   // Reset to 100% (actual size) — bound to the "0" shortcut.
   Viewer.resetZoom = () => { if (pdfViewer) pdfViewer.currentScale = 1.0; };
 

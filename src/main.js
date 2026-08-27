@@ -1219,6 +1219,91 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_RDRAG: dragging a placed object must follow the pointer at EVERY
+      // page orientation. The overlay layer is rigid-rotated by CSS, so a raw
+      // screen delta divided by the zoom is only page-space at 0° — at 90/270 the
+      // axes swap and at 180 they flip, which sent a dragged markup/measurement
+      // off along the wrong axis. Asserted the way a user sees it: the shape's
+      // on-screen box must shift by the same screen delta the pointer did.
+      if (process.env.SMOKE_RDRAG) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const M=App.Measure;
+              const raf=()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+              const settle=async(ms)=>{await new Promise(r=>setTimeout(r,ms||700));await raf();};
+              const P1='.page[data-page-number="1"] ';
+              // The markup layer exists from first render; the measure layer is
+              // built lazily, so the markup layer doubles as the click surface for
+              // both tools (same page box, so the mapping is identical).
+              const kLayer=()=>document.querySelector(P1+'.markup-layer');
+              const mShape=()=>document.querySelector(P1+'.measure-layer polyline.m-shape');
+              const kShape=()=>document.querySelector(P1+'.markup-svg .hit');
+              const pe=(t,x,y)=>new PointerEvent(t,{clientX:x,clientY:y,bubbles:true,cancelable:true});
+
+              // Draw one length measurement and place one text markup, both at 0°
+              // through the real tool flow, then drag each at all four rotations.
+              for(let i=0;i<80&&!kLayer();i++)await new Promise(r=>setTimeout(r,100));
+              const K=kLayer(); if(!K) return JSON.stringify({fail:'no markup layer'});
+              const kr=K.getBoundingClientRect();
+              M.startTool('length');
+              M.handleClick(1,K,{clientX:kr.left+140,clientY:kr.top+150,shiftKey:false});
+              M.handleClick(1,K,{clientX:kr.left+280,clientY:kr.top+150,shiftKey:false});
+              M.repositionAll();
+              const KP=(x,y)=>({clientX:kr.left+x,clientY:kr.top+y});
+              App.Markup.startTool('ink');
+              App.Markup.inkStart(1,K,KP(140,300));
+              App.Markup.handleMove(1,K,KP(200,330));
+              App.Markup.handleMove(1,K,KP(260,300));
+              App.Markup.inkEnd();
+              App.Markup.deselect(); App.Markup.repositionAll();
+              await settle(300);
+              const drew={m:App.state.measurements.length,k:App.state.annotations.length,
+                mEl:!!mShape(),kEl:!!kShape()};
+              if(!mShape()||!kShape()) return JSON.stringify({drew,fail:'shape element missing'});
+
+              const DX=48, DY=32;
+              // Drag from the shape's own centre so the grab lands on it, push the
+              // pointer by (DX,DY) on screen, and report how far the shape's screen
+              // box FAILED to keep up. Correct behaviour is ~0 at every rotation.
+              async function dragBy(getEl,start){
+                const el=getEl(); if(!el) return {err:'no-el'};
+                const b0=el.getBoundingClientRect();
+                const x=b0.left+b0.width/2, y=b0.top+b0.height/2;
+                start(x,y);
+                window.dispatchEvent(pe('pointermove',x+DX,y+DY));
+                await raf();
+                window.dispatchEvent(pe('pointerup',x+DX,y+DY));
+                M.repositionAll(); App.Markup.repositionAll();
+                await raf();
+                const el1=getEl(); if(!el1) return {err:'no-el-after'};
+                const b1=el1.getBoundingClientRect();
+                return {ex:+(b1.left-b0.left-DX).toFixed(1), ey:+(b1.top-b0.top-DY).toFixed(1)};
+              }
+
+              const out={drew,meas:{},mark:{}};
+              for(const rot of [0,90,180,270]){
+                App.Viewer.setRotation(rot);
+                await settle();
+                out.meas[rot]=await dragBy(mShape,(x,y)=>{
+                  M._startDrag(App.state.measurements[0],
+                    {preventDefault(){},stopPropagation(){},clientX:x,clientY:y});
+                });
+                out.mark[rot]=await dragBy(kShape,(x,y)=>{
+                  kShape().dispatchEvent(pe('pointerdown',x,y));
+                });
+              }
+              App.Viewer.setRotation(0);
+              return JSON.stringify(out);
+            })()`, true);
+            console.log('[rdrag] ' + r);
+          } catch (e) { console.log('[rdrag] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_TEXT1: the Text tool is one-shot — placing a box disarms the tool
       // (so the box is immediately movable) and a second click adds no new box.
       if (process.env.SMOKE_TEXT1) {

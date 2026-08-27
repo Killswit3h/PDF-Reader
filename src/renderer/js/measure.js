@@ -881,11 +881,14 @@
   function startMeasureDrag(m, e) {
     e.preventDefault(); e.stopPropagation();
     M.select(m.id);
-    const z = App.state.zoom, sx = e.clientX, sy = e.clientY;
+    const sx = e.clientX, sy = e.clientY;
     const orig = m.pts.map((p) => ({ vx: p.vx, vy: p.vy }));
     App.History.snapshot();
     function move(ev) {
-      let dx = (ev.clientX - sx) / z, dy = (ev.clientY - sy) / z;
+      // Screen motion → unrotated page motion, so the shape follows the pointer
+      // at every orientation instead of only at 0°.
+      const d = App.Viewer.deltaFromEvent(ev.clientX - sx, ev.clientY - sy);
+      let dx = d.dx, dy = d.dy;
       if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; } // lock to an axis
       m.pts = orig.map((p) => ({ vx: p.vx + dx, vy: p.vy + dy }));
       M.scheduleReposition(m.page);
@@ -937,13 +940,14 @@
   function startVertexDrag(m, idx, e) {
     e.preventDefault(); e.stopPropagation();
     M.select(m.id);
-    const z = App.state.zoom, sx = e.clientX, sy = e.clientY;
+    const sx = e.clientX, sy = e.clientY;
     const orig = { vx: m.pts[idx].vx, vy: m.pts[idx].vy };
     App.History.snapshot();
     if (App.Snap) App.Snap.ensure(m.page);
     function move(ev) {
-      let vx = orig.vx + (ev.clientX - sx) / z;
-      let vy = orig.vy + (ev.clientY - sy) / z;
+      const d = App.Viewer.deltaFromEvent(ev.clientX - sx, ev.clientY - sy);
+      let vx = orig.vx + d.dx;
+      let vy = orig.vy + d.dy;
       if (ev.shiftKey && m.pts.length > 1) {
         const nbr = m.pts[idx > 0 ? idx - 1 : 1];
         const o = App.Geom.ortho(nbr, { vx, vy });

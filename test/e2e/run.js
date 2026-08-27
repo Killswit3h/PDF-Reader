@@ -891,6 +891,26 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'rotated drag — markups and measurements follow the pointer at every orientation',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_RDRAG: '1' }, [SAMPLE]), 'rdrag');
+      check(j.drew && j.drew.m === 1, `measurement not drawn: ${JSON.stringify(j.drew)}`);
+      check(j.drew && j.drew.k === 1, `markup not placed: ${JSON.stringify(j.drew)}`);
+      // The shape's on-screen box must move with the pointer. Before the fix the
+      // 90/180/270 cases missed by roughly the full drag distance (and in the
+      // wrong axis); a couple of px of rounding/reflow slack is fine.
+      const TOL = 3;
+      [0, 90, 180, 270].forEach((rot) => {
+        [['measurement', j.meas], ['markup', j.mark]].forEach(([what, set]) => {
+          const d = set && set[rot];
+          check(d && d.err === undefined, `${what} @${rot}°: no shape to drag (${JSON.stringify(d)})`);
+          check(Math.abs(d.ex) <= TOL && Math.abs(d.ey) <= TOL,
+            `${what} @${rot}° did not follow the pointer — off by (${d.ex}, ${d.ey})px`);
+        });
+      });
+    }
+  },
+  {
     name: 'forms — typing into a prefilled field persists on save',
     run: () => {
       const j = tagJson(runApp({ SMOKE_FORM: '1' }, [FORM]), 'form');

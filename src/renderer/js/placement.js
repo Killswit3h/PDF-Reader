@@ -232,8 +232,9 @@
 
     function onMove(ev) {
       if (!snapped) { App.History.snapshot(); snapped = true; }
-      let dx = (ev.clientX - startX) / z;
-      let dy = (ev.clientY - startY) / z;
+      // Screen motion → unrotated page motion; p.vx/p.vy live in page space.
+      const d = App.Viewer.deltaFromEvent(ev.clientX - startX, ev.clientY - startY);
+      let dx = d.dx, dy = d.dy;
       // Shift → orthogonal drag (lock to the dominant axis).
       if (ev.shiftKey) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0; }
       p.vx = clampAxis(ox + dx, p.vw, vp.width);
@@ -256,7 +257,7 @@
     e.stopPropagation();
     P.select(p.id);
     const z = App.state.zoom;
-    const startX = e.clientX;
+    const startX = e.clientX, startY = e.clientY;
     const startW = p.vw;
     const startFont = p.fontPt;
     const vp = App.state.baseViewports[p.page - 1];
@@ -265,7 +266,10 @@
 
     function onMove(ev) {
       if (!snapped) { App.History.snapshot(); snapped = true; }
-      const dx = (ev.clientX - startX) / z;
+      // Width runs along the placement's own x axis, which is on-screen
+      // horizontal only at 0°. Unrotate the drag so the handle still widens the
+      // box in the direction it visually points on a rotated page.
+      const dx = App.Viewer.deltaFromEvent(ev.clientX - startX, ev.clientY - startY).dx;
       if (p.type === 'image') {
         // Size freely (may overhang the edge); just keep it sane.
         const w = App.clamp(startW + dx, 24, vp.width * 2);
