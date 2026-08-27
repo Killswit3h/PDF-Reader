@@ -99,6 +99,26 @@ async function buildScaleSet() {
   say(p4, 'SITE', H - 80);
   say(p4, 'ratio 1:50 shown for reference', 90, 12);
 
+  // -- page 5: an imperial note next to a plotting stamp --
+  // The regression this guards: the note used to go unread, leaving the stamp
+  // as the page's only candidate, and the sheet was auto-scaled in millimetres.
+  // Written with a doubled apostrophe for inches, which is both a form this
+  // module had to learn and one WinAnsi can encode -- the U+2032/U+2033 primes
+  // that provoked the bug in the field are not encodable with a standard font,
+  // so they are pinned in test/unit/scale-detect.test.js instead.
+  const p5 = doc.addPage([W, H]);
+  say(p5, 'PROFILE', H - 80);
+  say(p5, "50.49'", H - 200, 12);
+  say(p5, "SCALE: 1'' = 20'", 90, 14);
+  say(p5, 'PLOT SCALE: 1:1', 70, 10);
+
+  // -- page 6: a bare ratio on a sheet dimensioned in feet and inches --
+  // Keyworded, so it used to auto-apply as millimetres. It is a review item.
+  const p6 = doc.addPage([W, H]);
+  say(p6, 'GRADING', H - 80);
+  say(p6, 'POSTS AT 12\'-6" O.C. TYP', H - 200, 12);
+  say(p6, 'SCALE 1:5', 90, 14);
+
   return doc.save();
 }
 
@@ -160,7 +180,7 @@ async function main() {
   fs.writeFileSync(path.join(dir, 'scale-detect.pdf'), await buildScaleSet());
   fs.writeFileSync(path.join(dir, 'scale-half.pdf'), await buildHalfSizeSet());
   console.log('Wrote test/fixtures/sample.pdf (3 pages), big.pdf (12 pages), form.pdf (AcroForm), '
-    + 'scale-detect.pdf (4 pages), scale-half.pdf (2 pages, half-size).');
+    + 'scale-detect.pdf (6 pages), scale-half.pdf (2 pages, half-size).');
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
