@@ -844,8 +844,102 @@
         const h = b.dataset.help;
         if (h === 'tour' && App.Tour) App.Tour.start();
         else if (h === 'shortcuts') App.Shortcuts.open();
+        else if (h === 'feedback') openFeedback();
       });
     });
+  }
+
+  // Repository the app reports bugs to. Kept here (not read from package.json)
+  // because the renderer has no build step — it is a constant of this build.
+  const REPO_URL = 'https://github.com/Killswit3h/PDF-Reader';
+
+  // "Send feedback" — open a pre-filled GitHub issue in the user's browser.
+  //
+  // Deliberately uses the openExternal method that is ALREADY on both sides of
+  // the window.api contract (src/preload.js and js/platform-web.js), so this
+  // ships to Windows, macOS and Android with no new platform capability.
+  //
+  // The body carries only build/environment facts — version, platform, user
+  // agent. Nothing about the open document (no filename, no path, no content)
+  // ever reaches the URL: a bug report must never leak a drawing.
+  // Build the pre-filled issue URL. Split out from openFeedback so the e2e
+  // scenario can assert on the URL without actually launching a browser on a
+  // CI runner.
+  async function feedbackUrl() {
+    let version = '';
+    try { version = (await window.api.getVersion()) || ''; } catch (_) { /* best effort */ }
+
+    const env = [
+      '',
+      '',
+      '---',
+      'FieldMark ' + (version || 'unknown'),
+      'Platform: ' + (navigator.platform || 'unknown'),
+      'User agent: ' + (navigator.userAgent || 'unknown')
+    ].join('\n');
+
+    const body =
+      'What happened?\n\n\n' +
+      'What did you expect instead?\n\n\n' +
+      'Steps to reproduce:\n1.\n2.\n3.\n' + env;
+
+    return REPO_URL + '/issues/new?body=' + encodeURIComponent(body);
+  }
+
+  async function openFeedback() {
+    try {
+      await window.api.openExternal(await feedbackUrl());
+    } catch (_) {
+      // Nothing actionable for the user here, and a failed browser launch must
+      // not surface as an unhandled rejection.
+    }
+  }
+  App.feedbackUrl = feedbackUrl;     // exposed for the SMOKE_SITE e2e scenario
+
+  // ---- Sample drawing (published web build only) --------------------------
+  //
+  // The published site (scripts/build-site.js) ships a sample drawing at
+  // app/demo/sample.pdf so a first-time visitor can try FieldMark without
+  // having to find a PDF first — that is the landing page's primary CTA.
+  //
+  // The DEPLOYMENT declares whether it ships one, via a <meta name=
+  // "fieldmark-demo"> tag that scripts/build-site.js injects. That keeps this
+  // module free of the platform checks CLAUDE.md forbids, and — unlike probing
+  // for the file — means the builds that don't ship a demo (Electron over
+  // file://, the Capacitor bundle, the plain www/ bundle) issue no request at
+  // all rather than a failing one.
+  function demoUrl() {
+    const meta = document.querySelector('meta[name="fieldmark-demo"]');
+    const href = meta && meta.getAttribute('content');
+    return href ? href.trim() : '';
+  }
+
+  async function loadDemo() {
+    const url = demoUrl();
+    if (!url) return;
+    try {
+      App.showLoading && App.showLoading('Opening the sample drawing…');
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const buf = await res.arrayBuffer();
+      await App.Viewer.load(buf, 'FieldMark-Sample-Drawing.pdf', null);
+    } catch (_) {
+      App.hideLoading && App.hideLoading();
+      App.toast('Couldn’t open the sample drawing. Try opening a PDF of your own.', 'error');
+    }
+  }
+
+  function setupDemo() {
+    const btn = App.$('#btn-demo-empty');
+    if (!btn) return;
+    if (!demoUrl()) return;            // this build ships no sample — stay hidden
+    btn.classList.remove('hidden');
+    btn.addEventListener('click', loadDemo);
+
+    // Deep link from the landing page's "Try it in your browser" button.
+    if (/[?&]demo=1(?:&|$)/.test(location.search)) {
+      setTimeout(loadDemo, 0);   // let the rest of init finish first
+    }
   }
 
   // Collapse the left tool rail to an icon-only strip (desktop). The armed
@@ -1202,6 +1296,7 @@
     setupRailToggle();
     setupMobileOverflow();
     setupFind();
+    setupDemo();
     App.Viewer.init();
 
     App.openViaDialog = openViaDialog;   // used by the tab bar "+" and native menu

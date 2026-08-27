@@ -378,6 +378,10 @@
     // its overlay can't intercept the other SMOKE_* scenarios.
     maybeAutoStart(freshInstall) {
       if (window.api && window.api.isSmokeTest) return 'suppressed';
+      // Arriving from the landing page's "Try it in your browser" button: the
+      // visitor asked to see a drawing, so don't cover it with a tour overlay
+      // the moment it loads. The Help menu still offers the tour on demand.
+      if (/[?&]demo=1(?:&|$)/.test(location.search)) return 'suppressed';
       if (!App.Prefs) return 'none';
       const seenWelcome = App.Prefs.get(PREF_SEEN, false);
       const ackRev = App.Prefs.get(PREF_NOTES_REV, 0);

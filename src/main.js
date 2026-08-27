@@ -2887,6 +2887,38 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_SITE: the Help menu's "Send feedback" item builds a pre-filled
+      // GitHub issue URL carrying build/environment facts and NOTHING about the
+      // open document, and the landing page's sample-drawing button stays hidden
+      // on desktop (where the native Open dialog is the right entry point).
+      if (process.env.SMOKE_SITE) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 80 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 300));
+              const item = document.querySelector('#help-menu button[data-help="feedback"]');
+              const demo = document.querySelector('#btn-demo-empty');
+              const url  = await App.feedbackUrl();
+              // The document is open; its name must not appear anywhere in the URL.
+              const leaks = url.indexOf(encodeURIComponent(App.state.fileName || '\\u0000')) !== -1;
+              return {
+                hasFeedbackItem: !!item,
+                feedbackLabel: item ? item.textContent.trim() : null,
+                url,
+                isIssueUrl: /github\\.com\\/[^/]+\\/[^/]+\\/issues\\/new/.test(url),
+                hasBody: /[?&]body=/.test(url),
+                leaksFileName: leaks,
+                demoPresent: !!demo,
+                demoHidden: !!demo && demo.classList.contains('hidden')
+              };
+            })()`, true);
+            console.log('[site] ' + JSON.stringify(r));
+          } catch (e) { console.log('[site] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SIGN) {
         setTimeout(async () => {
           try {

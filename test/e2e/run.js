@@ -579,6 +579,22 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'site — Help “Send feedback” builds a leak-free issue URL; demo hidden on desktop',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_SITE: '1' }, [SAMPLE]), 'site');
+      check(j.hasFeedbackItem === true, 'Help menu has no "Send feedback" item');
+      check(/feedback/i.test(j.feedbackLabel || ''), `unexpected feedback label: ${j.feedbackLabel}`);
+      check(j.isIssueUrl === true, `not a GitHub new-issue URL: ${j.url}`);
+      check(j.hasBody === true, 'feedback URL carries no pre-filled body');
+      // A bug report must never carry the open drawing's name off the device.
+      check(j.leaksFileName === false, 'feedback URL leaks the open document name');
+      // The sample-drawing button exists in the markup but must stay hidden on
+      // desktop, where the native Open dialog is the correct entry point.
+      check(j.demoPresent === true, 'demo button missing from the empty state markup');
+      check(j.demoHidden === true, 'demo button should be hidden in the desktop build');
+    }
+  },
+  {
     name: 'update — in-app download IPC wired, resolves to fallback in dev',
     run: () => {
       // Unpackaged dev build: electron-updater can't self-install, so the IPC
