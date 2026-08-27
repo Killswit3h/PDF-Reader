@@ -429,6 +429,7 @@
           ['#docstamp-modal', '#ds-cancel'], ['#shortcuts-modal', '#sc-close'],
           ['#whatsnew-modal', '#wn-close'],
           ['#digisign-modal', '#dsig-close'], ['#compare-modal', '#cmp-close'],
+          ['#favcolor-modal', '#fav-close'],
           ['#printprev-modal', '#pp-cancel']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
         if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
@@ -1170,6 +1171,8 @@
     const tbDate = App.$('#tb-date');
     if (tbDate) tbDate.textContent = App.todayFormatted();
     App.Signature.init();
+    // Before Measure/Markup: both mount a favourites strip during their own init.
+    if (App.FavColors) App.FavColors.init();
     App.Measure.init();
     App.Markup.init();
     if (App.Organize) App.Organize.init();
