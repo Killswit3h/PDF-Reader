@@ -281,6 +281,10 @@
     st.measureSeq = Math.max(s.measureSeq || 0, maxId(st.measurements));
     st.viewportSeq = s.viewportSeq || 0;
     st.annoSeq = Math.max(s.annoSeq || 0, maxId(st.annotations));
+    // Same upgrade _rehydrate does: legacy lump counts become individual marks.
+    const split = App.splitCountMarks(st.measurements, st.measureSeq);
+    st.measurements = split.measurements;
+    st.measureSeq = split.measureSeq;
   }
   function hasMarks(st) {
     return !!((st.placements || []).length || (st.annotations || []).length || (st.measurements || []).length);

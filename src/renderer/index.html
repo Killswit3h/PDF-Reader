@@ -243,7 +243,7 @@
           <button data-mtool="radius3" title="Radius from three points on the arc — click one end, a point along it, then the other end"><svg class="ico" aria-hidden="true"><use href="#i-radius3"/></svg>3-Point Radius</button>
           <button data-mtool="radiusCenter" title="Radius from the centre — click the centre, then a point on the circumference. Drag instead of clicking to sweep only part of the arc"><svg class="ico" aria-hidden="true"><use href="#i-radius-center"/></svg>Center Radius</button>
           <button data-mtool="angle"><svg class="ico" aria-hidden="true"><use href="#i-angle"/></svg>Angle</button>
-          <button data-mtool="count"><svg class="ico" aria-hidden="true"><use href="#i-count"/></svg>Count</button>
+          <button data-mtool="count" title="Tally items — one click, one mark. Each mark is its own object (move, delete or copy it on its own) and the tally keeps running as you turn pages"><svg class="ico" aria-hidden="true"><use href="#i-count"/></svg>Count</button>
           <div class="tb-menu-sep"></div>
           <label class="mtool-color" title="Color for new measurements (existing ones keep their color)">
             <svg class="ico mtool-color-ico" aria-hidden="true"><use href="#i-palette"/></svg>
@@ -859,18 +859,62 @@
         <button id="fav-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
       </div>
       <div class="modal-body fav-body">
-        <p class="fav-intro">Save the exact colors your plans are coded with — the ones from your legend —
-          and pick them from any toolbar instead of re-typing hex codes.</p>
-        <div id="fav-list" class="fav-list"></div>
-        <label class="fav-paste-label" for="fav-paste">Paste a legend</label>
-        <p class="fav-hint">One item per line. The name and the code can be in either order —
-          <code>Guardrail (Green) – Hex: #3B7D23</code> works, so does <code>#FFC000 Fence</code>.
-          Lines with no hex code are ignored.</p>
-        <textarea id="fav-paste" rows="5" spellcheck="false"
-          placeholder="Guardrail (Green) - Hex: #3B7D23&#10;Fence (Orange) - Hex: #FFC000&#10;Attenuator (Red) - Hex: #EE0000"></textarea>
-        <div class="fav-paste-actions">
-          <button id="fav-add-pasted" class="tb-btn primary">Add these colors</button>
+        <p class="fav-intro">Pick a color, name it, save it — then it is one click away on every toolbar.
+          Codes off a plan legend can be typed or pasted in too.</p>
+
+        <div class="fav-picker">
+          <div id="fav-palette" class="fav-palette" role="group" aria-label="Pick a color">
+            <button type="button" class="fav-pal" data-color="#e5484d" style="background:#e5484d" title="Red" aria-label="Red"></button>
+            <button type="button" class="fav-pal" data-color="#ee0000" style="background:#ee0000" title="Signal red" aria-label="Signal red"></button>
+            <button type="button" class="fav-pal" data-color="#f5a623" style="background:#f5a623" title="Orange" aria-label="Orange"></button>
+            <button type="button" class="fav-pal" data-color="#ffc000" style="background:#ffc000" title="Amber" aria-label="Amber"></button>
+            <button type="button" class="fav-pal" data-color="#ffd400" style="background:#ffd400" title="Yellow" aria-label="Yellow"></button>
+            <button type="button" class="fav-pal" data-color="#a3c614" style="background:#a3c614" title="Lime" aria-label="Lime"></button>
+            <button type="button" class="fav-pal" data-color="#21a366" style="background:#21a366" title="Green" aria-label="Green"></button>
+            <button type="button" class="fav-pal" data-color="#3b7d23" style="background:#3b7d23" title="Forest green" aria-label="Forest green"></button>
+            <button type="button" class="fav-pal" data-color="#0891b2" style="background:#0891b2" title="Teal" aria-label="Teal"></button>
+            <button type="button" class="fav-pal" data-color="#2f6fed" style="background:#2f6fed" title="Blue" aria-label="Blue"></button>
+            <button type="button" class="fav-pal" data-color="#215f9a" style="background:#215f9a" title="Navy" aria-label="Navy"></button>
+            <button type="button" class="fav-pal" data-color="#7030a0" style="background:#7030a0" title="Purple" aria-label="Purple"></button>
+            <button type="button" class="fav-pal" data-color="#d1348c" style="background:#d1348c" title="Magenta" aria-label="Magenta"></button>
+            <button type="button" class="fav-pal" data-color="#f26419" style="background:#f26419" title="Burnt orange" aria-label="Burnt orange"></button>
+            <button type="button" class="fav-pal" data-color="#8b5a2b" style="background:#8b5a2b" title="Brown" aria-label="Brown"></button>
+            <button type="button" class="fav-pal" data-color="#6b7280" style="background:#6b7280" title="Gray" aria-label="Gray"></button>
+            <button type="button" class="fav-pal" data-color="#1a1a1a" style="background:#1a1a1a" title="Black" aria-label="Black"></button>
+            <button type="button" class="fav-pal" data-color="#ffffff" style="background:#ffffff" title="White" aria-label="White"></button>
+          </div>
+          <div class="fav-add-row">
+            <label class="fav-wheel" title="Any other color — opens the color wheel">
+              <input id="fav-pick" type="color" value="#3b7d23" aria-label="Color to save" />
+              <span>Custom…</span>
+            </label>
+            <input id="fav-name" type="text" maxlength="40" placeholder="Name it (e.g. Guardrail)" aria-label="Name for this color" />
+            <button id="fav-add" class="tb-btn primary">Add color</button>
+          </div>
+          <details class="fav-adv">
+            <summary>Have the hex code? Type it</summary>
+            <div class="fav-hexrow">
+              <input id="fav-hex" type="text" spellcheck="false" placeholder="#3B7D23" aria-label="Hex code" />
+              <span class="fav-hint">Sets the color above — then name it and add it.</span>
+            </div>
+          </details>
         </div>
+
+        <div class="fav-sec-title">Saved colors</div>
+        <div id="fav-list" class="fav-list"></div>
+
+        <details class="fav-adv">
+          <summary>Paste a whole legend at once</summary>
+          <label class="fav-paste-label" for="fav-paste">Paste a legend</label>
+          <p class="fav-hint">One item per line. The name and the code can be in either order —
+            <code>Guardrail (Green) – Hex: #3B7D23</code> works, so does <code>#FFC000 Fence</code>.
+            Lines with no hex code are ignored.</p>
+          <textarea id="fav-paste" rows="5" spellcheck="false"
+            placeholder="Guardrail (Green) - Hex: #3B7D23&#10;Fence (Orange) - Hex: #FFC000&#10;Attenuator (Red) - Hex: #EE0000"></textarea>
+          <div class="fav-paste-actions">
+            <button id="fav-add-pasted" class="tb-btn primary">Add these colors</button>
+          </div>
+        </details>
       </div>
       <div class="modal-foot">
         <button id="fav-clear" class="tb-btn danger">Remove all</button>
@@ -1117,6 +1161,7 @@
   <script src="../shared/markup-model.js"></script>
   <script src="../shared/tab-order.js"></script>
   <script src="../shared/favorite-colors.js"></script>
+  <script src="../shared/count-groups.js"></script>
 
   <!-- ======= App modules ======= -->
   <script src="js/util.js"></script>

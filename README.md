@@ -247,17 +247,18 @@ at runtime. Handwriting fonts are bundled with the app.
   *"Save markups as editable PDF annotations"* in the Markups List — interoperable
   with other PDF tools. (Existing annotations from other apps are displayed and
   preserved on save; importing them for in-app editing is planned.)
-- **Favorite colors** — plan sets are color-coded off a legend, and the legend
-  names exact hex codes per pay item. Instead of re-typing `#3B7D23` into the OS
-  color wheel for every markup, save the legend once: hit the **★** beside any
-  color control to save the color you are on, or open **Favorites…** and **paste
-  the legend table straight in** — one item per line, name and code in either
+- **Favorite colors** — a palette of colors you keep, one click each, on every
+  toolbar. Open **Favorites…**, **pick a color** off the swatch grid or the color
+  wheel, name it, add it — that is the whole path. Or hit the **★** beside any
+  color control to save the color you are already on. Hex codes are there when
+  you have one, not in the way when you don't: *"Have the hex code? Type it"*
+  takes a single code, and *"Paste a whole legend at once"* takes a plan legend's
+  table straight from the clipboard — one item per line, name and code in either
   order (`Guardrail (Green) – Hex: #3B7D23`, `#FFC000 Fence`; lines with no hex
   code are ignored, so a header row does no harm). Saved colors appear as named
   swatches on the **markup properties bar** and in the **Measure** menu — the
-  same list in both, one click to apply the exact code. Rename, reorder and
-  recolor them in the Favorites dialog; the list is stored per device and
-  survives restarts.
+  same list in both. Rename, reorder and recolor them in the Favorites dialog;
+  the list is stored per device and survives restarts.
 - **Right-hand markup toolbar** (Bluebeam-style) — a compact, icon-only strip
   docked to the right edge of the page gives **one-click access** to every drawing
   tool (no menu dive), with the active tool highlighted, Undo/Redo, and the Markups
@@ -281,6 +282,16 @@ at runtime. Handwriting fonts are bundled with the app.
   - **Length, Perimeter, Area, Angle, Count** — draw on the page and get live,
     real-world values (area in unit², angle in degrees). **Enter** finishes a
     polyline/polygon, **Esc** cancels.
+  - **Count tallies across pages** — one click, one mark, and the tally keeps
+    running as you turn the page: the same item counted over six sheets is one
+    total, labelled `Pull boxes: 4 of 38` on each sheet so no page pretends to
+    hold the whole count. Every mark is its own object — select it, nudge it,
+    delete it, or **Ctrl+C / Ctrl+V** (or **Ctrl+D**) it to add one more of the
+    same, without touching the rest of the tally. The Measurements panel shows
+    **one row per tally** (name it in place, `+` to carry on counting into it,
+    trash to remove the whole thing), and CSV export writes one row per tally
+    rather than one per dot. Exported PDFs still carry one count annotation per
+    sheet, so what a recipient opens is unchanged.
   - **Snap to drawing** — the cursor snaps to the PDF's own geometry (line
     endpoints, corners, polyline/rectangle vertices), not just previously drawn
     measurement vertices, so a take-off traces the real linework instead of
@@ -771,6 +782,7 @@ PDF Reader/
 │  │  ├─ date-util.js      # todayFormatted
 │  │  ├─ prefs.js          # localStorage-backed App.Prefs (injectable store)
 │  │  ├─ favorite-colors.js# saved colour palette: hex parsing, legend paste, list ops
+│  │  ├─ count-groups.js   # count tallies: grouping, numbering, per-page labels, export merge
 │  │  └─ update-utils.js   # semverCmp / repoSlug / fileFromArgv (main process)
 │  ├─ assets/fonts/        # bundled OFL fonts + license files
 │  └─ renderer/

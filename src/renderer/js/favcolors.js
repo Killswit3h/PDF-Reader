@@ -126,22 +126,76 @@
 
   function modal() { return App.$('#favcolor-modal'); }
 
-  F.open = function () {
+  F.open = function (hex) {
     const m = modal(); if (!m) return;
     const paste = App.$('#fav-paste');
     if (paste) paste.value = '';
+    const name = App.$('#fav-name');
+    if (name) name.value = '';
+    // Open on the colour the caller was working in, so "save this one, named"
+    // is a two-field job rather than a hunt for the code again.
+    setPick(App.normalizeHex(hex) || (App.$('#fav-pick') && App.$('#fav-pick').value) || '#3b7d23');
     renderList();
     m.classList.remove('hidden');
+    if (name) name.focus();
   };
   F.close = function () { const m = modal(); if (m) m.classList.add('hidden'); };
+
+  /* ---------------- pick a colour (the main way in) ---------------- */
+
+  // One colour is "the one being added", and the swatch grid, the wheel and the
+  // hex box are three ways to set it — not three separate add buttons. Typing a
+  // code is the fallback for a legend that quotes one, not the price of entry.
+  function currentPick() {
+    const el = App.$('#fav-pick');
+    return App.normalizeHex(el ? el.value : null) || '#3b7d23';
+  }
+  function setPick(hex) {
+    const h = App.normalizeHex(hex);
+    if (!h) return;
+    const el = App.$('#fav-pick'); if (el) el.value = h;
+    const hx = App.$('#fav-hex');
+    // Leave the hex box alone while it has focus: rewriting it mid-keystroke
+    // ("#3b" -> "#3b3b3b") makes it impossible to finish typing a code.
+    if (hx && document.activeElement !== hx) hx.value = h.toUpperCase();
+    App.$$('#fav-palette .fav-pal').forEach((b) => b.classList.toggle('active', b.dataset.color === h));
+  }
+
+  // Save whatever the picker is set to, under the name beside it.
+  function addPicked() {
+    const hex = currentPick();
+    const nameEl = App.$('#fav-name');
+    const name = nameEl ? nameEl.value : '';
+    const cur = load();
+    if (App.isFavorite(cur, hex)) {
+      // Re-adding renames in place rather than making a second chip of the same
+      // green; say so, because otherwise the list looks like it ignored you.
+      persist(App.addFavorite(cur, hex, name).list);
+      renderList();
+      if (nameEl) { nameEl.value = ''; nameEl.focus(); }
+      App.toast(`${hex.toUpperCase()} is already saved${name.trim() ? ' — renamed it.' : '.'}`, 'info');
+      return;
+    }
+    const r = App.addFavorite(cur, hex, name);
+    if (!r.added) {
+      App.toast(r.reason === 'full'
+        ? `Favourites are full (${App.FAV_LIMIT}). Remove one first.`
+        : 'That is not a colour that can be saved.', 'error');
+      return;
+    }
+    persist(r.list);
+    renderList();
+    if (nameEl) { nameEl.value = ''; nameEl.focus(); }
+    App.toast(`Saved ${name.trim() || hex.toUpperCase()}.`, 'success');
+  }
 
   function renderList() {
     const wrap = App.$('#fav-list'); if (!wrap) return;
     const favs = load();
     wrap.innerHTML = '';
     if (!favs.length) {
-      wrap.innerHTML = '<div class="fav-empty">No favourite colours yet. Paste your legend below, ' +
-        'or pick a colour on the toolbar and hit the star.</div>';
+      wrap.innerHTML = '<div class="fav-empty">Nothing saved yet. Pick a colour above, give it a name, ' +
+        'and add it — or star a colour on any toolbar.</div>';
       return;
     }
     favs.forEach((f, i) => {
@@ -219,7 +273,26 @@
     const b = (id, fn) => { const el = App.$(id); if (el) el.addEventListener('click', fn); };
     b('#fav-close', F.close);
     b('#fav-done', F.close);
+    b('#fav-add', addPicked);
     b('#fav-add-pasted', addPasted);
+
+    // The palette, the wheel and the hex box all drive the one pending colour.
+    const pal = App.$('#fav-palette');
+    if (pal) pal.addEventListener('click', (e) => {
+      const btn = e.target.closest('.fav-pal');
+      if (btn) setPick(btn.dataset.color);
+    });
+    const pick = App.$('#fav-pick');
+    if (pick) pick.addEventListener('input', () => setPick(pick.value));
+    const hex = App.$('#fav-hex');
+    if (hex) {
+      hex.addEventListener('input', () => setPick(hex.value));
+      // Normalise the box on the way out, so a half-typed code does not sit
+      // there looking like it was accepted.
+      hex.addEventListener('change', () => { setPick(hex.value); hex.value = currentPick().toUpperCase(); });
+    }
+    const nameEl = App.$('#fav-name');
+    if (nameEl) nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addPicked(); } });
     b('#fav-clear', async () => {
       if (!load().length) return;
       const ok = await App.confirm('Remove every favourite colour?', { title: 'Clear favourites', okLabel: 'Remove all', danger: true });

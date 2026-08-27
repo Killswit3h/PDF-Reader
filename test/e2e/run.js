@@ -652,6 +652,61 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'count — one tally across pages, every mark its own object',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_COUNT: '1' }, [SAMPLE]), 'count');
+      check(j.name === 'Count 1', `first tally not named Count 1 (got ${j.name})`);
+      // Three clicks made three objects, not one lump.
+      check(j.marks === 3, `count marks ${j.marks} != 3`);
+      // ...and they tally together even though they are on different sheets.
+      check(j.spans && j.spans.total === 3, `tally total ${j.spans && j.spans.total} != 3`);
+      check(JSON.stringify(j.spans.pages) === JSON.stringify([1, 3]),
+        `tally did not span pages 1 and 3: ${JSON.stringify(j.spans.pages)}`);
+      // Copying ONE mark adds one to the tally; deleting one takes one away.
+      check(j.pasted === true, 'copying a count mark produced nothing');
+      check(j.afterCopy === 4, `copying one mark gave ${j.afterCopy}, expected 4`);
+      check(j.afterDelete === 3, `deleting one mark gave ${j.afterDelete}, expected 3`);
+      check(JSON.stringify(j.numbers) === JSON.stringify([1, 2, 3]),
+        `marks did not renumber after a delete: ${JSON.stringify(j.numbers)}`);
+      // Arming Count again starts a separate tally rather than growing the first.
+      check(JSON.stringify(j.tallies) === JSON.stringify(['Count 1=3', 'Count 2=1']),
+        `tallies ${JSON.stringify(j.tallies)}`);
+      // The panel stays readable: one row per tally, not one per dot.
+      check(j.rows === 2, `panel rows ${j.rows} != 2 (one per tally)`);
+      check(/count:\s*4/.test(j.totals), `panel totals did not report 4 counts: ${j.totals}`);
+      check(j.renamed === 'Pull boxes', `renaming a tally from the panel failed (got ${j.renamed})`);
+      // Export folds each tally back to one shape per page, labelled with how
+      // much of the total that page holds.
+      check(JSON.stringify(j.merged) === JSON.stringify([
+        '1:2:Pull boxes: 2 of 3', '3:1:Pull boxes: 1 of 3', '2:1:Count 2: 1'
+      ]), `export merge ${JSON.stringify(j.merged)}`);
+      // A file saved before this feature still opens, upgraded.
+      check(j.legacy && j.legacy.n === 3 && j.legacy.single === true && j.legacy.grouped === 1,
+        `legacy lump count did not split into one tally: ${JSON.stringify(j.legacy)}`);
+      check(j.err === '', `buildBytes error: ${j.err}`);
+      check(j.bytesLen > 0, 'no PDF bytes produced');
+    }
+  },
+  {
+    name: 'favorites — save a color by picking one, with hex as the fallback',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_FAVPICK: '1' }, [SAMPLE]), 'favpick');
+      check(j.swatches >= 12, `color palette offers only ${j.swatches} swatches`);
+      // The point of the change: a hex code is not what the dialog asks for first.
+      check(j.advanced && j.advanced.hex === true, 'hex entry is not behind a disclosure');
+      check(j.advanced && j.advanced.paste === true, 'the legend paste box is not behind a disclosure');
+      check(j.picked === '#3b7d23', `clicking a swatch did not set the color (got ${j.picked})`);
+      check(j.palActive === true, 'the clicked swatch was not marked active');
+      check(JSON.stringify(j.saved) === JSON.stringify([
+        '#3b7d23|Guardrail', '#d1348c|Signs', '#ffc000|Fence'
+      ]), `saved colors ${JSON.stringify(j.saved)}`);
+      check(j.rows === 3, `saved list rows ${j.rows} != 3`);
+      check(JSON.stringify(j.strip) === JSON.stringify(['#3b7d23', '#d1348c', '#ffc000']),
+        `toolbar strip ${JSON.stringify(j.strip)}`);
+      check(j.closed === true, 'Done did not close the dialog');
+    }
+  },
+  {
     name: 'text markup — highlight/underline/strikeout render + export',
     run: () => {
       const j = tagJson(runApp({ SMOKE_TMARK: '1' }, [SAMPLE]), 'tmark');
