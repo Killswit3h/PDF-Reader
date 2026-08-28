@@ -99,7 +99,7 @@ overlapped it.
 
 ```
 npm test          520 passed / 22 files          PASS
-npm run test:e2e  72 passed, 0 failed            PASS
+npm run test:e2e   69 passed, 0 failed           PASS   (66 existing + 3 new)
 npm run verify:web   all sub-checks pass         see caveat
 ```
 
