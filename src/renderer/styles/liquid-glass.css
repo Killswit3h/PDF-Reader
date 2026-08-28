@@ -68,7 +68,6 @@ html.platform-mac body {
 /* Reusable specular sheen: a bright hairline along the top edge that fades as it
  * wraps the sides — the tell-tale of a lit pane of glass. Applied as an inset
  * box-shadow so it layers over any background. */
-html.platform-mac #tool-rail,
 html.platform-mac #measure-panel,
 html.platform-mac #markup-panel,
 html.platform-mac .tb-menu,
@@ -218,9 +217,22 @@ html.platform-mac #page-input {
 }
 
 /* ============================== Tool rail ================================ */
+/* Same backdrop-root treatment as #toolbar above, and for the same reason: the
+   rail hosts the Measure, Markup and Document flyouts, so blurring the rail
+   ELEMENT switched their own blur off and left them sheer over the drawing. */
 html.platform-mac #tool-rail {
-  background: var(--lg-material);
+  background: transparent;               /* material + sheen are on ::before */
   border-right: 0.5px solid var(--lg-hairline);
+}
+html.platform-mac #tool-rail::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  background: var(--lg-material);
   box-shadow: inset -1px 0 0 var(--lg-specular);
 }
 html.platform-mac .rail-btn {
