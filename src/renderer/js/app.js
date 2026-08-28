@@ -1064,6 +1064,11 @@
     // still can't strand a control off-screen.
     if (typeof ResizeObserver === 'function') new ResizeObserver(apply).observe(bar);
     window.addEventListener('resize', apply);
+    // Measure once here, not only inside apply(): under the <=820px floor
+    // apply() takes the mobile branch and never reaches the measuring one, so a
+    // session that STARTS on a phone-width window would carry needWidth = 0 and
+    // briefly expand-then-recollapse the first time the window grew past 820px.
+    needWidth = measureNeed();
     apply();
 
     moreBtn.addEventListener('click', (e) => {

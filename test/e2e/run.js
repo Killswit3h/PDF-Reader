@@ -387,6 +387,8 @@ const SCENARIOS = [
         "the shelf's title row is not the top-most element at its own coordinates");
       check(j.layer.firstHit === true, "the shelf's first row is painted over");
       check(j.layer.lastHit === true, "the shelf's last row is painted over");
+      // AC-7: the Help flyout is the same surface in the same parent.
+      check(j.layer.helpHit === true, 'the Help menu is painted over by the contextual bars');
 
       // FR-7: achieved by moving the bar, not by raising the bars it sits over.
       check(Number(j.layer.menuZ) > Number(j.layer.bannerZ),
@@ -424,6 +426,11 @@ const SCENARIOS = [
       // FR-22 / AC-19: clamped inside the window at the right edge.
       check(j.edgeRight <= j.winW, `tooltip right edge ${j.edgeRight} exceeds window ${j.winW}`);
       check(j.edgeLeft >= 0, `tooltip left edge ${j.edgeLeft} is off-screen`);
+
+      // FR-25 / AC-22: touch raises no tooltip, and the tap still lands exactly
+      // once -- nothing in tooltip.js calls preventDefault.
+      check(j.tipOnTouch === false, 'a touch pointer raised a hover tooltip');
+      check(j.touchClicks === 1, `a tapped control fired ${j.touchClicks} clicks, expected 1`);
 
       // FR-21 / AC-18: a runtime title assignment is picked up unedited. This is
       // the whole reason migration is observed rather than swept once.

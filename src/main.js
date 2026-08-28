@@ -2662,7 +2662,20 @@ function createWindow() {
               const rows = document.querySelectorAll('#bookmark-list .bm-row');
               const first = rows[0].getBoundingClientRect();
               const last = rows[rows.length-1].getBoundingClientRect();
+              // The Help flyout is the same surface in the same parent, so it
+              // has to clear the same bars.
+              menu.classList.add('hidden');
+              const help = document.querySelector('#help-menu');
+              help.classList.remove('hidden');
+              await new Promise(r=>setTimeout(r,250));
+              const h = help.getBoundingClientRect();
+              const helpEl = document.elementFromPoint(Math.round(h.left + h.width/2), Math.round(h.top + 10));
+              const helpHit = helpEl ? !!helpEl.closest('#help-menu') : false;
+              help.classList.add('hidden');
+              menu.classList.remove('hidden');
+              await new Promise(r=>setTimeout(r,250));
               const out = {
+                helpHit,
                 bannerShown: !document.querySelector('#mode-banner').classList.contains('hidden'),
                 propsShown: !document.querySelector('#markup-props').classList.contains('hidden'),
                 titleHit: at(m.top + 8),
@@ -2727,7 +2740,25 @@ function createWindow() {
               await new Promise(r=>setTimeout(r,80));
               const bm = document.querySelector('#btn-bookmark');
 
+              // A touch pointer must not raise a tooltip, and must not have its
+              // tap delayed or swallowed: nothing in tooltip.js calls
+              // preventDefault, and the hover path is gated on (hover: hover).
+              App.Tooltip.hide();
+              let clicks = 0;
+              const fit = document.querySelector('#btn-fit-width');
+              const count = () => { clicks++; };
+              fit.addEventListener('click', count);
+              fit.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'touch' }));
+              await new Promise(r=>setTimeout(r,600));
+              const tipOnTouch = !tip.classList.contains('hidden');
+              fit.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+              fit.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
+              fit.click();
+              await new Promise(r=>setTimeout(r,60));
+              fit.removeEventListener('click', count);
+
               return JSON.stringify({
+                tipOnTouch, touchClicks: clicks,
                 tips: document.querySelectorAll('[data-tip]').length,
                 nativeTitles: document.querySelectorAll('[title]').length,
                 nameless,
