@@ -1367,6 +1367,10 @@
     setupDropdownDismiss();   // after every registerDropdown() call above
     setupRailToggle();
     setupMobileOverflow();
+    // Last of the chrome setups, so the first migration sweep sees every
+    // `title` the boot sequence has assigned. Anything set afterwards is picked
+    // up by its MutationObserver.
+    if (App.Tooltip) App.Tooltip.init();
     setupFind();
     setupDemo();
     App.Viewer.init();
