@@ -249,3 +249,34 @@ explicitly, since it currently claims the site carries no analytics either.
 Still at 1, so returning users updating in do not see a What's-New card matching
 the OCR work, the UI overhaul, or the new web app. Carried over from the v1.22.0
 release notes.
+
+## Bookmark shelf: edit a title, and group by section
+
+The shelf now sorts globally by page, which is what "which pages are
+bookmarked?" needs — and the depth indent had to go with it, since indenting a
+row under whatever now precedes it would state a parentage that is not there.
+A received drawing set's outline structure is still fully preserved in the model
+and on save; it is just no longer *shown*. Two follow-ups worth having:
+
+- A section header per top-level outline entry, so a nested set reads as its own
+  structure again while each section stays page-ordered.
+- Renaming one of our own bookmarks from the shelf. Deleting a foreign one stays
+  deliberately impossible (`src/shared/outline.js` — nothing here rewrites an
+  entry that arrived with the file).
+
+## Tooltips: long-press on touch, and a shortcut hint line
+
+`js/tooltip.js` gates hover on `(hover: hover) and (pointer: fine)`, so on the
+Android WebView a control's name is still only reachable through the
+accessibility layer. A long-press could show the same node. Separately, the
+tooltip could split "Open a PDF" from "Ctrl+O" onto its own line with the
+`.mk-key` chip style the shortcuts sheet uses, instead of carrying the shortcut
+inline in the sentence.
+
+## Label the icon-only rows in the "..." overflow sheet
+
+The sheet is now populated at desktop widths too (it used to be a phone-only
+surface), so its icon-only rows — Marquee, Rotate, Bookmark, Bookmarked pages —
+are more prominent. Each carries a `data-tip` name now, which the sheet could
+render as a text label beside the glyph rather than leaving a bare icon in a
+dropdown.

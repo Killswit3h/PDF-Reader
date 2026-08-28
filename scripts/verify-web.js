@@ -515,6 +515,97 @@ function serve(dir) {
     }
     await page.setViewportSize({ width: 1280, height: 800 });
 
+    // ---- macOS "liquid glass": a dropdown must actually blur what is under it ----
+    //
+    // Per Filter Effects, an element carrying backdrop-filter becomes a BACKDROP
+    // ROOT for its descendants: their own backdrop-filter then samples that
+    // element's backdrop rather than what is behind the window. #toolbar had
+    // backdrop-filter and hosts three .tb-menu dropdowns, so their blur was
+    // computed and painted nothing — leaving a 0.74/0.80-alpha wash through
+    // which a drawing's title block read perfectly sharply.
+    //
+    // Two assertions, because each catches what the other cannot:
+    //   - structural: no open .tb-menu may have an ANCESTOR carrying
+    //     backdrop-filter. This is the root cause, stated directly, and it is
+    //     deterministic.
+    //   - measured: the luminance variance inside the panel, open vs closed. A
+    //     structural rule cannot notice a material that is simply too sheer.
+    //
+    // Chromium is the engine the mac build runs on too, so forcing
+    // html.platform-mac here exercises the same code path as the real skin.
+    {
+      await page.evaluate(() => {
+        document.documentElement.classList.add('platform-mac');
+        document.querySelectorAll('#tour-root').forEach((n) => n.remove());
+        App.state.bookmarks = [
+          { title: 'CTLSRD03', page: 1, mine: false, items: [] },
+          { title: 'PLANRD02', page: 1, mine: false, items: [] },
+          { title: 'SUMMARY OF GUARDRAIL', page: 1, mine: false, items: [] },
+          { title: 'Page 1', page: 1, mine: true, items: [] }
+        ];
+        App.Bookmarks.renderShelf();
+      });
+      await page.waitForTimeout(300);
+
+      // The panel's footprint, measured while it is open.
+      await page.evaluate(() => document.querySelector('#bookmark-menu').classList.remove('hidden'));
+      await page.waitForTimeout(400);
+      const box = await page.evaluate(() => {
+        const r = document.querySelector('#bookmark-menu').getBoundingClientRect();
+        // Inset, so the sample is the material itself and not its hairline.
+        return { x: Math.round(r.left + 6), y: Math.round(r.top + 6),
+                 width: Math.round(r.width - 12), height: Math.round(r.height - 12) };
+      });
+      const openShot = (await page.screenshot({ clip: box })).toString('base64');
+      await page.evaluate(() => document.querySelector('#bookmark-menu').classList.add('hidden'));
+      await page.waitForTimeout(400);
+      const closedShot = (await page.screenshot({ clip: box })).toString('base64');
+
+      // Decode in the browser — no image dependency in the harness.
+      const spread = (b64) => page.evaluate(async (data) => {
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/png;base64,' + data; });
+        const cv = document.createElement('canvas');
+        cv.width = img.width; cv.height = img.height;
+        cv.getContext('2d').drawImage(img, 0, 0);
+        const px = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+        let sum = 0, sum2 = 0, n = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          const l = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+          sum += l; sum2 += l * l; n++;
+        }
+        const mean = sum / n;
+        return Math.sqrt(Math.max(0, sum2 / n - mean * mean));
+      }, b64);
+
+      const openSd = await spread(openShot);
+      const closedSd = await spread(closedShot);
+
+      const structure = await page.evaluate(() => {
+        document.querySelector('#bookmark-menu').classList.remove('hidden');
+        const bad = [];
+        for (const menu of document.querySelectorAll('.tb-menu')) {
+          const cs = getComputedStyle(menu);
+          const own = cs.backdropFilter || cs.webkitBackdropFilter || 'none';
+          for (let p = menu.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+            const pcs = getComputedStyle(p);
+            const f = pcs.backdropFilter || pcs.webkitBackdropFilter || 'none';
+            if (f !== 'none') bad.push((menu.id || menu.className) + ' under ' + (p.id || p.className));
+          }
+          if (own === 'none') bad.push((menu.id || menu.className) + ' has no backdrop-filter of its own');
+        }
+        document.querySelector('#bookmark-menu').classList.add('hidden');
+        document.documentElement.classList.remove('platform-mac');
+        return bad;
+      });
+
+      result.glass = {
+        openSd: Math.round(openSd * 100) / 100,
+        closedSd: Math.round(closedSd * 100) / 100,
+        nestedBackdropRoots: structure
+      };
+    }
+
   } finally {
     await browser.close();
     server.close();
@@ -555,9 +646,15 @@ function serve(dir) {
     t.renderOk === true &&
     (t.menuItems || []).some((s) => /Move to End/.test(s));
 
+  // The panel must flatten what is under it, not merely tint it: at least a 4x
+  // drop in luminance spread against the same region with the panel closed.
+  const g = result.glass || {};
+  const glassOk = (g.nestedBackdropRoots || []).length === 0 &&
+    g.closedSd > 1 && g.openSd * 4 <= g.closedSd;
+
   const ok = !errors.length && !offsite.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
-    dropdownsOk && iconsOk && layoutOk && a11yOk && ocrOk && tabsOk;
+    dropdownsOk && iconsOk && layoutOk && a11yOk && ocrOk && tabsOk && glassOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
   if (offsite.length) {
@@ -570,6 +667,7 @@ function serve(dir) {
   if (!a11yOk) console.log('[verify-web] a11y FAILED:', JSON.stringify(a, null, 2));
   if (!ocrOk) console.log('[verify-web] OCR check FAILED:', JSON.stringify(o, null, 2));
   if (!tabsOk) console.log('[verify-web] tab rearranging FAILED:', JSON.stringify(t, null, 2));
+  if (!glassOk) console.log('[verify-web] macOS dropdown glass FAILED:', JSON.stringify(g, null, 2));
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });

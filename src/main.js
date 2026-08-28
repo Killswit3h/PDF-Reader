@@ -2593,6 +2593,222 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_CHROME: the top bar's two geometry failures, both reproduced from
+      // a screenshot of the shipped app.
+      //
+      // 1. #toolbar is `position: relative` with a z-index, which makes it a
+      //    stacking context -- so the --z-flyout on the .tb-menu dropdowns it
+      //    hosts could never lift them above the bar's own layer. At --z-chrome
+      //    the bar tied with #mode-banner and #markup-props (later in the
+      //    document, so they won) and lost to #find-bar at --z-float, and the
+      //    bookmark shelf's rows were not merely painted over but unclickable.
+      //    elementFromPoint is the assertion because a screenshot cannot tell
+      //    "behind" from "dim".
+      // 2. The "..." overflow only engaged at max-width:820px, but the bar needs
+      //    ~1120px, so between the two the right-hand controls were painted past
+      //    the window edge with no scrollbar and no way to reach them.
+      if (process.env.SMOKE_CHROME) {
+        setTimeout(async () => {
+          try {
+            const probe = `(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const bar = document.querySelector('#toolbar');
+              const over = Array.from(bar.querySelectorAll('.tb-btn, .tb-readout'))
+                .filter(e => e.getClientRects().length && !e.closest('#more-menu'))
+                .filter(e => e.getBoundingClientRect().right > window.innerWidth + 1)
+                .map(e => e.id || e.className);
+              return JSON.stringify({
+                winW: window.innerWidth,
+                collapsed: document.body.classList.contains('toolbar-collapsed'),
+                offscreen: over,
+                inMenu: document.querySelectorAll('#more-menu [data-overflow]').length,
+                homed: document.querySelectorAll('#toolbar > * [data-overflow], #toolbar > [data-overflow]').length
+              });
+            })()`;
+            // Wide: everything inline and inside the window.
+            mainWindow.setContentSize(1500, 900);
+            await new Promise((r) => setTimeout(r, 700));
+            const wide = await mainWindow.webContents.executeJavaScript(probe, true);
+            // Narrow, but well above the old 820px breakpoint -- the band where
+            // controls used to vanish off the right edge.
+            mainWindow.setContentSize(950, 900);
+            await new Promise((r) => setTimeout(r, 700));
+            const narrow = await mainWindow.webContents.executeJavaScript(probe, true);
+            // ...and back, to prove every control returns to its own slot.
+            mainWindow.setContentSize(1500, 900);
+            await new Promise((r) => setTimeout(r, 700));
+            const back = await mainWindow.webContents.executeJavaScript(probe, true);
+
+            const layer = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              // The exact state from the report: markup armed (mode banner +
+              // properties bar), find open, and the shelf pulled down over both.
+              App.state.bookmarks = [
+                { title: 'PLANRD02', page: 2, mine: false, items: [] },
+                { title: 'CTLSRD03', page: 1, mine: false, items: [] },
+                { title: 'Page 1',   page: 1, mine: true,  items: [] }
+              ];
+              App.Markup.startTool('line');
+              document.querySelector('#find-bar').classList.remove('hidden');
+              App.Bookmarks.renderShelf();
+              document.querySelector('#bookmark-menu').classList.remove('hidden');
+              await new Promise(r=>setTimeout(r,400));
+              const menu = document.querySelector('#bookmark-menu');
+              const m = menu.getBoundingClientRect();
+              const at = (y) => {
+                const el = document.elementFromPoint(Math.round(m.left + m.width/2), Math.round(y));
+                return el ? !!el.closest('#bookmark-menu') : false;
+              };
+              const rows = document.querySelectorAll('#bookmark-list .bm-row');
+              const first = rows[0].getBoundingClientRect();
+              const last = rows[rows.length-1].getBoundingClientRect();
+              const out = {
+                bannerShown: !document.querySelector('#mode-banner').classList.contains('hidden'),
+                propsShown: !document.querySelector('#markup-props').classList.contains('hidden'),
+                titleHit: at(m.top + 8),
+                firstHit: at(first.top + first.height/2),
+                lastHit: at(last.top + last.height/2),
+                menuZ: getComputedStyle(document.querySelector('#toolbar')).zIndex,
+                bannerZ: getComputedStyle(document.querySelector('#mode-banner')).zIndex,
+                findZ: getComputedStyle(document.querySelector('#find-bar')).zIndex
+              };
+              App.Markup.stop && App.Markup.stop();
+              return JSON.stringify(out);
+            })()`, true);
+            console.log('[chrome] ' + JSON.stringify({
+              wide: JSON.parse(wide), narrow: JSON.parse(narrow),
+              back: JSON.parse(back), layer: JSON.parse(layer)
+            }));
+          } catch (e) { console.log('[chrome] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_TOOLTIP: names live in data-tip and are drawn by the app, not by
+      // the OS. The native tooltip appeared after ~1s wherever the OS chose --
+      // in the report, at the top-left of the window over the Open button -- and
+      // the Android WebView never drew it at all.
+      if (process.env.SMOKE_TOOLTIP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const tip = document.querySelector('#tooltip');
+              // Nothing was left holding a native title, and nothing lost its
+              // accessible name on the way out of one.
+              const nameless = [];
+              for (const el of document.querySelectorAll('[data-tip]')) {
+                const n = el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') ||
+                          (el.textContent || '').trim();
+                if (!n) nameless.push(el.id || el.className);
+              }
+              const open = document.querySelector('#btn-open');
+              App.Tooltip.show(open);
+              await new Promise(r=>setTimeout(r,80));
+              const shown = { text: tip.textContent, hidden: tip.classList.contains('hidden') };
+              const cs = getComputedStyle(tip);
+
+              // A control at the right edge is clamped back inside the window.
+              App.Tooltip.hide();
+              App.Tooltip.show(document.querySelector('#btn-updates'));
+              await new Promise(r=>setTimeout(r,80));
+              const edge = tip.getBoundingClientRect();
+
+              // Escape dismisses it.
+              document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+              await new Promise(r=>setTimeout(r,60));
+              const afterEsc = tip.classList.contains('hidden');
+
+              // A runtime title assignment is picked up with no change to the
+              // call site -- the whole reason migration is observed, not swept.
+              App.state.currentPage = 2;
+              App.Bookmarks.refreshButton();
+              await new Promise(r=>setTimeout(r,80));
+              const bm = document.querySelector('#btn-bookmark');
+
+              return JSON.stringify({
+                tips: document.querySelectorAll('[data-tip]').length,
+                nativeTitles: document.querySelectorAll('[title]').length,
+                nameless,
+                shownText: shown.text, shownHidden: shown.hidden,
+                pointerEvents: cs.pointerEvents, ariaHidden: tip.getAttribute('aria-hidden'),
+                openHasTitle: open.hasAttribute('title'),
+                edgeRight: Math.round(edge.right), edgeLeft: Math.round(edge.left),
+                winW: window.innerWidth,
+                afterEsc,
+                dynamicTip: bm.getAttribute('data-tip'),
+                dynamicTitle: bm.getAttribute('title')
+              });
+            })()`, true);
+            console.log('[tooltip] ' + r);
+          } catch (e) { console.log('[tooltip] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_SHELF: the bookmark shelf answers "which pages are bookmarked?".
+      // It used to list entries in outline tree order, mark nothing as the page
+      // you were on, and carry provenance only in a native title tooltip and an
+      // unlabelled italic -- while #btn-bookmark read "not bookmarked" on a page
+      // the shelf plainly listed.
+      if (process.env.SMOKE_SHELF) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for (let i=0;i<80&&!App.state.numPages;i++) await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,500));
+              const BM = App.Bookmarks;
+              // Deliberately out of page order, and nested, so the sort and the
+              // tree walk are both exercised.
+              App.state.bookmarks = [
+                { title: 'Sheet 5', page: 5, mine: false, items: [
+                  { title: 'Detail 9', page: 9, mine: false, items: [] }
+                ] },
+                { title: 'Sheet 2', page: 2, mine: false, items: [] },
+                { title: 'Page 2',   page: 2, mine: true,  items: [] }
+              ];
+              App.state.currentPage = 2;
+              BM.renderShelf(); BM.refreshButton();
+              const rows = Array.from(document.querySelectorAll('#bookmark-list .bm-row'));
+              const btn = document.querySelector('#btn-bookmark');
+              const foreignState = {
+                armed: btn.classList.contains('armed'),
+                foreign: btn.classList.contains('bm-btn-foreign'),
+                label: btn.getAttribute('aria-label')
+              };
+              // A page carrying only the document's own bookmark: the third
+              // state, which used to be indistinguishable from "none".
+              App.state.currentPage = 5; BM.refreshButton();
+              const onlyForeign = {
+                armed: btn.classList.contains('armed'),
+                foreign: btn.classList.contains('bm-btn-foreign'),
+                label: btn.getAttribute('aria-label')
+              };
+              // A page with nothing at all.
+              App.state.currentPage = 3; BM.refreshButton();
+              const none = {
+                armed: btn.classList.contains('armed'),
+                foreign: btn.classList.contains('bm-btn-foreign')
+              };
+              App.state.currentPage = 2; BM.refreshButton();
+              return JSON.stringify({
+                pages: rows.map(r => Number(r.dataset.page)),
+                tags: rows.map(r => r.querySelector('.bm-tag').textContent),
+                current: rows.filter(r => r.classList.contains('bm-current')).map(r => Number(r.dataset.page)),
+                ariaCurrent: rows.filter(r => r.getAttribute('aria-current') === 'true').length,
+                rowTitles: rows.map(r => r.getAttribute('title')).filter(Boolean).length,
+                marks: rows.filter(r => r.querySelector('.bm-mark .ico')).length,
+                header: document.querySelector('#bookmark-count').textContent,
+                foreignState, onlyForeign, none
+              });
+            })()`, true);
+            console.log('[shelf] ' + r);
+          } catch (e) { console.log('[shelf] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_ROTPERSIST: the orientation you save in is the orientation the
       // file has. Built on a synthetic document whose pages START at different
       // rotations, because a fixture of all-zero pages cannot tell "added to
