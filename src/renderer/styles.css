@@ -1222,9 +1222,29 @@ body:not(.markup-rail-off) .mr-reopen { display: none; }
    the floating rail would sit on top of it, so step aside while split is on. */
 body.has-split #markup-rail, body.has-split .mr-reopen { display: none !important; }
 
-/* Mobile-only top-bar overflow ("⋯"): hidden on desktop, where every control
-   fits inline. Shown + populated by app.js under a narrow viewport. */
+/* Top-bar overflow ("⋯"): hidden while every control fits inline. app.js
+   MEASURES whether they do — the bar needs ~1120px and the old 820px breakpoint
+   left everything between the two painted past the window edge — and sets
+   .toolbar-collapsed on <body> when they don't. */
 .g-more { display: none; }
+body.toolbar-collapsed .g-more { display: flex; position: relative; }
+/* Anchor the sheet to the bar's right edge so it can't hang off the window.
+   The <=820px block re-fixes it to the viewport and, coming later, still wins. */
+body.toolbar-collapsed #more-menu {
+  left: auto; right: 0;
+  min-width: min(280px, calc(100vw - 16px));
+  max-height: 70vh; overflow-y: auto;
+  box-shadow: var(--shadow-3);
+}
+/* Sheet rows: full-width, left-aligned, comfortable hit targets. Applies at
+   every width, since the sheet is now populated on desktop too. */
+#more-menu .tb-btn { width: 100%; justify-content: flex-start; height: 42px; }
+#more-menu .tb-group {
+  width: 100%; justify-content: flex-start; gap: 8px;
+  padding: 4px 4px;
+}
+#more-menu #btn-updates { flex: 1; text-align: left; }
+#more-menu .tb-group #page-input { height: 38px; }
 
 /* ---- Menus / panels / modals elevation via tokens ---- */
 .tb-menu { box-shadow: var(--shadow-2); border-radius: var(--r-md); }
@@ -1604,14 +1624,6 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
     max-height: 70vh; overflow-y: auto;
     box-shadow: var(--shadow-3);
   }
-  #more-menu .tb-btn { width: 100%; justify-content: flex-start; height: 42px; }
-  #more-menu .tb-group {
-    width: 100%; justify-content: flex-start; gap: 8px;
-    padding: 4px 4px;
-  }
-  #more-menu #btn-updates { flex: 1; text-align: left; }
-  #more-menu .tb-group #page-input { height: 38px; }
-
   /* ---------- Tool rail -> bottom tab bar (thumb reach) ---------- */
   #tool-rail {
     top: auto !important; bottom: 0; left: 0; right: 0;

@@ -964,25 +964,81 @@
     });
   }
 
-  // ---------- Mobile top-bar overflow ----------
-  // On narrow screens the top bar can't hold every control, so the secondary
-  // ones (marked data-overflow in the HTML) are physically moved into a "⋯"
-  // dropdown. We relocate the real nodes — not copies — so their existing event
-  // wiring keeps working and desktop layout is untouched. Each node remembers
-  // its home (parent + next sibling) so it snaps back exactly when the viewport
-  // widens again.
+  // ---------- Top-bar overflow ----------
+  // The top bar can't always hold every control, so the secondary ones (marked
+  // data-overflow in the HTML) are physically moved into a "⋯" dropdown. We
+  // relocate the real nodes — not copies — so their existing event wiring keeps
+  // working. Each node remembers its home (parent + next sibling) so it snaps
+  // back exactly when there is room again.
+  //
+  // The decision is MEASURED, not a breakpoint. It used to be
+  // matchMedia('(max-width: 820px)') alone, but the bar's real intrinsic width
+  // is ~1120px: brand 125 + Open 81 + zoom 341 + pages 146 + save 169 +
+  // theme/help/version 153, plus separators, gaps and padding. So from 821px up
+  // to roughly 1480px the bar silently overflowed — #toolbar has no overflow-x
+  // outside the mobile query, so Save As…, the theme toggle, Help and the
+  // version/Update button were simply painted past the window edge with no
+  // scrollbar and no ⋯ to reach them. At 900px the version button's right edge
+  // measured 1193px, 293px off-screen.
+  //
+  // A breakpoint cannot know this: the width that actually fits depends on the
+  // UI font, the locale, the version string and the safe-area insets. So we
+  // measure what the controls need and compare it with what the bar has. The
+  // 820px query is kept as a FLOOR, because the whole mobile layout
+  // (sticky Open/⋯, scrollable row, fixed ⋯ sheet) hangs off it.
   function setupMobileOverflow() {
+    const bar = App.$('#toolbar');
     const moreBtn = App.$('#btn-more');
     const menu = App.$('#more-menu');
-    if (!moreBtn || !menu) return;
+    if (!bar || !moreBtn || !menu) return;
     const mq = window.matchMedia('(max-width: 820px)');
     const nodes = Array.from(document.querySelectorAll('#toolbar [data-overflow]'));
     nodes.forEach((n) => { n._home = { parent: n.parentNode, next: n.nextSibling }; });
 
     const closeMenu = () => { menu.classList.add('hidden'); moreBtn.setAttribute('aria-expanded', 'false'); };
 
+    // Width the controls need, measured while the bar is EXPANDED. .tb-spacer is
+    // flex:1 and collapses to nothing under pressure, so it contributes 0; every
+    // other child contributes its laid-out width. Cached, because once collapsed
+    // the nodes live in the menu and can no longer be measured in place.
+    let needWidth = 0;
+    function measureNeed() {
+      const cs = getComputedStyle(bar);
+      const gap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 0;
+      let w = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      let shown = 0;
+      for (const child of bar.children) {
+        if (!child.getClientRects().length) continue;   // display:none (.g-more)
+        shown++;
+        if (!child.classList.contains('tb-spacer')) w += child.getBoundingClientRect().width;
+      }
+      return w + gap * Math.max(0, shown - 1);
+    }
+
+    // Hysteresis: collapse the moment we don't fit, but re-expand only once
+    // there is a little room to spare, so a window resting on the threshold
+    // settles in one state instead of flapping between them.
+    const SLACK = 8;
+    let collapsed = null;
+    let busy = false;
+
     function apply() {
+      if (busy) return;
+      const room = bar.clientWidth;
+      let want;
       if (mq.matches) {
+        want = true;                                    // the mobile floor
+      } else if (collapsed === true) {
+        want = !(room >= needWidth + SLACK);
+      } else {
+        needWidth = measureNeed();                      // we're expanded: re-measure
+        want = needWidth > room;
+      }
+      if (want === collapsed) return;
+      collapsed = want;
+
+      busy = true;
+      if (want) {
         // Collapse: move secondary controls into the dropdown (in DOM order).
         nodes.forEach((n) => menu.appendChild(n));
       } else {
@@ -990,11 +1046,24 @@
         nodes.forEach((n) => n._home.parent.insertBefore(n, n._home.next));
         closeMenu();
       }
+      document.body.classList.toggle('toolbar-collapsed', want);
+      // Relocating changes the bar's layout, which would re-enter through the
+      // ResizeObserver; let that pass land after the DOM has settled.
+      requestAnimationFrame(() => {
+        busy = false;
+        if (!want) needWidth = measureNeed();
+      });
     }
 
     // matchMedia fires on rotation / window resize (and the Android split-screen).
     if (mq.addEventListener) mq.addEventListener('change', apply);
     else mq.addListener(apply); // older WebView fallback
+    // The bar's own box is what matters, not the window's: a rail collapse or a
+    // safe-area change moves it too. ResizeObserver is in every engine this
+    // ships on, but the resize event is kept as a fallback so an old WebView
+    // still can't strand a control off-screen.
+    if (typeof ResizeObserver === 'function') new ResizeObserver(apply).observe(bar);
+    window.addEventListener('resize', apply);
     apply();
 
     moreBtn.addEventListener('click', (e) => {
