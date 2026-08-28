@@ -35,7 +35,21 @@ html, body {
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-1);
-  position: relative; z-index: var(--z-chrome);
+  /* --z-flyout, not --z-chrome, and deliberately so.
+   *
+   * `position: relative` + a z-index makes the top bar a STACKING CONTEXT, so
+   * the `z-index: var(--z-flyout)` on the .tb-menu dropdowns it hosts (the
+   * bookmark shelf, Help, the "..." sheet) resolves *inside* that context and
+   * can never lift them above the bar's own layer. At --z-chrome the bar tied
+   * with #mode-banner and #markup-props -- which come later in the document, so
+   * they won -- and lost outright to #find-bar at --z-float. The result was a
+   * shelf whose top rows were painted over, and not even hit-testable, whenever
+   * markup mode or the find bar was open.
+   *
+   * So the bar sits in the layer its flyouts need, which is exactly what
+   * tokens.css says --z-flyout is for. Nothing is newly occluded: the bar spans
+   * only the strip above every one of those surfaces. */
+  position: relative; z-index: var(--z-flyout);
 }
 .tb-group { display: flex; align-items: center; gap: 4px; }
 .tb-sep { width: 1px; height: 26px; background: var(--border); margin: 0 4px; }
