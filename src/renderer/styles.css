@@ -1983,21 +1983,45 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 .ovl-layer input[type="range"] { width: 90px; }
 .ovl-spacer { flex: 1; }
 
-/* ---- Bookmark shelf ---- */
-#bookmark-menu { min-width: 240px; max-height: 340px; overflow-y: auto; }
+/* ---- Bookmark shelf ----
+ *
+ * The shelf's one job is answering "which pages are bookmarked?", so every cue
+ * it needs to do that is visible at rest: page order (sorted in bookmarks.js), a
+ * marker on the page you are on, and a written provenance tag. It used to rely
+ * on a native `title` tooltip and an unlabelled italic for provenance, neither
+ * of which the Android WebView shows at all. */
+#bookmark-menu { min-width: 290px; max-height: 340px; overflow-y: auto; }
 .tb-menu-title { padding: 8px 10px 6px; font-size: var(--fs-sm); color: var(--text-dim);
   font-weight: 600; letter-spacing: 0.02em; }
-.bm-row { display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 7px 10px; background: none; border: none; cursor: pointer;
-  color: var(--text); font-size: var(--fs-md); text-align: left; }
+.bm-row { display: flex; align-items: flex-start; gap: 9px; width: 100%;
+  padding: 7px 10px 7px 8px; background: none; border: none; cursor: pointer;
+  color: var(--text); font-size: var(--fs-md); text-align: left;
+  border-left: 3px solid transparent; border-radius: var(--r-sm); }
 .bm-row:hover { background: var(--accent-quiet); }
+.bm-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bm-line { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .bm-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; }
 .bm-page { flex: none; color: var(--text-dim); font-size: var(--fs-sm); }
+/* Filled flag = added in FieldMark; hollow = arrived with the file. */
+.bm-mark { flex: none; display: flex; align-items: center; height: 20px; color: var(--accent); }
+.bm-mark .ico { width: 15px; height: 15px; fill: currentColor; }
+.bm-tag { font-size: var(--fs-sm); color: var(--text-dim); letter-spacing: 0.01em; }
 /* Bookmarks that arrived with the document, rather than ones made here. */
 .bm-foreign .bm-title { font-style: italic; color: var(--text-dim); }
+.bm-foreign .bm-mark { color: var(--text-dim); }
+.bm-foreign .bm-mark .ico { fill: none; }
+/* The page you are looking at. */
+.bm-row.bm-current { border-left-color: var(--accent); background: var(--accent-quiet); }
+.bm-row.bm-current .bm-title { font-weight: 600; }
 .bm-empty { padding: 12px 10px; color: var(--text-dim); font-size: var(--fs-sm);
   line-height: 1.4; }
+/* The bookmark toggle's third state: this page carries a bookmark, but one that
+   came with the document, so pressing the button adds ours rather than removing
+   theirs. Reading as plain "not bookmarked" is what made the button contradict
+   the shelf. */
+#btn-bookmark.bm-btn-foreign { color: var(--accent); }
+#btn-bookmark.bm-btn-foreign .ico { fill: none; stroke-dasharray: 3 2; }
 
 /* ---- Favourite colours dialog ---- */
 .fav-modal { width: 560px; }
