@@ -91,25 +91,76 @@
 
   /* ---------------- button ---------------- */
 
+  // Does ANY entry point at this page -- ours or one that arrived with the file?
+  //
+  // Deliberately separate from hasOurBookmark(), which stays ours-only because
+  // it governs what the toggle DOES (see the note in outline.js). This one
+  // governs what the button SAYS, and the two are different questions: a page
+  // can visibly carry a bookmark in the shelf that is not ours to remove.
+  // Reading that button as "not bookmarked" is what made the shelf and the
+  // button tell two unconnected stories.
+  function anyBookmarkOn(page) {
+    return App.flattenOutline(tree()).some((r) => r.page === page);
+  }
+
   B.refreshButton = function () {
     const btn = App.$('#btn-bookmark');
     if (!btn) return;
     const open = !!App.state.pdfDoc;
     btn.disabled = !open;
-    const on = open && B.isBookmarked(App.state.currentPage || 1);
+    const page = App.state.currentPage || 1;
+    const on = open && B.isBookmarked(page);
+    const foreign = open && !on && anyBookmarkOn(page);
+    // Three states, not two: ours (armed), the document's own (foreign), none.
     btn.classList.toggle('armed', on);
+    btn.classList.toggle('bm-btn-foreign', foreign);
     btn.setAttribute('aria-pressed', String(on));
-    btn.title = !open ? 'Bookmark this page'
-      : on ? `Remove bookmark on page ${App.state.currentPage}`
-        : `Bookmark page ${App.state.currentPage}`;
+    const label = !open ? 'Bookmark this page'
+      : on ? `Remove bookmark on page ${page}`
+        : foreign ? `Page ${page} is bookmarked in this document — add your own`
+          : `Bookmark page ${page}`;
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    // Keep the shelf's current-page marker in step. This runs on every
+    // 'pagechanging', so it only re-labels existing rows -- it never re-renders.
+    markCurrent();
   };
+
+  // Move the "you are here" marker without rebuilding the list.
+  function markCurrent() {
+    const page = App.state.currentPage || 0;
+    const rows = document.querySelectorAll('#bookmark-list .bm-row');
+    for (const row of rows) {
+      const here = Number(row.dataset.page) === page;
+      row.classList.toggle('bm-current', here);
+      if (here) row.setAttribute('aria-current', 'true');
+      else row.removeAttribute('aria-current');
+    }
+  }
 
   /* ---------------- shelf ---------------- */
 
   B.renderShelf = function () {
     const list = App.$('#bookmark-list');
     if (!list) return;
-    const rows = App.flattenOutline(tree());
+    // Page order, not tree order. flattenOutline walks the outline depth-first,
+    // which is right for the model but useless for the shelf's actual job:
+    // answering "which pages are bookmarked?". A received drawing set lists its
+    // sheets in whatever order its /Outlines happens to hold, so the shelf could
+    // not be scanned for a page. sort() is stable in every engine this ships on,
+    // so entries on the same page keep their tree order.
+    //
+    // The depth indent goes with it: once the list is sorted globally, indenting
+    // a row under whatever row happens to precede it states a parentage that is
+    // no longer there. The tree itself is untouched -- it is still what gets
+    // written back on save.
+    const rows = App.flattenOutline(tree()).slice().sort((a, b) => a.page - b.page);
+    const mine = rows.filter((r) => r.mine).length;
+    const head = App.$('#bookmark-count');
+    if (head) {
+      head.textContent = !rows.length ? 'Bookmarked pages'
+        : `${rows.length} bookmark${rows.length === 1 ? '' : 's'} · ${mine} added here`;
+    }
     list.innerHTML = '';
     if (!rows.length) {
       const empty = document.createElement('div');
@@ -121,19 +172,36 @@
     rows.forEach((r) => {
       const row = document.createElement('button');
       row.className = 'bm-row' + (r.mine ? '' : ' bm-foreign');
-      row.style.paddingLeft = (10 + r.depth * 14) + 'px';
+      row.dataset.page = String(r.page);
+      // Structure only -- no interpolation. Every string that came out of the
+      // PDF goes in through textContent below.
       row.innerHTML =
-        `<span class="bm-title"></span><span class="bm-page">p.${r.page}</span>`;
+        '<span class="bm-mark" aria-hidden="true">' +
+          '<svg class="ico" aria-hidden="true"><use href="#i-bookmark"/></svg>' +
+        '</span>' +
+        '<span class="bm-body">' +
+          '<span class="bm-line"><span class="bm-title"></span>' +
+          '<span class="bm-page"></span></span>' +
+          '<span class="bm-tag"></span>' +
+        '</span>';
       row.querySelector('.bm-title').textContent = r.title || `Page ${r.page}`;
-      // Bookmarks that came with the file are shown but marked, so the shelf
-      // never claims one of them is ours to toggle.
-      if (!r.mine) row.title = 'Bookmark saved in this document';
+      row.querySelector('.bm-page').textContent = `p.${r.page}`;
+      // Provenance, said out loud. This used to be a native `title` tooltip,
+      // which the OS drew after a delay wherever it liked -- in the reported
+      // screenshot, on the far side of the window, over the Open button -- and
+      // which the Android WebView never draws at all. The only other cue was an
+      // unlabelled italic.
+      row.querySelector('.bm-tag').textContent = r.mine ? 'Added here' : 'In document';
       row.addEventListener('click', () => {
         App.Viewer.goToPage(r.page);
         B.refreshButton();
       });
       list.appendChild(row);
     });
+    // Rows are new, so the "you are here" marker has to be re-applied. Callers
+    // run refreshButton() before renderShelf() in places, and that call marked
+    // the rows that existed then.
+    markCurrent();
   };
 
   /* ---------------- writing (pdf-lib) ---------------- */

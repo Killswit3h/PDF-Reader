@@ -355,6 +355,133 @@ const SCENARIOS = [
     }
   },
   {
+    // The two top-bar geometry failures from the reported screenshot. Both are
+    // invisible to every other test and cheap to reintroduce.
+    name: 'top bar — dropdowns paint above the contextual bars, and nothing runs off the edge',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_CHROME: '1' }, [SAMPLE]), 'chrome');
+
+      // FR-4 / AC-1: no control is ever painted outside the window. At 950px --
+      // comfortably above the old 820px breakpoint -- Save As, the theme toggle,
+      // Help and the version button used to sit hundreds of px off the right
+      // edge with no scrollbar and no "..." to reach them.
+      check(j.wide.offscreen.length === 0,
+        `controls off the right edge at ${j.wide.winW}px: ${JSON.stringify(j.wide.offscreen)}`);
+      check(j.narrow.offscreen.length === 0,
+        `controls off the right edge at ${j.narrow.winW}px: ${JSON.stringify(j.narrow.offscreen)}`);
+
+      // FR-1: wide fits inline, narrow collapses into the sheet.
+      check(j.wide.collapsed === false, 'top bar collapsed at 1500px, where everything fits');
+      check(j.narrow.collapsed === true, 'top bar did not collapse at 950px, where it does not fit');
+      check(j.narrow.inMenu > 0, 'nothing was relocated into the "..." sheet when collapsed');
+
+      // FR-3 / AC-3: and every control comes home on the way back up.
+      check(j.back.collapsed === false, 'top bar stayed collapsed after widening again');
+      check(j.back.inMenu === 0, `${j.back.inMenu} controls stranded in the "..." sheet after widening`);
+
+      // FR-6 / AC-6: the shelf is above the bars, not merely visible through
+      // them. elementFromPoint, because a screenshot cannot tell those apart.
+      check(j.layer.bannerShown === true, 'mode banner did not show with a markup tool armed');
+      check(j.layer.propsShown === true, 'markup properties bar did not show with a tool armed');
+      check(j.layer.titleHit === true,
+        "the shelf's title row is not the top-most element at its own coordinates");
+      check(j.layer.firstHit === true, "the shelf's first row is painted over");
+      check(j.layer.lastHit === true, "the shelf's last row is painted over");
+      // AC-7: the Help flyout is the same surface in the same parent.
+      check(j.layer.helpHit === true, 'the Help menu is painted over by the contextual bars');
+
+      // FR-7: achieved by moving the bar, not by raising the bars it sits over.
+      check(Number(j.layer.menuZ) > Number(j.layer.bannerZ),
+        `#toolbar z-index ${j.layer.menuZ} does not beat #mode-banner ${j.layer.bannerZ}`);
+      check(Number(j.layer.menuZ) > Number(j.layer.findZ),
+        `#toolbar z-index ${j.layer.menuZ} does not beat #find-bar ${j.layer.findZ}`);
+    }
+  },
+  {
+    // Control names are drawn by the app, not by the OS. The native tooltip
+    // appeared after ~1s wherever the OS chose, could not be styled, and the
+    // Android WebView never drew it at all.
+    name: 'tooltips — every control names itself in-app, without losing its accessible name',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TOOLTIP: '1' }, [SAMPLE]), 'tooltip');
+
+      // FR-20: nothing is left for the OS to draw.
+      check(j.tips > 100, `only ${j.tips} controls carry a name — migration did not run`);
+      check(j.nativeTitles === 0, `${j.nativeTitles} controls still hold a native title`);
+      check(j.openHasTitle === false, '#btn-open still holds a native title');
+
+      // FR-24 / AC-21: the title WAS the accessible name for icon-only buttons.
+      check(j.nameless.length === 0,
+        `controls left with no accessible name: ${JSON.stringify(j.nameless)}`);
+
+      // FR-18: hovering names the control.
+      check(j.shownHidden === false, 'tooltip stayed hidden when shown for #btn-open');
+      check(/Open a PDF/.test(j.shownText), `tooltip read "${j.shownText}"`);
+
+      // FR-23: inert -- it can never eat a click or be announced twice.
+      check(j.pointerEvents === 'none', `tooltip pointer-events is ${j.pointerEvents}`);
+      check(j.ariaHidden === 'true', 'tooltip is not hidden from assistive technology');
+      check(j.afterEsc === true, 'Escape did not dismiss the tooltip');
+
+      // FR-22 / AC-19: clamped inside the window at the right edge.
+      check(j.edgeRight <= j.winW, `tooltip right edge ${j.edgeRight} exceeds window ${j.winW}`);
+      check(j.edgeLeft >= 0, `tooltip left edge ${j.edgeLeft} is off-screen`);
+
+      // FR-25 / AC-22: touch raises no tooltip, and the tap still lands exactly
+      // once -- nothing in tooltip.js calls preventDefault.
+      check(j.tipOnTouch === false, 'a touch pointer raised a hover tooltip');
+      check(j.touchClicks === 1, `a tapped control fired ${j.touchClicks} clicks, expected 1`);
+
+      // FR-21 / AC-18: a runtime title assignment is picked up unedited. This is
+      // the whole reason migration is observed rather than swept once.
+      check(j.dynamicTitle === null, '#btn-bookmark re-grew a native title after relabelling');
+      check(/page 2/i.test(j.dynamicTip || ''),
+        `#btn-bookmark's tooltip did not follow its relabel: "${j.dynamicTip}"`);
+    }
+  },
+  {
+    // The shelf's job is answering "which pages are bookmarked?", and it could
+    // not: tree order, no current-page marker, and provenance carried only by a
+    // native tooltip and an unlabelled italic.
+    name: 'bookmark shelf — page order, a current-page marker, and provenance said out loud',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_SHELF: '1' }, [SAMPLE]), 'shelf');
+
+      // FR-11 / AC-10: page order, from an outline deliberately out of order
+      // and nested (5, {9}, 2, 2).
+      check(JSON.stringify(j.pages) === '[2,2,5,9]',
+        `shelf rows read ${JSON.stringify(j.pages)}, expected [2,2,5,9]`);
+
+      // FR-13 / AC-12: provenance is visible text on every row, not a tooltip.
+      check(JSON.stringify(j.tags) === '["In document","Added here","In document","In document"]',
+        `provenance tags read ${JSON.stringify(j.tags)}`);
+      check(j.rowTitles === 0, `${j.rowTitles} rows still carry a native title tooltip`);
+      check(j.marks === 4, `${j.marks} of 4 rows drew a provenance mark`);
+
+      // FR-12 / AC-11: the page in view is marked, and only it.
+      check(JSON.stringify(j.current) === '[2,2]',
+        `current-page marker on pages ${JSON.stringify(j.current)}, expected [2,2]`);
+      check(j.ariaCurrent === 2, `${j.ariaCurrent} rows carry aria-current, expected 2`);
+
+      // FR-14 / AC-13: the shelf reports its own size.
+      check(/4 bookmarks/.test(j.header) && /1 added here/.test(j.header),
+        `shelf header reads "${j.header}"`);
+
+      // FR-15 / AC-14: three states, not two. Page 2 carries ours; page 5
+      // carries only the document's own; page 3 carries nothing. The middle one
+      // used to be indistinguishable from the last.
+      check(j.foreignState.armed === true, 'button not armed on a page carrying our bookmark');
+      check(j.foreignState.foreign === false, 'button claimed a foreign bookmark on our own page');
+      check(j.onlyForeign.armed === false, 'button armed on a page we never bookmarked');
+      check(j.onlyForeign.foreign === true,
+        "button read as unbookmarked on a page the shelf lists as bookmarked");
+      check(/in this document/i.test(j.onlyForeign.label || ''),
+        `third-state label reads "${j.onlyForeign.label}"`);
+      check(j.none.armed === false && j.none.foreign === false,
+        'button claimed a bookmark on a page that has none');
+    }
+  },
+  {
     // The mode banner's actions must sit on the text's centre line. A later
     // .link-btn rule meant for the digital-signature panel set
     // align-self:flex-start and a smaller font, and being later it won here

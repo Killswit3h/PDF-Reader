@@ -515,6 +515,130 @@ function serve(dir) {
     }
     await page.setViewportSize({ width: 1280, height: 800 });
 
+    // ---- macOS "liquid glass": a dropdown must actually blur what is under it ----
+    //
+    // Per Filter Effects, an element carrying backdrop-filter becomes a BACKDROP
+    // ROOT for its descendants: their own backdrop-filter then samples that
+    // element's backdrop rather than what is behind the window. #toolbar and
+    // #tool-rail both had backdrop-filter, and between them they host every
+    // .tb-menu in the app — so the blur on the bookmark shelf, Help, "...",
+    // Measure, Markup and Document was computed and painted nothing, leaving a
+    // 0.74/0.80-alpha wash through which a drawing's title block read perfectly
+    // sharply.
+    //
+    // Two assertions, because neither catches what the other does:
+    //
+    //   - structural: no .tb-menu may have an ANCESTOR carrying backdrop-filter,
+    //     and each must carry one itself. That is the root cause stated
+    //     directly, and it is deterministic.
+    //   - measured: how much HIGH-FREQUENCY detail is inside the open panel,
+    //     over a text-heavy page versus over a blank one. Readable text is
+    //     high-frequency; a blur is precisely what destroys it, and alpha alone
+    //     is not (it only scales amplitude). Differencing the two cancels the
+    //     panel's OWN text, which is present identically in both — measuring
+    //     raw variance instead just measures the shelf's own rows.
+    //
+    // Chromium is the engine the mac build runs on too, so forcing
+    // html.platform-mac here exercises the same code path as the real skin.
+    {
+      await page.evaluate(() => {
+        document.documentElement.classList.add('platform-mac');
+        document.querySelectorAll('#tour-root').forEach((n) => n.remove());
+        // A known stimulus under the panel rather than whatever the fixture
+        // happens to draw there: 2px black/white stripes are the highest spatial
+        // frequency the sample can hold, so "is it blurred?" has an unambiguous
+        // answer. It goes inside #viewer-wrap so the blank pass below hides it
+        // along with the page.
+        const stripes = document.createElement('div');
+        stripes.id = 'glass-stimulus';
+        stripes.style.cssText = 'position:absolute;inset:0;z-index:0;' +
+          'background:repeating-linear-gradient(90deg,#000 0 2px,#fff 2px 4px)';
+        document.querySelector('#viewer-wrap').appendChild(stripes);
+        App.state.bookmarks = [
+          { title: 'CTLSRD03', page: 1, mine: false, items: [] },
+          { title: 'PLANRD02', page: 1, mine: false, items: [] },
+          { title: 'SUMMARY OF GUARDRAIL', page: 1, mine: false, items: [] },
+          { title: 'Page 1', page: 1, mine: true, items: [] }
+        ];
+        App.Bookmarks.renderShelf();
+        document.querySelector('#bookmark-menu').classList.remove('hidden');
+      });
+      await page.waitForTimeout(400);
+
+      const box = await page.evaluate(() => {
+        const r = document.querySelector('#bookmark-menu').getBoundingClientRect();
+        // Inset well past the blur radius: Chromium clamps the kernel at the
+        // element's edge, so a sample taken at the border carries ringing that
+        // is not leakage.
+        return { x: Math.round(r.left + 20), y: Math.round(r.top + 20),
+                 width: Math.round(r.width - 40), height: Math.round(r.height - 40) };
+      });
+
+      // Mean |difference| between horizontally adjacent pixels: an edge detector
+      // in one line. Sharp text scores high, a blurred wash scores near zero.
+      const detail = (b64) => page.evaluate(async (data) => {
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/png;base64,' + data; });
+        const cv = document.createElement('canvas');
+        cv.width = img.width; cv.height = img.height;
+        const c = cv.getContext('2d');
+        c.drawImage(img, 0, 0);
+        const px = c.getImageData(0, 0, cv.width, cv.height).data;
+        const lum = (i) => 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2];
+        let sum = 0, n = 0;
+        for (let y = 0; y < cv.height; y++) {
+          for (let x = 1; x < cv.width; x++) {
+            const i = (y * cv.width + x) * 4;
+            sum += Math.abs(lum(i) - lum(i - 4)); n++;
+          }
+        }
+        return n ? sum / n : 0;
+      }, b64);
+
+      const overPage = await detail((await page.screenshot({ clip: box })).toString('base64'));
+      // The panel keeps its own rows; only what is UNDER it goes away.
+      await page.evaluate(() => { document.querySelector('#viewer-wrap').style.visibility = 'hidden'; });
+      await page.waitForTimeout(250);
+      const overBlank = await detail((await page.screenshot({ clip: box })).toString('base64'));
+      // ...and the page region on its own, to prove the sample is over real
+      // texture rather than passing vacuously over an empty margin.
+      await page.evaluate(() => {
+        document.querySelector('#viewer-wrap').style.visibility = '';
+        document.querySelector('#bookmark-menu').classList.add('hidden');
+      });
+      await page.waitForTimeout(300);
+      const pageOnly = await detail((await page.screenshot({ clip: box })).toString('base64'));
+
+      const structure = await page.evaluate(() => {
+        const st = document.querySelector('#glass-stimulus');
+        if (st) st.remove();
+        document.querySelector('#bookmark-menu').classList.remove('hidden');
+        const bad = [];
+        for (const menu of document.querySelectorAll('.tb-menu')) {
+          const cs = getComputedStyle(menu);
+          const own = cs.backdropFilter || cs.webkitBackdropFilter || 'none';
+          const name = menu.id || menu.className;
+          if (own === 'none') bad.push(name + ' carries no backdrop-filter');
+          for (let p = menu.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+            const pcs = getComputedStyle(p);
+            const f = pcs.backdropFilter || pcs.webkitBackdropFilter || 'none';
+            if (f !== 'none') bad.push(name + ' sits under a backdrop root: ' + (p.id || p.className));
+          }
+        }
+        document.querySelector('#bookmark-menu').classList.add('hidden');
+        document.documentElement.classList.remove('platform-mac');
+        return bad;
+      });
+
+      const r2 = (n) => Math.round(n * 1000) / 1000;
+      result.glass = {
+        detailOverPage: r2(overPage),
+        detailOverBlank: r2(overBlank),
+        detailPageOnly: r2(pageOnly),
+        nestedBackdropRoots: structure
+      };
+    }
+
   } finally {
     await browser.close();
     server.close();
@@ -555,9 +679,27 @@ function serve(dir) {
     t.renderOk === true &&
     (t.menuItems || []).some((s) => /Move to End/.test(s));
 
+  // What is under the panel must be flattened, not merely tinted. The panel's
+  // own rows appear in both samples and cancel out, so the excess detail over
+  // the stimulus is leakage. detailPageOnly guards against a vacuous pass: the
+  // stripes have to have actually rendered.
+  //
+  // The 6% is calibrated against both states rather than guessed. Measured with
+  // the fix in place, and again with backdrop-filter put back on #toolbar (the
+  // shipped bug, re-created with an injected rule):
+  //
+  //     fixed      excess 2.43% of the stimulus' own detail
+  //     regressed  excess 15.34%
+  //
+  // so the threshold sits at ~2.5x either way.
+  const g = result.glass || {};
+  const excess = (g.detailOverPage - g.detailOverBlank) / (g.detailPageOnly || 1);
+  const glassOk = (g.nestedBackdropRoots || []).length === 0 &&
+    g.detailPageOnly > 20 && excess <= 0.06;
+
   const ok = !errors.length && !offsite.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
-    dropdownsOk && iconsOk && layoutOk && a11yOk && ocrOk && tabsOk;
+    dropdownsOk && iconsOk && layoutOk && a11yOk && ocrOk && tabsOk && glassOk;
   console.log('[verify-web] result:', JSON.stringify(result, null, 2));
   if (errors.length) console.log('[verify-web] page errors:\n' + errors.join('\n'));
   if (offsite.length) {
@@ -570,6 +712,10 @@ function serve(dir) {
   if (!a11yOk) console.log('[verify-web] a11y FAILED:', JSON.stringify(a, null, 2));
   if (!ocrOk) console.log('[verify-web] OCR check FAILED:', JSON.stringify(o, null, 2));
   if (!tabsOk) console.log('[verify-web] tab rearranging FAILED:', JSON.stringify(t, null, 2));
+  if (!glassOk) {
+    console.log('[verify-web] macOS dropdown glass FAILED:',
+      JSON.stringify(Object.assign({ excessPct: Math.round(excess * 10000) / 100 }, g), null, 2));
+  }
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('[verify-web] harness error:', e); process.exit(1); });

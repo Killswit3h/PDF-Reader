@@ -35,7 +35,21 @@ html, body {
   background: var(--panel);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-1);
-  position: relative; z-index: var(--z-chrome);
+  /* --z-flyout, not --z-chrome, and deliberately so.
+   *
+   * `position: relative` + a z-index makes the top bar a STACKING CONTEXT, so
+   * the `z-index: var(--z-flyout)` on the .tb-menu dropdowns it hosts (the
+   * bookmark shelf, Help, the "..." sheet) resolves *inside* that context and
+   * can never lift them above the bar's own layer. At --z-chrome the bar tied
+   * with #mode-banner and #markup-props -- which come later in the document, so
+   * they won -- and lost outright to #find-bar at --z-float. The result was a
+   * shelf whose top rows were painted over, and not even hit-testable, whenever
+   * markup mode or the find bar was open.
+   *
+   * So the bar sits in the layer its flyouts need, which is exactly what
+   * tokens.css says --z-flyout is for. Nothing is newly occluded: the bar spans
+   * only the strip above every one of those surfaces. */
+  position: relative; z-index: var(--z-flyout);
 }
 .tb-group { display: flex; align-items: center; gap: 4px; }
 .tb-sep { width: 1px; height: 26px; background: var(--border); margin: 0 4px; }
@@ -560,6 +574,22 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 #toast.error { background: var(--danger); color: #fff; border-color: var(--danger); }
 #toast.success { background: var(--success); color: #fff; border-color: var(--success); }
 
+/* ===================== Tooltip =====================
+ * One node on <body>, position:fixed, placed by js/tooltip.js. Fixed rather
+ * than a ::after on the control because #markup-props, #bookmark-menu and the
+ * mobile #toolbar all scroll, and an overflow ancestor would clip it. Above
+ * --z-toast so it is legible over a toast, below --z-tour so it can never sit
+ * on the guided tour's spotlight. */
+#tooltip {
+  position: fixed; left: 0; top: 0; z-index: calc(var(--z-toast) + 10);
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 5px var(--sp-3); border-radius: var(--r-sm);
+  background: var(--bg-raised); color: var(--text);
+  border: 1px solid var(--border-strong); box-shadow: var(--shadow-2);
+  font-size: var(--fs-sm); line-height: 1.35; white-space: normal;
+  pointer-events: none;                  /* never intercepts the control below */
+}
+
 .hidden { display: none !important; }
 
 /* =============================================================================
@@ -584,13 +614,16 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
  * accessibility tree and untabbable — opacity:0 alone would leave an invisible
  * dialog full of focusable controls.
  * ========================================================================== */
-.modal-backdrop, .tb-menu, .tab-menu, #toast, #drop-overlay, #loading, #find-bar {
+.modal-backdrop, .tb-menu, .tab-menu, #toast, #drop-overlay, #loading, #find-bar,
+#tooltip {
   transition: opacity var(--dur-med) var(--ease),
               transform var(--dur-med) var(--ease),
               visibility 0s linear var(--dur-med);
 }
+/* The tooltip is chasing the pointer, so it fades fast and does not travel. */
+#tooltip { transition-duration: var(--dur-fast); }
 .modal-backdrop.hidden, .tb-menu.hidden, .tab-menu.hidden, #toast.hidden,
-#drop-overlay.hidden, #loading.hidden, #find-bar.hidden {
+#drop-overlay.hidden, #loading.hidden, #find-bar.hidden, #tooltip.hidden {
   display: flex !important;        /* beat .hidden's display:none */
   opacity: 0;
   visibility: hidden;
@@ -601,7 +634,7 @@ body.has-banner.has-props #measure-panel { top: calc(var(--toolbar-h) + 74px); }
 .tb-menu.hidden, .tab-menu.hidden { display: flex !important; flex-direction: column; }
 .modal-backdrop:not(.hidden), .tb-menu:not(.hidden), .tab-menu:not(.hidden),
 #toast:not(.hidden), #drop-overlay:not(.hidden), #loading:not(.hidden),
-#find-bar:not(.hidden) {
+#find-bar:not(.hidden), #tooltip:not(.hidden) {
   opacity: 1; visibility: visible; transition-delay: 0s;
 }
 /* A little travel reads as intent; the distances are small on purpose. */
@@ -1227,9 +1260,29 @@ body:not(.markup-rail-off) .mr-reopen { display: none; }
    the floating rail would sit on top of it, so step aside while split is on. */
 body.has-split #markup-rail, body.has-split .mr-reopen { display: none !important; }
 
-/* Mobile-only top-bar overflow ("⋯"): hidden on desktop, where every control
-   fits inline. Shown + populated by app.js under a narrow viewport. */
+/* Top-bar overflow ("⋯"): hidden while every control fits inline. app.js
+   MEASURES whether they do — the bar needs ~1120px and the old 820px breakpoint
+   left everything between the two painted past the window edge — and sets
+   .toolbar-collapsed on <body> when they don't. */
 .g-more { display: none; }
+body.toolbar-collapsed .g-more { display: flex; position: relative; }
+/* Anchor the sheet to the bar's right edge so it can't hang off the window.
+   The <=820px block re-fixes it to the viewport and, coming later, still wins. */
+body.toolbar-collapsed #more-menu {
+  left: auto; right: 0;
+  min-width: min(280px, calc(100vw - 16px));
+  max-height: 70vh; overflow-y: auto;
+  box-shadow: var(--shadow-3);
+}
+/* Sheet rows: full-width, left-aligned, comfortable hit targets. Applies at
+   every width, since the sheet is now populated on desktop too. */
+#more-menu .tb-btn { width: 100%; justify-content: flex-start; height: 42px; }
+#more-menu .tb-group {
+  width: 100%; justify-content: flex-start; gap: 8px;
+  padding: 4px 4px;
+}
+#more-menu #btn-updates { flex: 1; text-align: left; }
+#more-menu .tb-group #page-input { height: 38px; }
 
 /* ---- Menus / panels / modals elevation via tokens ---- */
 .tb-menu { box-shadow: var(--shadow-2); border-radius: var(--r-md); }
@@ -1609,14 +1662,6 @@ body.has-split #markup-rail, body.has-split .mr-reopen { display: none !importan
     max-height: 70vh; overflow-y: auto;
     box-shadow: var(--shadow-3);
   }
-  #more-menu .tb-btn { width: 100%; justify-content: flex-start; height: 42px; }
-  #more-menu .tb-group {
-    width: 100%; justify-content: flex-start; gap: 8px;
-    padding: 4px 4px;
-  }
-  #more-menu #btn-updates { flex: 1; text-align: left; }
-  #more-menu .tb-group #page-input { height: 38px; }
-
   /* ---------- Tool rail -> bottom tab bar (thumb reach) ---------- */
   #tool-rail {
     top: auto !important; bottom: 0; left: 0; right: 0;
@@ -1976,21 +2021,45 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 .ovl-layer input[type="range"] { width: 90px; }
 .ovl-spacer { flex: 1; }
 
-/* ---- Bookmark shelf ---- */
-#bookmark-menu { min-width: 240px; max-height: 340px; overflow-y: auto; }
+/* ---- Bookmark shelf ----
+ *
+ * The shelf's one job is answering "which pages are bookmarked?", so every cue
+ * it needs to do that is visible at rest: page order (sorted in bookmarks.js), a
+ * marker on the page you are on, and a written provenance tag. It used to rely
+ * on a native `title` tooltip and an unlabelled italic for provenance, neither
+ * of which the Android WebView shows at all. */
+#bookmark-menu { min-width: 290px; max-height: 340px; overflow-y: auto; }
 .tb-menu-title { padding: 8px 10px 6px; font-size: var(--fs-sm); color: var(--text-dim);
   font-weight: 600; letter-spacing: 0.02em; }
-.bm-row { display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 7px 10px; background: none; border: none; cursor: pointer;
-  color: var(--text); font-size: var(--fs-md); text-align: left; }
+.bm-row { display: flex; align-items: flex-start; gap: 9px; width: 100%;
+  padding: 7px 10px 7px 8px; background: none; border: none; cursor: pointer;
+  color: var(--text); font-size: var(--fs-md); text-align: left;
+  border-left: 3px solid transparent; border-radius: var(--r-sm); }
 .bm-row:hover { background: var(--accent-quiet); }
+.bm-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.bm-line { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .bm-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; }
 .bm-page { flex: none; color: var(--text-dim); font-size: var(--fs-sm); }
+/* Filled flag = added in FieldMark; hollow = arrived with the file. */
+.bm-mark { flex: none; display: flex; align-items: center; height: 20px; color: var(--accent); }
+.bm-mark .ico { width: 15px; height: 15px; fill: currentColor; }
+.bm-tag { font-size: var(--fs-sm); color: var(--text-dim); letter-spacing: 0.01em; }
 /* Bookmarks that arrived with the document, rather than ones made here. */
 .bm-foreign .bm-title { font-style: italic; color: var(--text-dim); }
+.bm-foreign .bm-mark { color: var(--text-dim); }
+.bm-foreign .bm-mark .ico { fill: none; }
+/* The page you are looking at. */
+.bm-row.bm-current { border-left-color: var(--accent); background: var(--accent-quiet); }
+.bm-row.bm-current .bm-title { font-weight: 600; }
 .bm-empty { padding: 12px 10px; color: var(--text-dim); font-size: var(--fs-sm);
   line-height: 1.4; }
+/* The bookmark toggle's third state: this page carries a bookmark, but one that
+   came with the document, so pressing the button adds ours rather than removing
+   theirs. Reading as plain "not bookmarked" is what made the button contradict
+   the shelf. */
+#btn-bookmark.bm-btn-foreign { color: var(--accent); }
+#btn-bookmark.bm-btn-foreign .ico { fill: none; stroke-dasharray: 3 2; }
 
 /* ---- Favourite colours dialog ---- */
 .fav-modal { width: 560px; }
