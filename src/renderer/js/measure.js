@@ -45,6 +45,7 @@
     _calib: null, // { page, pdfLen }  pending calibration line
     _scaleTarget: null, // { kind:'page', page } | { kind:'viewport', page, rect }
     _color: null, // custom color for NEW measurements; null = per-type default (COLORS)
+    _countGroup: null, // { id, name } the tally new count marks join
     _fiOn: false, // display imperial lengths as feet-inches (24'-6") vs decimal
     _fiDenom: 16  // inch-fraction denominator for feet-inches display
   };
@@ -146,8 +147,97 @@
     // already snap to the drawing's geometry (harvest is async + cached).
     if (App.Snap) App.Snap.ensure(App.state.currentPage);
     App.$$('.page-holder').forEach((h) => h.classList.add('measuring'));
+    // Picking Count off the menu opens a FRESH tally: two different items being
+    // counted in one sitting must not land in the same total. Carrying on with
+    // an earlier one is the explicit "+" on its row in the measurements panel.
+    if (tool === 'count') { M.beginCountGroup(); return; }
     const label = tool === 'viewport' ? 'a scale region (drag a box)' : tool;
     App.toast(`Measure: click to draw ${label}. Enter to finish, Esc to cancel.`, 'info', 4000);
+  };
+
+  /* ---------------- count tallies ---------------- */
+  // Start a new tally. Marks made from now on join it, wherever they are made:
+  // the tool is not locked to a page, so a count carries on across sheets and
+  // the running total follows it (FR-C1).
+  M.beginCountGroup = function (name) {
+    const g = {
+      id: App.countGroupId(App.state.measureSeq + 1),
+      name: App.cleanCountName(name, App.nextCountGroupName(App.state.measurements))
+    };
+    M._countGroup = g;
+    M.renderPanel();
+    App.toast(`Counting "${g.name}" — click each item. Turn the page and keep going; the total follows. Esc when done.`, 'info', 5000);
+    return g;
+  };
+
+  // Carry on with an existing tally (the "+" on its panel row). Adding to a
+  // tally is the common case on a re-check — a fresh one would split a total
+  // that belongs together.
+  M.resumeCountGroup = function (key) {
+    const g = App.countGroups(App.state.measurements).find((x) => x.key === key);
+    if (!g) return;
+    // A legacy count has no group id of its own; give it one so marks added now
+    // tally with it instead of starting a pile beside it.
+    const id = g.group || App.countGroupId(App.state.measureSeq + 1);
+    if (!g.group) {
+      // Giving a legacy count a group id is a real edit to the model, so it gets
+      // its own undo step rather than riding on the next mark's.
+      App.History.snapshot();
+      g.marks.forEach((m) => { m.group = id; m.groupName = g.name; });
+    }
+    M._countGroup = { id, name: g.name };
+    M._tool = 'count';
+    M._active = null;
+    App.setMode('measure');
+    App.$$('.page-holder').forEach((h) => h.classList.add('measuring'));
+    M.renderPanel();
+    App.toast(`Adding to "${g.name}" (${g.total} so far) — click each item. Esc when done.`, 'info', 4000);
+  };
+
+  // The tally rows highlight while their tool is armed, so it is never a guess
+  // which total the next click lands in.
+  M.activeCountKey = function () {
+    return M._tool === 'count' && M._countGroup ? 'g:' + M._countGroup.id : null;
+  };
+
+  // One click, one mark. Each is its own measurement so it can be selected,
+  // nudged, deleted, or copied on its own (FR-C2) — the count is the number of
+  // marks in the tally, never a property of one lump object.
+  function addCountMark(page, pt) {
+    if (!M._countGroup) M.beginCountGroup();
+    App.History.snapshot();
+    const g = M._countGroup;
+    const m = {
+      id: ++App.state.measureSeq,
+      page,
+      type: 'count',
+      pts: [{ vx: pt.vx, vy: pt.vy }],
+      value: 1,
+      unit: 'ct',
+      color: M._color || COLORS.count,
+      width: DEFAULT_WIDTH,
+      label: '1',
+      group: g.id,
+      groupName: g.name
+    };
+    App.state.measurements.push(m);
+    App.state.measureSelectedId = m.id;
+    App.$('#btn-save').disabled = false;
+    M.renderPanel();
+    return m;
+  }
+  M._addCountMark = addCountMark;
+
+  // Split any legacy multi-point count into individual marks. Called on the
+  // paths that bring measurements in from outside this session (a reopened
+  // sidecar, a torn-off tab) so an old take-off gets the per-mark editing the
+  // rest of the app now assumes.
+  M.normalizeCounts = function () {
+    const r = App.splitCountMarks(App.state.measurements, App.state.measureSeq);
+    if (!r.changed) return false;
+    App.state.measurements = r.measurements;
+    App.state.measureSeq = r.measureSeq;
+    return true;
   };
 
   M.stop = function () {
@@ -156,6 +246,9 @@
     M._active = null;
     App.$$('.page-holder').forEach((h) => h.classList.remove('measuring'));
     M.repositionAll();
+    // Disarming ends the tally too, as far as the panel is concerned: the row
+    // must stop advertising that the next click lands in it.
+    M.renderPanel();
   };
 
   M.cancelActive = function () {
@@ -168,8 +261,7 @@
     const a = M._active;
     M._active = null;
     if (!a || M._tool === 'calibrate' || M._tool === 'viewport') return;
-    const need = (a.tool === 'area' || a.tool === 'angle' || a.tool === 'radius3' || a.tool === 'arcLength') ? 3
-      : a.tool === 'count' ? 1 : 2;
+    const need = (a.tool === 'area' || a.tool === 'angle' || a.tool === 'radius3' || a.tool === 'arcLength') ? 3 : 2;
     if (a.pts.length < need) return;
     finalize(a);
   };
@@ -261,10 +353,14 @@
       return;
     }
 
+    // Count is not a shape being drawn, so it never enters the in-progress
+    // buffer: every click commits its own mark, on whatever page was clicked.
+    if (tool === 'count') { addCountMark(page, p); M.repositionAll(page); return; }
+
     if (!M._active) M._active = { tool, page, pts: [] };
     if (M._active.page !== page) return; // lock to first page
     const last = M._active.pts[M._active.pts.length - 1];
-    if (tool !== 'count' && last && dist(last, p) < 1.5) { M.repositionAll(); return; } // dedupe dbl-click
+    if (last && dist(last, p) < 1.5) { M.repositionAll(); return; } // dedupe dbl-click
     M._active.pts.push({ vx: p.vx, vy: p.vy });
 
     // Fixed-arity tools terminate themselves the moment they have enough points.
@@ -360,8 +456,24 @@
     if (_repoRAF) { cancelAnimationFrame(_repoRAF); _repoRAF = 0; _repoPage = undefined; }
     doReposition(onlyPage);
   };
+  // Tally numbering/labels are derived, never stored: one pass over the marks
+  // per redraw, rather than a per-mark walk of the whole list (a 200-dot
+  // take-off would otherwise be quadratic on every pan).
+  let _countInfo = null;
+  function countInfo() {
+    if (!_countInfo) {
+      const ms = App.state.measurements;
+      const groups = App.countGroups(ms);
+      const byKey = Object.create(null);
+      groups.forEach((g) => { byKey[g.key] = g; });
+      _countInfo = { groups, byKey, ord: App.countOrdinals(ms), anchor: App.countLabelAnchors(ms) };
+    }
+    return _countInfo;
+  }
+
   function doReposition(onlyPage) {
     const z = App.state.zoom;
+    _countInfo = null;
     App.state.pageEls.forEach((pe, i) => {
       if (!pe) return;
       const page = i + 1;
@@ -496,33 +608,49 @@
     return true;
   }
 
+  // A count mark: its dot, the number it holds in its tally, and — on the first
+  // mark of that tally on this page — the tally's running total. Each mark is
+  // hit-tested on its own, so dragging one dot moves that dot and not the pile.
+  // A legacy multi-point count still draws every dot it carries, numbered on
+  // from where its first one sits in the tally.
+  function drawCount(layer, m, z, selected, color) {
+    if (!m.pts.length) return;
+    const info = countInfo();
+    const key = App.countGroupKey(m);
+    const base = info.ord[m.id] || 1;
+    m.pts.forEach((pt, idx) => {
+      const c = ns('circle');
+      c.setAttribute('class', 'm-count' + (selected ? ' selected' : ''));
+      c.setAttribute('cx', pt.vx * z); c.setAttribute('cy', pt.vy * z);
+      c.setAttribute('r', 7); c.setAttribute('fill', color); c.setAttribute('fill-opacity', '0.85');
+      c.setAttribute('stroke', selected ? '#111' : '#fff');
+      c.setAttribute('stroke-width', selected ? '2.5' : '1.5');
+      layer.appendChild(c);
+      label(layer, pt.vx * z - 3, pt.vy * z + 4, String(base + idx), '#3a2a00');
+    });
+    // One running total per page per tally — 20 dots on a sheet must not write
+    // the same number 20 times over the drawing.
+    if (info.anchor[key + '|' + m.page] === m.id) {
+      const g = info.byKey[key];
+      const text = m.group ? App.countGroupLabel(g, m.page) : `Count: ${g ? g.total : m.pts.length}`;
+      label(layer, m.pts[0].vx * z + 10, m.pts[0].vy * z - 8, text, color);
+    }
+    // Invisible hit area over this mark's own dots.
+    const xs = m.pts.map((p) => p.vx * z), ys = m.pts.map((p) => p.vy * z);
+    const minx = Math.min.apply(null, xs) - 10, miny = Math.min.apply(null, ys) - 10;
+    const rect = ns('rect');
+    rect.setAttribute('class', 'm-hit');
+    rect.setAttribute('x', minx); rect.setAttribute('y', miny);
+    rect.setAttribute('width', Math.max.apply(null, xs) - minx + 10);
+    rect.setAttribute('height', Math.max.apply(null, ys) - miny + 10);
+    rect.addEventListener('pointerdown', (e) => startMeasureDrag(m, e));
+    layer.appendChild(rect);
+  }
+
   function drawMeasurement(layer, m, z, selected) {
     const color = colorOf(m);
     if (CIRCULAR[m.type]) { drawRadius(layer, m, z, selected, color); return; }
-    if (m.type === 'count') {
-      m.pts.forEach((pt, idx) => {
-        const c = ns('circle');
-        c.setAttribute('cx', pt.vx * z); c.setAttribute('cy', pt.vy * z);
-        c.setAttribute('r', 7); c.setAttribute('fill', color); c.setAttribute('fill-opacity', '0.85');
-        c.setAttribute('stroke', '#fff'); c.setAttribute('stroke-width', '1.5');
-        layer.appendChild(c);
-        label(layer, pt.vx * z - 3, pt.vy * z + 4, String(idx + 1), '#3a2a00');
-      });
-      if (m.pts.length) label(layer, m.pts[0].vx * z + 10, m.pts[0].vy * z - 8, `Count: ${m.value}`, color);
-      // Invisible bbox hit so the whole count group can be dragged.
-      if (m.pts.length) {
-        const xs = m.pts.map((p) => p.vx * z), ys = m.pts.map((p) => p.vy * z);
-        const minx = Math.min.apply(null, xs) - 10, miny = Math.min.apply(null, ys) - 10;
-        const rect = ns('rect');
-        rect.setAttribute('class', 'm-hit');
-        rect.setAttribute('x', minx); rect.setAttribute('y', miny);
-        rect.setAttribute('width', Math.max.apply(null, xs) - minx + 10);
-        rect.setAttribute('height', Math.max.apply(null, ys) - miny + 10);
-        rect.addEventListener('pointerdown', (e) => startMeasureDrag(m, e));
-        layer.appendChild(rect);
-      }
-      return;
-    }
+    if (m.type === 'count') { drawCount(layer, m, z, selected, color); return; }
 
     const w = widthOf(m);
     const closed = m.type === 'area';
@@ -649,7 +777,6 @@
     }
   }
   function livePreviewValue(a, live) {
-    if (a.tool === 'count') return `Count: ${a.pts.length}`;
     if (CIRCULAR[a.tool]) {
       // Name the collinear case while the point can still be moved, rather than
       // letting the user commit and only then be refused.
@@ -777,20 +904,112 @@
     if (!panel.classList.contains('hidden')) M.renderPanel();
   };
 
+  // A tally's row: the running total, the pages it spans, an editable name, and
+  // the "+" that carries on counting into it. Deleting from here removes the
+  // whole tally — deleting one dot is done on the page, where you can see which.
+  // A tally name is user text going into an attribute; escape it rather than
+  // trusting a quote never appears in "6\" pull boxes".
+  function attrEsc(v) {
+    return String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  function tallyRow(g) {
+    const row = document.createElement('div');
+    const sel = g.marks.some((m) => m.id === App.state.measureSelectedId);
+    const armed = M.activeCountKey() === g.key;
+    row.className = 'mp-row mp-tally' + (sel ? ' selected' : '') + (armed ? ' armed' : '');
+    row.setAttribute('role', 'option');
+    row.tabIndex = 0;
+    row.setAttribute('aria-selected', sel ? 'true' : 'false');
+    const pages = g.pages.length > 3
+      ? g.pages.slice(0, 2).map((p) => 'p' + p).join(', ') + ` +${g.pages.length - 2}`
+      : g.pages.map((p) => 'p' + p).join(', ');
+    row.innerHTML =
+      `<span class="mp-swatch" style="background:${g.color || COLORS.count}"></span>` +
+      `<span class="mp-type">count</span>` +
+      `<input class="mp-cname" type="text" maxlength="${App.COUNT_NAME_MAX}" aria-label="Name for this count" />` +
+      `<span class="mp-val">${g.total}</span>` +
+      `<span class="mp-pg">${pages}</span>` +
+      `<button class="mp-add" title="Keep counting into this tally" aria-label="Add to ${attrEsc(g.name)}">${App.icon('plus')}</button>` +
+      `<button class="mp-del" title="Delete this whole count" aria-label="Delete ${attrEsc(g.name)}">${App.icon('trash')}</button>`;
+    const nameEl = row.querySelector('.mp-cname');
+    nameEl.value = g.name;
+    // The name field is a field, not a row hit: clicking into it must not
+    // scroll the page away under the cursor.
+    nameEl.addEventListener('click', (e) => e.stopPropagation());
+    nameEl.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Enter') nameEl.blur(); });
+    nameEl.addEventListener('change', () => {
+      App.History.snapshot();
+      const clean = App.renameCountGroup(App.state.measurements, g.key, nameEl.value);
+      if (armed && M._countGroup) M._countGroup.name = clean;
+      App.$('#btn-save').disabled = false;
+      M.repositionAll();
+      M.renderPanel();
+    });
+    row.querySelector('.mp-add').addEventListener('click', (e) => {
+      e.stopPropagation();
+      M.resumeCountGroup(g.key);
+    });
+    row.querySelector('.mp-del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      M.removeCountGroup(g.key);
+    });
+    row.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      row.click();
+    });
+    row.addEventListener('click', () => {
+      if (g.marks.length) M.select(g.marks[0].id, true);
+    });
+    return row;
+  }
+
+  // Delete a whole tally — every mark of it, on every page it reached.
+  M.removeCountGroup = function (key) {
+    const doomed = Object.create(null);
+    App.state.measurements.forEach((m) => {
+      if (m.type === 'count' && App.countGroupKey(m) === key) doomed[m.id] = true;
+    });
+    if (!Object.keys(doomed).length) return;
+    App.History.snapshot();
+    App.state.measurements = App.state.measurements.filter((m) => !doomed[m.id]);
+    if (doomed[App.state.measureSelectedId]) App.state.measureSelectedId = null;
+    M.repositionAll();
+    M.renderPanel();
+  };
+
   M.renderPanel = function () {
+    _countInfo = null;
     const list = App.$('#mp-list');
     const all = App.state.measurements;
     const q = ((App.$('#mp-filter') && App.$('#mp-filter').value) || '').trim().toLowerCase();
     const ms = q
-      ? all.filter((m) => m.type.includes(q) || (m.label || '').toLowerCase().includes(q) || ('p' + m.page).includes(q))
+      ? all.filter((m) => m.type.includes(q) || (m.label || '').toLowerCase().includes(q) || ('p' + m.page).includes(q)
+        || (m.type === 'count' && (m.groupName || '').toLowerCase().includes(q)))
       : all;
+    // A tally is ONE row however many marks it holds — a 40-dot count would
+    // otherwise bury every other measurement in the panel. Its marks stay
+    // individually selectable on the page; this is just how the total reads.
+    const info = countInfo();
+    const seenTally = Object.create(null);
+    const rows = [];
+    ms.forEach((m) => {
+      if (m.type !== 'count') { rows.push({ m }); return; }
+      const key = App.countGroupKey(m);
+      if (seenTally[key]) return;
+      seenTally[key] = true;
+      rows.push({ m, tally: info.byKey[key] });
+    });
     list.innerHTML = '';
     if (!all.length) {
       list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">' + App.icon('measure', 'ico-lg') + '</div>No measurements yet.<br>Use the Measure menu to add some.</div>';
-    } else if (!ms.length) {
+    } else if (!rows.length) {
       list.innerHTML = '<div class="mp-empty">No measurements match this filter.</div>';
     } else {
-      ms.forEach((m) => {
+      rows.forEach((entry) => {
+        if (entry.tally) { list.appendChild(tallyRow(entry.tally)); return; }
+        const m = entry.m;
         const row = document.createElement('div');
         row.className = 'mp-row' + (m.id === App.state.measureSelectedId ? ' selected' : '');
         row.setAttribute('role', 'option');
@@ -992,9 +1211,14 @@
     const m = M.getSelected();
     if (!m) return;
     if (!_editing) { App.History.snapshot(); _editing = true; }
-    Object.assign(m, patch);
-    liveRecompute(m);
-    M.repositionAll(m.page);
+    // A tally is one thing on the sheet even though its marks are separate
+    // objects, so restyling one dot restyles the tally — a half-recoloured
+    // count reads as two different counts.
+    const kin = m.type === 'count' && m.group
+      ? App.state.measurements.filter((x) => x.type === 'count' && x.group === m.group)
+      : [m];
+    kin.forEach((x) => { Object.assign(x, patch); liveRecompute(x); });
+    M.repositionAll(kin.length > 1 ? undefined : m.page);
     App.$('#btn-save').disabled = false;
   }
   M.setSelectedColor = function (hex) { if (hex) editSelected({ color: hex }); };
@@ -1065,9 +1289,24 @@
     const ms = App.state.measurements;
     if (!ms.length) { App.toast('No measurements to export.', 'error'); return; }
     const rows = [['#', 'Type', 'Page', 'Value', 'Unit', 'Display', 'Points']];
-    ms.forEach((m, i) => {
+    // Counts export as one row per tally, not one per dot: what a take-off sheet
+    // needs is "38 pull boxes over pages 3-8", not 38 rows of "1".
+    let n = 0;
+    const seenTally = Object.create(null);
+    const groups = App.countGroups(ms);
+    const byKey = Object.create(null);
+    groups.forEach((g) => { byKey[g.key] = g; });
+    ms.forEach((m) => {
+      if (m.type === 'count') {
+        const key = App.countGroupKey(m);
+        if (seenTally[key]) return;
+        seenTally[key] = true;
+        const g = byKey[key];
+        rows.push([++n, 'count', g.pages.join(' '), g.total, 'ct', g.name, g.total]);
+        return;
+      }
       const unit = m.type === 'area' ? (m.unit ? m.unit + '²' : '') : (m.unit || '');
-      rows.push([i + 1, m.type, m.page, m.value == null ? '' : m.value.toFixed(3), unit, m.label || '', m.pts.length]);
+      rows.push([++n, m.type, m.page, m.value == null ? '' : m.value.toFixed(3), unit, m.label || '', m.pts.length]);
     });
     const csv = rows.map((r) => r.map((c) => {
       const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -1156,7 +1395,7 @@
         e.preventDefault(); e.stopPropagation();
         // The dialog is modal; leaving the menu open behind it just stacks.
         if (App.Dropdowns) App.Dropdowns.closeAll();
-        App.FavColors.open();
+        App.FavColors.open(colorInput ? colorInput.value : null);
       });
       M.syncFavColors();
     }

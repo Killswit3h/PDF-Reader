@@ -442,6 +442,12 @@
     st.measureSeq = Math.max(s.measureSeq || 0, maxId(st.measurements));
     st.viewportSeq = s.viewportSeq || 0;
     st.annoSeq = Math.max(s.annoSeq || 0, maxId(st.annotations));
+    // A file saved before counts became individual marks holds every dot of a
+    // tally in one object. Split it on the way in so an old take-off gets the
+    // same per-dot editing as a new one.
+    const split = App.splitCountMarks(st.measurements, st.measureSeq);
+    st.measurements = split.measurements;
+    st.measureSeq = split.measureSeq;
     st.dirty = false;
   };
 

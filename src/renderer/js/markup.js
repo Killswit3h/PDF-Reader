@@ -715,7 +715,7 @@
         }
       });
       wire('#mk-fav-toggle', 'click', () => { App.FavColors.toggle(currentStroke()); syncPropBar(); });
-      wire('#mk-fav-manage', 'click', () => App.FavColors.open());
+      wire('#mk-fav-manage', 'click', () => App.FavColors.open(currentStroke()));
     }
     wire('#mk-fill', 'input', (e) => { if (App.$('#mk-fill-on').checked) applyStyle({ fill: e.target.value }); });
     wire('#mk-fill-on', 'change', (e) => applyStyle({ fill: e.target.checked ? App.$('#mk-fill').value : 'none' }));

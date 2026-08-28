@@ -653,7 +653,11 @@
       }
 
       // ---- measurements ----
-      for (const m of App.state.measurements) {
+      // Count marks are individual objects in the app so each dot can be moved,
+      // deleted or copied on its own; on the sheet a tally is one thing. Fold
+      // each tally back into a single per-page shape for export so the PDF
+      // carries one count annotation with its running total, not one per dot.
+      for (const m of App.mergeCountsForExport(App.state.measurements)) {
         const vp = App.state.baseViewports[m.page - 1];
         const page = pdfDoc.getPage(m.page - 1);
         // With editable annotations on, a measurement exports as a real

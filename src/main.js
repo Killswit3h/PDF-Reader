@@ -648,6 +648,121 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_COUNT: the Count tool tallies ACROSS pages, and every mark it makes
+      // is its own object — selectable, copyable and deletable on its own, with
+      // the running total following the tally rather than the sheet.
+      if (process.env.SMOKE_COUNT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const A=App.state;
+              const tick=()=>new Promise(r=>setTimeout(r,80));
+              // One tally, marks made on two different sheets.
+              App.Measure.startTool('count');
+              const name=App.Measure._countGroup.name;
+              const m1=App.Measure._addCountMark(1,{vx:100,vy:100});
+              const m2=App.Measure._addCountMark(1,{vx:140,vy:100});
+              const m3=App.Measure._addCountMark(3,{vx:120,vy:200});
+              App.Measure.repositionAll();
+              const marks=A.measurements.filter(m=>m.type==='count').length;
+              const g0=App.countGroups(A.measurements)[0];
+              const spans={total:g0.total,pages:g0.pages.slice()};
+              // Copy ONE mark: the tally goes up by one, not by a whole group.
+              App.Measure.select(m2.id);
+              const pasted=!!App.Measure.paste(App.Measure.getSelected(),15,15);
+              const afterCopy=App.countGroups(A.measurements)[0].total;
+              // Delete ONE mark: the rest of the tally survives and renumbers.
+              App.Measure.remove(m1.id);
+              const afterDelete=App.countGroups(A.measurements)[0].total;
+              const ords=App.countOrdinals(A.measurements);
+              const numbers=A.measurements.filter(m=>m.type==='count').map(m=>ords[m.id]);
+              // Arming Count again opens a SECOND tally with its own total.
+              App.Measure.startTool('count');
+              App.Measure._addCountMark(2,{vx:200,vy:200});
+              const tallies=App.countGroups(A.measurements).map(x=>x.name+'='+x.total);
+              // The panel lists one row per tally, not one per dot.
+              if(App.$('#measure-panel').classList.contains('hidden'))App.Measure.togglePanel();
+              await tick();
+              const rows=document.querySelectorAll('#mp-list .mp-row').length;
+              const totals=(App.$('#mp-totals').textContent||'').trim();
+              const renamed=(()=>{const el=document.querySelector('#mp-list .mp-cname');
+                if(!el)return null;el.value='Pull boxes';el.dispatchEvent(new Event('change',{bubbles:true}));
+                return App.countGroups(A.measurements)[0].name;})();
+              // Export folds each tally back into one shape per page.
+              const merged=App.mergeCountsForExport(A.measurements)
+                .filter(m=>m.type==='count').map(m=>m.page+':'+m.pts.length+':'+m.label);
+              // A file saved before this feature still loads: its lump count is
+              // split into individual marks that share one tally.
+              const split=App.splitCountMarks([{id:99,page:1,type:'count',pts:[{vx:1,vy:1},{vx:2,vy:2},{vx:3,vy:3}]}],99);
+              const legacy={n:split.measurements.length,
+                single:split.measurements.every(m=>m.pts.length===1),
+                grouped:new Set(split.measurements.map(m=>m.group)).size};
+              let bytesLen=0,err='';
+              try{const b=await App.Save.buildBytes();bytesLen=b.length;}catch(e){err=e.message;}
+              return JSON.stringify({name,marks,spans,afterCopy,afterDelete,numbers,tallies,
+                rows,totals,renamed,merged,legacy,bytesLen,err,pasted});
+            })()`, true);
+            console.log('[count] ' + r);
+          } catch (e) { console.log('[count] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
+      // SMOKE_FAVPICK: the favourites dialog leads with a COLOUR — a palette and
+      // a wheel — and keeps hex entry as the fallback it should have been.
+      if (process.env.SMOKE_FAVPICK) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const tick=()=>new Promise(r=>setTimeout(r,80));
+              App.Prefs.set('favoriteColors',[]);
+              App.FavColors.refresh();
+              document.querySelector('#mk-fav-manage').click();
+              await tick();
+              const swatches=document.querySelectorAll('#fav-palette .fav-pal').length;
+              // Hex entry and the legend paste are both behind a disclosure, so
+              // neither is what the dialog asks you for first.
+              const hexBox=document.querySelector('#fav-hex').closest('details');
+              const pasteBox=document.querySelector('#fav-paste').closest('details');
+              const advanced={hex:!!hexBox&&!hexBox.open,paste:!!pasteBox&&!pasteBox.open};
+              // The main path: click a colour, name it, add it.
+              document.querySelector('#fav-palette .fav-pal[data-color="#3b7d23"]').click();
+              await tick();
+              const picked=document.querySelector('#fav-pick').value;
+              const palActive=document.querySelector('#fav-palette .fav-pal[data-color="#3b7d23"]').classList.contains('active');
+              document.querySelector('#fav-name').value='Guardrail';
+              document.querySelector('#fav-add').click();
+              await tick();
+              // The wheel is the same one colour, by another route.
+              const wheel=document.querySelector('#fav-pick');
+              wheel.value='#d1348c'; wheel.dispatchEvent(new Event('input',{bubbles:true}));
+              document.querySelector('#fav-name').value='Signs';
+              document.querySelector('#fav-add').click();
+              await tick();
+              // ...and a code off a legend still works, when you have one.
+              const hex=document.querySelector('#fav-hex');
+              hex.value='FFC000'; hex.dispatchEvent(new Event('input',{bubbles:true}));
+              document.querySelector('#fav-name').value='Fence';
+              document.querySelector('#fav-add').click();
+              await tick();
+              const saved=App.Prefs.get('favoriteColors',[]).map(f=>f.hex+'|'+f.name);
+              const rows=document.querySelectorAll('#fav-list .fav-row').length;
+              const strip=Array.from(document.querySelectorAll('#mk-fav-strip .fav-sw')).map(b=>b.dataset.color);
+              document.querySelector('#fav-done').click();
+              await tick();
+              const closed=document.querySelector('#favcolor-modal').classList.contains('hidden');
+              return JSON.stringify({swatches,advanced,picked,palActive,saved,rows,strip,closed});
+            })()`, true);
+            console.log('[favpick] ' + r);
+          } catch (e) { console.log('[favpick] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_TMARK: text markups (highlight/underline/strikeout) render + export.
       if (process.env.SMOKE_TMARK) {
         setTimeout(async () => {

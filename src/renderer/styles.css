@@ -857,6 +857,25 @@ body.has-banner.has-props #markup-panel { top: calc(var(--toolbar-h) + 74px); }
   background: none; border: none; color: var(--danger); cursor: pointer;
   font-size: var(--fs-md); padding: 2px 4px; opacity: 0; }
 .mp-row:hover .mp-del { opacity: 1; }
+/* A count tally's row: a name you can edit in place, then the running total,
+   the pages it spans, and the "+" that carries on counting into it. */
+.mp-row .mp-cname {
+  flex: 1 1 auto; min-width: 0; font-size: var(--fs-md);
+  background: transparent; border: 1px solid transparent; border-radius: 4px;
+  color: var(--text); padding: 2px 4px;
+}
+.mp-row .mp-cname:hover { border-color: var(--border); }
+.mp-row .mp-cname:focus { background: var(--panel); border-color: var(--accent); outline: none; }
+.mp-row.mp-tally .mp-val { flex: 0 0 auto; min-width: 28px; text-align: right; }
+.mp-row .mp-add {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  padding: 2px 4px; opacity: 0; }
+.mp-row:hover .mp-add, .mp-row.armed .mp-add { opacity: 1; }
+.mp-row .mp-add:hover { color: var(--accent); }
+/* The tally the Count tool is currently adding to — so it is never a guess
+   which total the next click lands in. */
+.mp-row.armed { box-shadow: inset 2px 0 0 var(--accent); }
+
 /* Per-segment leg breakdown shown under the selected length/perimeter/area row. */
 .mp-segs {
   display: flex; flex-wrap: wrap; gap: 4px 10px;
@@ -1999,6 +2018,31 @@ body.has-orgpanel #viewer-wrap, body.has-tcpanel #viewer-wrap { right: 340px; }
 }
 .fav-row-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
 .fav-row-del:hover:not(:disabled) { color: var(--danger); }
+/* ---- Favourites: pick-a-colour first, hex codes as the fallback ---- */
+.fav-picker { display: flex; flex-direction: column; gap: 10px; }
+.fav-palette { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; }
+.fav-pal {
+  height: 28px; border-radius: 6px; border: 1px solid var(--border);
+  cursor: pointer; padding: 0;
+  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.fav-pal:hover { transform: scale(1.08); }
+.fav-pal.active { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.fav-add-row { display: flex; align-items: center; gap: 8px; }
+.fav-wheel {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px 3px 4px;
+  font-size: var(--fs-sm); color: var(--text-dim);
+}
+.fav-wheel:hover { background: var(--bg-hover); color: var(--text); }
+.fav-wheel input[type="color"] { width: 26px; height: 22px; border: none; background: none; padding: 0; cursor: pointer; }
+#fav-name { flex: 1 1 auto; min-width: 0; }
+.fav-sec-title { font-size: var(--fs-md); color: var(--text); margin-top: 4px; }
+.fav-adv > summary { cursor: pointer; font-size: var(--fs-sm); color: var(--text-dim); padding: 2px 0; }
+.fav-adv > summary:hover { color: var(--text); }
+.fav-adv[open] > summary { margin-bottom: 6px; }
+.fav-hexrow { display: flex; align-items: center; gap: 8px; }
+#fav-hex { width: 120px; flex: 0 0 auto; font-family: var(--font-mono, ui-monospace, monospace); text-transform: uppercase; }
 .fav-paste-label { font-size: var(--fs-md); color: var(--text); margin-top: 4px; }
 .fav-hint { margin: 0; font-size: var(--fs-sm); color: var(--text-dim); }
 .fav-hint code { font-family: var(--font-mono, ui-monospace, monospace); }
