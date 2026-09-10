@@ -1,0 +1,146 @@
+{
+  "startedAt": "2026-09-10T14:06:43.550Z",
+  "env": {
+    "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36",
+    "platform": "web",
+    "dpr": 1,
+    "viewport": {
+      "w": 1440,
+      "h": 900
+    },
+    "coarse": false,
+    "cores": 4,
+    "deviceMemoryGB": 8,
+    "maxCanvasPixels": 67108864,
+    "version": null
+  },
+  "open": {
+    "cold": {
+      "name": "dense-plans.pdf",
+      "numPages": 120,
+      "pagesInitMs": 259.5,
+      "firstRenderMs": 1024.7999999998137,
+      "firstPaintMs": 1139.5999999998603,
+      "firstPage": 1
+    },
+    "warm": {
+      "name": "dense-plans.pdf",
+      "numPages": 120,
+      "pagesInitMs": 241.4000000001397,
+      "firstRenderMs": 793.3000000000466,
+      "firstPaintMs": 904.3000000000466,
+      "firstPage": 1
+    }
+  },
+  "pinch": {
+    "200": {
+      "targetPct": 200,
+      "achievedPct": 200,
+      "gestureMs": 648,
+      "commitSyncMs": 4.7,
+      "currentPageSharpMs": 2181.3,
+      "visibleSharpMs": 2189.9,
+      "settleTimerMs": 140,
+      "canvas": {
+        "count": 4,
+        "bytes": 231618176,
+        "megabytes": 220.9,
+        "maxPixels": 27574272,
+        "maxMegapixels": 27.57,
+        "maxBytes": 110297088,
+        "overWebViewCap": true,
+        "currentPagePainted": true
+      }
+    },
+    "400": {
+      "targetPct": 400,
+      "achievedPct": 400,
+      "gestureMs": 607,
+      "commitSyncMs": 4.6,
+      "currentPageSharpMs": 3125.2,
+      "visibleSharpMs": 3130.4,
+      "settleTimerMs": 140,
+      "canvas": {
+        "count": 4,
+        "bytes": 548087424,
+        "megabytes": 522.7,
+        "maxPixels": 67132928,
+        "maxMegapixels": 67.13,
+        "maxBytes": 268531712,
+        "overWebViewCap": true,
+        "currentPagePainted": true
+      }
+    }
+  },
+  "pan": {
+    "durationMs": 3000,
+    "pxPerSec": 900,
+    "zoomPct": 200,
+    "scrolledPx": 2736,
+    "longTasks": {
+      "supported": true,
+      "count": 2,
+      "longestMs": 833,
+      "totalMs": 1452,
+      "p95Ms": 833,
+      "over100": 2
+    },
+    "longAnimationFrames": {
+      "supported": true,
+      "count": 5,
+      "longestMs": 141.4,
+      "totalMs": 356.8,
+      "p95Ms": 141.4,
+      "over100": 1
+    },
+    "frames": {
+      "frames": 53,
+      "meanMs": 57.3,
+      "maxMs": 834,
+      "p95Ms": 63.4,
+      "over16": 50,
+      "over100": 1
+    }
+  },
+  "canvas": {
+    "count": 4,
+    "bytes": 548087424,
+    "megabytes": 522.7,
+    "maxPixels": 67132928,
+    "maxMegapixels": 67.13,
+    "maxBytes": 268531712,
+    "overWebViewCap": true,
+    "currentPagePainted": true
+  },
+  "heap": {
+    "usedMB": 48,
+    "totalMB": 104.1
+  },
+  "markup": {
+    "openMs": 788.2,
+    "annotations": 2000,
+    "measurements": 300,
+    "svgNodes": 3300,
+    "repositionMs": 46.3,
+    "measureRepositionMs": 9.3,
+    "selectMs": 107.3,
+    "drag": {
+      "downMs": 146.6,
+      "upMs": 49.5,
+      "movedBy": 72.25,
+      "steps": 60,
+      "totalMs": 3510.9,
+      "meanMs": 58.51,
+      "maxMs": 156.2,
+      "over16": 60
+    },
+    "undoMs": 210.5,
+    "heap": {
+      "usedMB": 49.2,
+      "totalMB": 127.3
+    }
+  },
+  "finishedAt": "2026-09-10T14:07:06.971Z",
+  "label": "chromium-desktop",
+  "errors": []
+}

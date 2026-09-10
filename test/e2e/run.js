@@ -31,7 +31,10 @@ const BIG = path.join(FIX, 'big.pdf');
 const FORM = path.join(FIX, 'form.pdf');
 const SCALESET = path.join(FIX, 'scale-detect.pdf');
 const SCALEHALF = path.join(FIX, 'scale-half.pdf');
+const DENSE = path.join(FIX, 'dense-plans.pdf');
+const HEAVY = path.join(FIX, 'heavy-markup.pdf');
 const PER_TEST_TIMEOUT = 45000;
+const { reportRows, markdownTable } = require('../../src/shared/perf-stats');
 
 let passed = 0, failed = 0;
 let spawnSeq = 0;
@@ -39,7 +42,8 @@ let spawnSeq = 0;
 // Run Electron once with the given SMOKE_* env + argv; return captured stdout.
 // Each spawn gets its own --user-data-dir so the single-instance lock never
 // makes a fresh scenario quit because a previous one hasn't fully released it.
-function runApp(env, argv) {
+function runApp(env, argv, timeoutMs) {
+  const timeout = timeoutMs || PER_TEST_TIMEOUT;
   const childEnv = Object.assign({}, process.env, { SMOKE_TEST: '1' }, env);
   delete childEnv.ELECTRON_RUN_AS_NODE;
   const profile = path.join(os.tmpdir(), `pdfsigner-e2e-prof-${process.pid}-${++spawnSeq}`);
@@ -48,11 +52,11 @@ function runApp(env, argv) {
   // Electron exits instantly with no output. Harmless on macOS/Windows.
   const ciFlags = ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'];
   const res = spawnSync(electronPath, ['.', ...(argv || []), ...ciFlags, `--user-data-dir=${profile}`], {
-    cwd: ROOT, env: childEnv, encoding: 'utf8', timeout: PER_TEST_TIMEOUT
+    cwd: ROOT, env: childEnv, encoding: 'utf8', timeout, maxBuffer: 64 * 1024 * 1024
   });
   try { fs.rmSync(profile, { recursive: true, force: true }); } catch (_) { /* ignore */ }
   if (res.error && res.error.code === 'ETIMEDOUT') {
-    throw new Error(`timed out after ${PER_TEST_TIMEOUT}ms`);
+    throw new Error(`timed out after ${timeout}ms`);
   }
   return (res.stdout || '') + (res.stderr || '');
 }
@@ -984,6 +988,39 @@ const SCENARIOS = [
       // Crisp => rendered pixels per CSS px ≈ dpr. The old cap would clamp this
       // below dpr (here ~0.77) and the browser would upscale it → blur.
       check(j.sharpness >= j.dpr - 0.05, `page downscaled/blurry: sharpness ${j.sharpness} < dpr ${j.dpr}`);
+    }
+  },
+  {
+    name: 'perf — SMOKE_PERF apparatus reports every baseline number on the dense + heavy fixtures',
+    run: () => {
+      // The apparatus, not the targets: Phase 0 of docs/perf/BRIEF.md only
+      // establishes that every number can be measured on real Electron. The
+      // values are printed so a CI log carries them next to the baseline.
+      const j = tagJson(runApp({ SMOKE_PERF: DENSE, SMOKE_PERF_HEAVY: HEAVY }, [], 180000), 'perf');
+      const num = (v, what) => check(typeof v === 'number' && isFinite(v) && v >= 0, `${what} not measured (${v})`);
+      check(j.open && j.open.cold && j.open.cold.numPages === 120, `dense set did not open (${j.open && j.open.cold && j.open.cold.numPages} pages)`);
+      num(j.open.cold.firstPaintMs, 'cold first paint');
+      num(j.open.warm.firstPaintMs, 'warm first paint');
+      for (const pct of [200, 400]) {
+        const p = j.pinch && j.pinch[pct];
+        check(p && p.achievedPct === pct, `pinch did not land on ${pct}% (${p && p.achievedPct})`);
+        num(p.currentPageSharpMs, `${pct}% current-page sharp`);
+        num(p.visibleSharpMs, `${pct}% visible sharp`);
+      }
+      check(j.pan && j.pan.scrolledPx > 0, 'synthetic pan did not scroll');
+      check(j.pan.longTasks.supported === true, 'longtask observer unsupported in this Electron');
+      num(j.pan.longTasks.longestMs, 'longest task');
+      check(j.pan.frames.frames > 0, 'no frames sampled during pan');
+      check(j.canvas && j.canvas.bytes > 0 && j.canvas.count >= 1, 'canvas budget not measured');
+      check(typeof j.canvas.currentPagePainted === 'boolean', 'canvas paint readback not measured');
+      check(j.heap && j.heap.usedMB > 0, 'JS heap not measured');
+      const m = j.markup;
+      check(m && m.annotations === 2000, `heavy fixture markups ${m && m.annotations} != 2000`);
+      check(m.measurements === 300, `heavy fixture measurements ${m.measurements} != 300`);
+      num(m.openMs, 'heavy open'); num(m.repositionMs, 'repositionAll'); num(m.selectMs, 'select'); num(m.undoMs, 'undo');
+      check(m.drag && m.drag.steps === 60, `drag steps ${m.drag && m.drag.steps} != 60`);
+      check(m.drag.movedBy > 0, `drag did not move the markup (${m.drag.movedBy})`);
+      console.log('\n' + markdownTable(reportRows(j)).split('\n').map((l) => '      ' + l).join('\n'));
     }
   },
   {

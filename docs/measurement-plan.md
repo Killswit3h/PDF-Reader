@@ -24,13 +24,19 @@
 >   (`segmentLengths` in `src/shared/measure-math.js`) — pipe/conduit/wall runs
 >   read per-segment, not just the total.
 >
-> **Phase 6**
-> (writing spec-compliant `/VP` + `/Measure` + `/NumberFormat` dictionaries so
-> Acrobat/Bluebeam read them as native measurements) is intentionally
-> **deferred** — it's low-level pdf-lib work that needs validation in Acrobat and
-> risks producing malformed output; the current save "bakes" measurements as
-> lines + text, which is reliable and needs no external tool to verify. The
-> design below documents how to add Phase 6 later.
+> **Phase 6 (shipped).** Measurements export as live `Line` / `PolyLine` /
+> `Polygon` annotations carrying `/IT` dimension intents and a spec-compliant
+> `/Measure` dictionary with `/X`, `/D` and `/A` `/NumberFormat` entries, built
+> in `writeMeasureAnnot` (`src/renderer/js/save.js`, the `/Measure` block), so
+> Acrobat and Bluebeam read them as native measurements with the calibration
+> intact. `npm run verify:tools` is the gate (`scripts/verify-tools.js`:
+> subtype, `/IT`, `/Measure`, `/AP`, and the exported value equals the
+> reported one). The Phase 6 design below is kept as the record of what was
+> built; where it and `save.js` disagree, `save.js` wins.
+>
+> **Performance work** on the measure/markup layers (overlay rebuild cost,
+> snap harvesting off the main thread) is tracked in `docs/perf/BRIEF.md`
+> (Phases 3 and 4) with numbers in `docs/perf/00-baseline.md`.
 
 
 How Bluebeam Revu structures its measurement tools, and a concrete plan to add

@@ -37,6 +37,47 @@ jobs:
       # it's a valid, installable PWA. No browser/Electron needed — fast.
       - run: npm run verify:pwa
 
+  web:
+    name: WebView parity (verify:web + verify:tools)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build:web
+      # Playwright is a harness-only dependency (never shipped), installed here
+      # rather than in package.json so `npm ci` stays lean for the app builds.
+      - name: Install headless Chromium
+        run: |
+          npm i --no-save playwright
+          npx playwright install --with-deps chromium
+      # The only gate that runs the renderer in the engine the Android WebView
+      # uses: boots offline, loads a PDF, exports through pdf-lib, OCR, tabs, a11y.
+      - name: verify:web
+        run: node scripts/verify-web.js
+      # The export interop contract: every markup and measure tool lands in the
+      # PDF as the annotation object docs/tool-parity.md says it does.
+      - name: verify:tools
+        run: node scripts/verify-tools.js
+      # Informational, never gating: the perf apparatus on the dense + heavy
+      # fixtures. CI runners are noisy; the numbers that matter are in
+      # docs/perf/00-baseline.md. The JSON is kept as an artifact so a PR can
+      # cite a CI run alongside its local numbers.
+      - name: bench (informational)
+        continue-on-error: true
+        run: node bench/run-web.js --label ci-chromium --json bench-ci.json --md bench-ci.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-ci
+          path: |
+            bench-ci.json
+            bench-ci.md
+          if-no-files-found: ignore
+
   e2e:
     name: E2E smoke (headless)
     runs-on: ubuntu-latest
