@@ -975,6 +975,41 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_PERF: the performance apparatus (bench/probe.js + the shared
+      // src/shared/perf-stats.js) runs inside REAL Electron: cold + warm open of
+      // the dense plan set, pinch to 200% and 400%, a 3 s synthetic pan, canvas
+      // and heap totals, then the heavy-markup fixture's interactions (reposition,
+      // select, a 60-move drag through the real pointer path, undo). One JSON
+      // line comes out. The e2e runner asserts the apparatus produced every
+      // number; the numbers themselves are the baseline in docs/perf/00-baseline.md
+      // and the ones every later PR reports against. No fixture is passed on the
+      // command line: the probe opens both through window.api.readPdf so the
+      // open timings start from a known point.
+      if (process.env.SMOKE_PERF) {
+        setTimeout(async () => {
+          try {
+            const probe = fs.readFileSync(path.join(__dirname, '..', 'src', 'shared', 'perf-stats.js'), 'utf8') +
+              '\n;\n' + fs.readFileSync(path.join(__dirname, '..', 'bench', 'probe.js'), 'utf8');
+            await mainWindow.webContents.executeJavaScript(probe, true);
+            const fixtures = JSON.stringify({
+              'dense-plans.pdf': process.env.SMOKE_PERF,
+              'heavy-markup.pdf': process.env.SMOKE_PERF_HEAVY || process.env.SMOKE_PERF
+            });
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!(window.App&&App.Viewer&&App.Tabs&&window.__FMPerf);i++)await new Promise(r=>setTimeout(r,100));
+              const paths=${fixtures};
+              const load=async(name)=>{const r=await window.api.readPdf(paths[name]);
+                if(!r||!r.ok)throw new Error('readPdf '+name+': '+(r&&r.error));return r.data;};
+              const res=await window.__FMPerf.runAll(load,(m)=>console.log('[perf:progress] '+m));
+              res.label='electron-'+navigator.platform.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+              return JSON.stringify(res);
+            })()`, true);
+            console.log('[perf] ' + r);
+          } catch (e) { console.log('[perf] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_SHARP: zooming a page past the OLD 2^24 canvas cap must still
       // render the page canvas at full resolution (pixel buffer ≈ CSS box × dpr)
       // rather than downscaling it — the fix for blurry zoomed vector plans.
