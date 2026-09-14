@@ -12,8 +12,9 @@
   <link rel="stylesheet" href="../../node_modules/pdfjs-dist/web/pdf_viewer.css" />
   <link rel="stylesheet" href="styles/tokens.css" />
   <link rel="stylesheet" href="styles.css" />
-  <!-- macOS "Liquid Glass" re-skin. Scoped to html.platform-mac (set by
-       theme-boot.js from window.api.isMac), so it only affects the macOS build;
+  <!-- Apple "Liquid Glass" re-skin for macOS (Electron) and iOS/iPadOS
+       (Capacitor). Scoped to html.lg-glass, which theme-boot.js sets only on
+       those two hosts, so Windows, Android and the plain browser are untouched;
        loaded last so its refinements win by source order. -->
   <link rel="stylesheet" href="styles/liquid-glass.css" />
 </head>
