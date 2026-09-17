@@ -849,6 +849,31 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'text markup — plain black text, no frame or fill; text colour is its own default',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_TEXTBOX: '1' }, [SAMPLE]), 'textbox');
+      check(j.err === '', `buildBytes error: ${j.err}`);
+      check(j.armedStroke === '#000000', `text tool default colour ${j.armedStroke} != #000000`);
+      check(j.box.type === 'text', `placed markup is a ${j.box.type}`);
+      check(j.box.stroke === '#000000', `placed text colour ${j.box.stroke} != #000000`);
+      check(j.box.color === 'rgb(0, 0, 0)', `text renders ${j.box.color}, not black`);
+      check(j.box.border === 0, `text box drew a ${j.box.border}px frame`);
+      check(j.box.bg === 'rgba(0, 0, 0, 0)', `text box drew a background (${j.box.bg})`);
+      check(j.box.outline === 'none', `committed text box kept an outline (${j.box.outline})`);
+      check(j.editing === 'dashed', `no dashed guide while editing (outline ${j.editing})`);
+      check(j.h1 > j.h0, `box did not grow to fit the text (${j.h0} -> ${j.h1})`);
+      check(/seventeen$/.test(j.text), `typed text not committed ("${j.text}")`);
+      check(j.shapeStroke === '#e5484d', `shape tools inherited the text colour (${j.shapeStroke})`);
+      check(j.textAfter === '#2f6fed', `recolouring the text tool did not stick (${j.textAfter})`);
+      check(j.shapeAfter === '#e5484d', `recolouring text also recoloured shapes (${j.shapeAfter})`);
+      check(j.freeText === true, 'text box did not export as a FreeText annotation');
+      check(j.hasC === false, 'saved FreeText carries a /C background colour');
+      check(j.bsZero === true, 'saved FreeText carries a non-zero border width');
+      check(/0(\.0+)? 0(\.0+)? 0(\.0+)? rg/.test(j.da), `saved text is not black (DA ${j.da})`);
+      check(j.bytesLen > 0, 'no PDF bytes produced');
+    }
+  },
+  {
     name: 'compare — overlay renders a diff canvas; identical docs show no diff',
     run: () => {
       const j = tagJson(runApp({ SMOKE_COMPARE: '1' }, [SAMPLE]), 'compare');

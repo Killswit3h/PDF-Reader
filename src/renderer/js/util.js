@@ -59,7 +59,10 @@ App.state = {
   annotations: [],
   annoSeq: 0,
   annoSelectedId: null,
-  annoStyle: null, // { stroke, fill, width, opacity, fontSize }
+  // Two default styles: drawn shapes (red pen) and text boxes (plain black,
+  // no frame, no fill). See markup.js — they persist separately.
+  annoStyle: null,     // { stroke, fill, width, opacity, fontSize, fontFamily }
+  annoTextStyle: null, // same shape; the text/callout defaults
   annoUndo: [],
   annoRedo: [],
   // true = write real PDF annotations; false = flatten into page content.

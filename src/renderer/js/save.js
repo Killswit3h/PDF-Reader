@@ -110,9 +110,17 @@
     set('Type', PDFName.of('Annot'));
     setAnnotDates(set, PDFString, an);
     set('Rect', numArr(rect));
-    set('C', numArr(col));
+    // /C means different things per subtype: for Square/Circle/Line/Ink it is
+    // the mark's colour, but for a FreeText it is the BACKGROUND of the box —
+    // the text colour rides in /DA. Writing the stroke colour there filled every
+    // saved text box with a solid block of it, so no /C goes out for a FreeText
+    // at all, and a plain text box gets /BS 0 so no frame is drawn either.
+    // A callout keeps its frame: /BS is also what its leader line is stroked with.
+    const freeText = an.type === 'text' || an.type === 'callout';
+    const bare = an.type === 'text';
+    if (!freeText) set('C', numArr(col));
     if (op < 1) set('CA', PDFNumber.of(op));
-    const bs = ctx.obj({}); bs.set(PDFName.of('W'), PDFNumber.of(width)); set('BS', bs);
+    const bs = ctx.obj({}); bs.set(PDFName.of('W'), PDFNumber.of(bare ? 0 : width)); set('BS', bs);
 
     switch (an.type) {
       case 'rect':

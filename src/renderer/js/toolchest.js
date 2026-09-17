@@ -33,7 +33,7 @@
     let type = null, style = null;
     const sel = App.state.annotations.find((a) => a.id === App.state.annoSelectedId);
     if (sel) { type = sel.type; style = Object.assign({}, sel.style); }
-    else if (App.Markup && App.Markup.tool) { type = App.Markup.tool; style = Object.assign({}, App.state.annoStyle || {}); }
+    else if (App.Markup && App.Markup.tool) { type = App.Markup.tool; style = Object.assign({}, App.Markup.defaultsFor(App.Markup.tool)); }
     if (!type) { App.toast('Pick a markup tool or select a markup first.', 'error', 4000); return; }
     const list = load();
     const name = `${type} · ${(style.stroke || '#000')}`;
@@ -78,8 +78,9 @@
   function activate(tool) {
     if (!App.state.pdfDoc) return;
     if (tool.kind === 'markup') {
-      App.state.annoStyle = Object.assign({}, tool.style);
-      if (App.Prefs) App.Prefs.set('annoStyle', App.state.annoStyle);
+      // Text/callout tools carry their own defaults (see markup.js), so let the
+      // markup engine decide which set this preset belongs to.
+      App.Markup.setDefaultsFor(tool.type, tool.style);
       App.Markup.startTool(tool.type);
     } else if (tool.kind === 'stamp') {
       App.Placement.arm({ type: 'image', dataUrl: tool.dataUrl, aspect: tool.aspect, defaultWidthPt: 150 });

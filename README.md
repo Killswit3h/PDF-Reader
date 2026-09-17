@@ -239,7 +239,10 @@ at runtime. Handwriting fonts are bundled with the app.
   rectangle, ellipse, polyline, polygon, revision cloud, freehand ink, text box,
   callout, and highlight**, plus **text-anchored Highlight / Underline /
   Strikethrough** — select text in the page and apply, and the markup snaps to the
-  exact word rectangles (multi-line aware). Select to move/resize, edit properties (stroke color,
+  exact word rectangles (multi-line aware). A **text box is plain text** — black by
+  default, no frame and no background, on screen and in the saved file — and it
+  keeps its own colour/font defaults so choosing red for an arrow doesn't recolour
+  your notes. Select to move/resize, edit properties (stroke color,
   fill, line width, opacity) in the properties bar, **undo/redo** (`Ctrl+Z`/`Ctrl+Y`),
   and delete. A **Markups List** panel lists every markup (select, delete, export CSV).
   On save, markups are **flattened** by default, or written as **real, editable PDF
