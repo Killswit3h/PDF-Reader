@@ -4,9 +4,10 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell, screen } = require('el
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const pkg = require('../package.json');
-const { repoSlug, semverCmp, fileFromArgv, filesFromArgv, canInstallInApp } = require('./shared/update-utils');
+const { repoSlug, semverCmp, fileFromArgv, filesFromArgv, canInstallInApp, isDeveloperIdSigned } =
+  require('./shared/update-utils');
 
 // electron-updater drives in-app download + install of a new release. Loaded
 // defensively: if the module is ever missing/unloadable, the updater simply
@@ -4200,12 +4201,39 @@ ipcMain.handle('app:openExternal', async (_e, url) => {
 /*  IPC: in-app auto-update (electron-updater; desktop, packaged only)  */
 /* ------------------------------------------------------------------ */
 
-// True only when this build can actually download + install an update itself
-// (packaged Windows). Everywhere else the renderer keeps the "open the download
-// page" flow. SMOKE runs unpackaged, so this is false under e2e.
+// Is the running macOS app signed with a real Developer ID certificate, rather
+// than the ad-hoc signature build/mac-adhoc-sign.js applies when no certificate
+// is configured? Squirrel.Mac — which electron-updater drives on macOS — can
+// only replace an app whose signature it can match, so this is what decides
+// between the in-app updater and the download-page fallback.
+//
+// Asked of `codesign` rather than baked in at build time so a build is judged by
+// what it actually carries: a release built without the signing secrets keeps
+// the old fallback, and the same code lights up the in-app path once a signed
+// build ships. Cached — a running app's signature cannot change under it — and
+// fully defensive: any failure reads as "not signed", i.e. the existing
+// behaviour. `-dv` writes to stderr, so both streams are read.
+let macSignedCache = null;
+function macIsDeveloperIdSigned() {
+  if (macSignedCache !== null) return macSignedCache;
+  macSignedCache = false;
+  try {
+    const res = spawnSync('/usr/bin/codesign', ['-dv', '--verbose=2', process.execPath],
+      { encoding: 'utf8', timeout: 5000 });
+    macSignedCache = isDeveloperIdSigned((res.stderr || '') + (res.stdout || ''));
+  } catch (_) { /* no codesign, sandboxed, timed out — treat as unsigned */ }
+  return macSignedCache;
+}
+
+// True only when this build can actually download + install an update itself:
+// packaged Windows, or a packaged macOS build carrying a Developer ID
+// signature. Everywhere else the renderer keeps the "open the download page"
+// flow. SMOKE runs unpackaged, so this is false under e2e.
 function updaterUsable() {
-  return !!autoUpdater && !process.env.SMOKE_TEST &&
-    canInstallInApp(process.platform, app.isPackaged);
+  if (!autoUpdater || process.env.SMOKE_TEST) return false;
+  const macSigned = process.platform === 'darwin' && app.isPackaged
+    ? macIsDeveloperIdSigned() : false;
+  return canInstallInApp(process.platform, app.isPackaged, macSigned);
 }
 
 let updaterWired = false;

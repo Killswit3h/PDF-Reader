@@ -86,13 +86,32 @@ jobs:
         run: |
           npm ci --omit=optional
           npm install --no-save dmg-license
-      - name: Build macOS app (dmg + zip, universal, unsigned)
-        run: npm run dist:mac
+      - name: Build macOS app (dmg + zip, universal)
+        # Signed + notarized when the Apple secrets are present; ad-hoc signed by
+        # build/mac-adhoc-sign.js when they are not, so a run without them (a
+        # fork, or before enrolment) still produces working artifacts — they just
+        # can't self-update, which is exactly what canInstallInApp decides at
+        # runtime (src/shared/update-utils.js). The unsigned branch runs the same
+        # command it always has, so adding signing cannot disturb it.
+        run: |
+          if [ -n "$CSC_LINK" ]; then
+            echo "Developer ID certificate present — signing + notarizing."
+            npx electron-builder --mac --universal --publish never -c.mac.notarize=true
+          else
+            echo "No CSC_LINK secret — building ad-hoc signed (no self-update)."
+            npm run dist:mac
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Code signing / notarization are skipped unless these secrets exist:
-          #   CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Signing + notarization engage only once all five secrets exist.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Force-disable identity discovery ONLY when there is no certificate;
+          # with CSC_LINK set electron-builder has to be allowed to use it.
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}
           # Universal builds hard-link the icon into each per-arch temp app; on a
           # clean runner the target already exists and the link fails with
           # "EEXIST ... icon.icns". Force copy-with-overwrite instead of linking.

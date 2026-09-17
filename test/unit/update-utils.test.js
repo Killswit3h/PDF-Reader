@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { repoSlug, semverCmp, fileFromArgv, filesFromArgv, canInstallInApp } from '../../src/shared/update-utils.js';
+import { repoSlug, semverCmp, fileFromArgv, filesFromArgv, canInstallInApp, isDeveloperIdSigned } from '../../src/shared/update-utils.js';
 
 describe('canInstallInApp', () => {
   it('allows in-app install on packaged Windows', () => {
@@ -8,14 +8,73 @@ describe('canInstallInApp', () => {
   it('blocks it on unpackaged (dev) builds', () => {
     expect(canInstallInApp('win32', false)).toBe(false);
   });
-  it('blocks it on macOS (unsigned artifacts cannot self-install)', () => {
+  it('allows it on packaged macOS once the app is Developer ID signed', () => {
+    expect(canInstallInApp('darwin', true, true)).toBe(true);
+  });
+  it('blocks it on an ad-hoc signed macOS build (Squirrel.Mac cannot match it)', () => {
+    expect(canInstallInApp('darwin', true, false)).toBe(false);
+  });
+  it('blocks it on macOS when signedness is unknown', () => {
     expect(canInstallInApp('darwin', true)).toBe(false);
+  });
+  it('does not let a macSigned flag unlock Linux', () => {
+    expect(canInstallInApp('linux', true, true)).toBe(false);
+  });
+  it('does not let a macSigned flag unlock a dev build', () => {
+    expect(canInstallInApp('darwin', false, true)).toBe(false);
   });
   it('blocks it on Linux', () => {
     expect(canInstallInApp('linux', true)).toBe(false);
   });
   it('treats a non-boolean isPackaged as not installable', () => {
     expect(canInstallInApp('win32', undefined)).toBe(false);
+  });
+});
+
+// Real `codesign -dv --verbose=2` output, trimmed to the lines that matter.
+const DEV_ID_OUTPUT = [
+  'Executable=/Applications/FieldMark.app/Contents/MacOS/FieldMark',
+  'Identifier=com.pdfsigner.app',
+  'Format=app bundle with Mach-O universal (x86_64 arm64)',
+  'CodeDirectory v=20500 size=1234 flags=0x10000(runtime) hashes=30+7',
+  'Signature size=8973',
+  'Authority=Developer ID Application: Guaranteed Fence Corp (A1B2C3D4E5)',
+  'Authority=Developer ID Certification Authority',
+  'Authority=Apple Root CA',
+  'Timestamp=17 Sep 2026 at 10:04:11',
+  'TeamIdentifier=A1B2C3D4E5'
+].join('\n');
+
+const ADHOC_OUTPUT = [
+  'Executable=/Applications/FieldMark.app/Contents/MacOS/FieldMark',
+  'Identifier=com.pdfsigner.app',
+  'Format=app bundle with Mach-O universal (x86_64 arm64)',
+  'CodeDirectory v=20400 size=1234 flags=0x2(adhoc) hashes=30+7',
+  'Signature=adhoc',
+  'Info.plist entries=28',
+  'TeamIdentifier=not set'
+].join('\n');
+
+describe('isDeveloperIdSigned', () => {
+  it('recognises a Developer ID signature', () => {
+    expect(isDeveloperIdSigned(DEV_ID_OUTPUT)).toBe(true);
+  });
+  it('rejects the ad-hoc signature our unsigned builds carry', () => {
+    expect(isDeveloperIdSigned(ADHOC_OUTPUT)).toBe(false);
+  });
+  it('rejects a Mac App Store "Apple Distribution" signature', () => {
+    expect(isDeveloperIdSigned('Authority=Apple Distribution: Someone (A1B2C3D4E5)')).toBe(false);
+  });
+  it('does not match the phrase inside another line', () => {
+    expect(isDeveloperIdSigned('note: Authority=Developer ID Application appears here')).toBe(false);
+  });
+  it('tolerates spaces around the equals sign', () => {
+    expect(isDeveloperIdSigned('Authority = Developer ID Application: X (A1B2C3D4E5)')).toBe(true);
+  });
+  it('treats empty or missing output as unsigned', () => {
+    expect(isDeveloperIdSigned('')).toBe(false);
+    expect(isDeveloperIdSigned(null)).toBe(false);
+    expect(isDeveloperIdSigned(undefined)).toBe(false);
   });
 });
 
