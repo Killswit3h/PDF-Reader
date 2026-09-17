@@ -20,7 +20,8 @@
   const T = {};
 
   // Per-document App.state fields captured on a tab switch. Shared, user-level
-  // fields (lastSignature, lastInitials, annoStyle) are intentionally NOT here,
+  // fields (lastSignature, lastInitials, annoStyle/annoTextStyle) are
+  // intentionally NOT here,
   // so a remembered signature / current pen style carries across tabs.
   const DOC_FIELDS = [
     'pdfDoc', 'pdfBytes', 'fileName', 'filePath', 'numPages', 'currentPage', 'zoom', 'baseViewports',

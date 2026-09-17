@@ -24,6 +24,16 @@
   // now it's a translucent highlighter you draw by hand (like Apple Notes).
   const FREEHAND = { ink: 1, highlight: 1 };
   const DEF_TEXT_W = 150, DEF_TEXT_H = 44;
+  const isTextType = (t) => t === 'text' || t === 'callout';
+
+  // Two default styles, not one. A drawn markup wants to shout (red, 2pt); a
+  // text note wants to read like the sheet it sits on — plain black type, no
+  // frame, no fill. Keeping them apart (the way Bluebeam keeps per-tool
+  // properties) means picking blue for an arrow doesn't turn every later note
+  // blue, and the text tool can default to black without recolouring shapes.
+  const SHAPE_STYLE = { stroke: '#e5484d', fill: 'none', width: 2, opacity: 1, fontSize: 14, fontFamily: 'Helvetica' };
+  const TEXT_STYLE = { stroke: '#000000', fill: 'none', width: 2, opacity: 1, fontSize: 14, fontFamily: 'Helvetica' };
+  const styleKey = (kind) => isTextType(kind) ? 'annoTextStyle' : 'annoStyle';
 
   // Text-box fonts. Limited to the three PDF standard-font families so a saved
   // box renders identically whether we flatten it (save.js embeds the matching
@@ -72,12 +82,23 @@
   const { dist, bbox } = App.Geom;
 
   /* ---------------- model + undo/redo ---------------- */
-  function defaults() {
-    if (App.state.annoStyle) return App.state.annoStyle;
-    const saved = App.Prefs ? App.Prefs.get('annoStyle', null) : null;
-    return (App.state.annoStyle = saved ||
-      { stroke: '#e5484d', fill: 'none', width: 2, opacity: 1, fontSize: 14, fontFamily: 'Helvetica' });
+  // `kind` is an annotation type (or the armed tool); text/callout read the text
+  // defaults, everything else the shape defaults.
+  function defaults(kind) {
+    const k = styleKey(kind);
+    if (App.state[k]) return App.state[k];
+    const saved = App.Prefs ? App.Prefs.get(k, null) : null;
+    return (App.state[k] = saved || Object.assign({}, isTextType(kind) ? TEXT_STYLE : SHAPE_STYLE));
   }
+  // Tool Chest saves and re-applies a tool's style; route it through the same
+  // split so a saved text tool lands on the text defaults, not the shape ones.
+  K.defaultsFor = (kind) => defaults(kind);
+  K.setDefaultsFor = function (kind, style) {
+    const k = styleKey(kind);
+    App.state[k] = Object.assign({}, style);
+    if (App.Prefs) App.Prefs.set(k, App.state[k]);
+    return App.state[k];
+  };
   // Undo/redo is now unified across all layers (see js/history.js). markup
   // keeps calling snapshot() before each mutation; the stack is shared.
   function snapshot() { App.History.snapshot(); }
@@ -124,7 +145,7 @@
       page: a.page,
       type: a.type,
       pts: a.pts.map((p) => ({ vx: p.vx, vy: p.vy })),
-      style: Object.assign({}, defaults()),
+      style: Object.assign({}, defaults(a.type)),
       text: a.type === 'text' || a.type === 'callout' ? (a.text || 'Text') : undefined
     };
     App.state.annotations.push(an);
@@ -531,11 +552,15 @@
     fo.setAttribute('class', 'hit');
     fo.setAttribute('data-anno-id', an.id);
     const div = document.createElement('div');
-    div.className = 'anno-text';
+    // A text box is literally text: no frame, no fill, just glyphs on the sheet
+    // (which is what save.js writes out, both flattened and as a FreeText).
+    // A callout is a different animal — its box is part of the mark, so it keeps
+    // the frame and a translucent backing to stay legible over a drawing.
+    div.className = 'anno-text' + (an.type === 'callout' ? ' boxed' : '');
     div.style.color = s.stroke;
     div.style.fontFamily = fontById(s.fontFamily).css;
     div.style.fontSize = (s.fontSize * z) + 'px';
-    div.style.border = `1px solid ${s.stroke}`;
+    if (an.type === 'callout') div.style.border = `1px solid ${s.stroke}`;
     div.textContent = an.text || '';
     fo.appendChild(div);
     fo.addEventListener('pointerdown', (e) => onTextPointerDown(an, div, e));
@@ -579,6 +604,7 @@
     function commit() {
       snapshot();
       an.text = div.textContent.trim() || 'Text';
+      fitTextHeight(an, div);
       div.removeAttribute('contenteditable');
       div.removeEventListener('blur', commit); div.removeEventListener('keydown', key);
       K.repositionAll();
@@ -586,6 +612,20 @@
     function key(ev) { if (ev.key === 'Escape' || (ev.key === 'Enter' && !ev.shiftKey)) { ev.preventDefault(); div.blur(); } }
     div.addEventListener('blur', commit); div.addEventListener('keydown', key);
   }
+  // Grow the box down to fit what was typed. The box has no frame now, so
+  // nothing on screen would hint that a long note is being clipped — and the
+  // export draws every line regardless of the box, so a too-short box makes the
+  // screen disagree with the saved file. Height only: the width is the user's.
+  function fitTextHeight(an, div) {
+    const z = App.state.zoom || 1;
+    const need = div.scrollHeight / z;
+    const top = Math.min(an.pts[0].vy, an.pts[1].vy);
+    const bot = Math.max(an.pts[0].vy, an.pts[1].vy);
+    if (!(need > bot - top)) return;
+    const i = an.pts[0].vy > an.pts[1].vy ? 0 : 1; // the lower of the two corners
+    an.pts[i].vy = top + need;
+  }
+
   function findSvgForPage(page) {
     const pe = App.state.pageEls[page - 1];
     return pe ? pe.holder.querySelector('.markup-svg') : null;
@@ -607,7 +647,7 @@
   }
 
   function drawPreview(svg, a, z) {
-    const s = defaults();
+    const s = defaults(a.type);
     const live = a.pts.concat(a.hover && TWO_POINT[a.type] && a.pts.length < 2 ? [a.hover] :
       a.hover && N_POINT[a.type] ? [a.hover] : []);
     const tmp = { type: a.type, pts: live.length >= 2 ? live : a.pts, style: Object.assign({}, s), text: 'Text' };
@@ -640,7 +680,7 @@
     // Reading the selection here would make the bar show a colour that changing
     // no longer affects (see applyStyle).
     const an = editTarget();
-    const s = an ? an.style : defaults();
+    const s = an ? an.style : defaults(K.tool);
     const set = (id, v) => { const el = App.$(id); if (el) el.value = v; };
     set('#mk-stroke', s.stroke);
     set('#mk-fill', s.fill && s.fill !== 'none' ? s.fill : '#ffffff');
@@ -651,8 +691,7 @@
     set('#mk-font-size', s.fontSize || 14);
     // Font controls are only meaningful for text boxes / callouts — show them
     // when such a box is selected or when the text/callout tool is armed.
-    const textCtx = an ? (an.type === 'text' || an.type === 'callout')
-      : (K.tool === 'text' || K.tool === 'callout');
+    const textCtx = an ? isTextType(an.type) : isTextType(K.tool);
     App.$$('.mk-font-only').forEach((el) => el.classList.toggle('hidden', !textCtx));
     // highlight the preset swatch matching the current line color (if any)
     const cur = String(s.stroke || '').toLowerCase();
@@ -676,19 +715,22 @@
   // so they follow the same selected-vs-armed rule as every other property.
   function currentStroke() {
     const an = editTarget();
-    return (an ? an.style : defaults()).stroke;
+    return (an ? an.style : defaults(K.tool)).stroke;
   }
 
   function applyStyle(patch) {
     const an = editTarget();
     if (an) { snapshot(); Object.assign(an.style, patch); K.repositionAll(); }
-    Object.assign(defaults(), patch); // also update defaults for new items
-    if (App.Prefs) App.Prefs.set('annoStyle', App.state.annoStyle); // persist across restarts
+    // Update the defaults the next markup of this kind will get — the selected
+    // markup's kind when one is selected, otherwise the armed tool's.
+    const kind = an ? an.type : K.tool;
+    Object.assign(defaults(kind), patch);
+    if (App.Prefs) App.Prefs.set(styleKey(kind), App.state[styleKey(kind)]); // persist across restarts
   }
 
   K.init = function () {
     App.state.annotations = App.state.annotations || [];
-    defaults();
+    defaults(); defaults('text');
     const wire = (id, ev, fn) => { const el = App.$(id); if (el) el.addEventListener(ev, fn); };
     // syncPropBar() after the style change, not just before: the swatch outline
     // and the favourites star both describe the current colour, and the wheel is

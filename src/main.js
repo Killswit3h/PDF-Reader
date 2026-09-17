@@ -785,6 +785,90 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_TEXTBOX: the Text markup is plain text — black by default, with no
+      // frame and no fill on screen or in the saved file — and picking a colour
+      // for it does not recolour the drawing tools (they keep their own default).
+      if (process.env.SMOKE_TEXTBOX) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              for(let i=0;i<80&&!App.state.numPages;i++)await new Promise(r=>setTimeout(r,100));
+              await new Promise(r=>setTimeout(r,600));
+              const A=App.state;
+              // Start from the shipped defaults: Prefs persist across smoke runs.
+              const SHAPE={stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14,fontFamily:'Helvetica'};
+              A.annoStyle=Object.assign({},SHAPE); A.annoTextStyle=null;
+              if(App.Prefs){App.Prefs.set('annoStyle',A.annoStyle);App.Prefs.set('annoTextStyle',null);}
+              const layer=A.pageEls[0].holder; // the page's .markup-layer
+              const rect=layer.getBoundingClientRect();
+              const at=(x,y)=>({clientX:rect.left+x,clientY:rect.top+y,shiftKey:false});
+              const textDiv=()=>layer.querySelector('.markup-svg .anno-text');
+              // Arm Text and drop a box the way a click does. It opens straight
+              // into edit mode, so type into it and click away to commit.
+              App.Markup.startTool('text');
+              const armedStroke=(App.Markup.defaultsFor('text')||{}).stroke;
+              App.Markup.handleClick(1,layer,at(120,120));
+              const an=A.annotations[A.annotations.length-1];
+              const h0=Math.abs(an.pts[1].vy-an.pts[0].vy);
+              const edit=textDiv();
+              const editing=edit?getComputedStyle(edit).outlineStyle:'?';
+              edit.textContent='One two three four five six seven eight nine ten '+
+                'eleven twelve thirteen fourteen fifteen sixteen seventeen';
+              edit.blur();
+              await new Promise(r=>setTimeout(r,150));
+              const h1=Math.abs(an.pts[1].vy-an.pts[0].vy);
+              const div=textDiv(), cs=div?getComputedStyle(div):null;
+              const box={type:an.type,stroke:an.style.stroke,
+                editable:div?div.getAttribute('contenteditable'):'?',
+                border:cs?parseFloat(cs.borderTopWidth):-1,
+                bg:cs?cs.backgroundColor:'?',outline:cs?cs.outlineStyle:'?',
+                color:cs?cs.color:'?'};
+              // The drawing tools keep their own colour: Rectangle still reads red.
+              const shapeStroke=(App.Markup.defaultsFor('rect')||{}).stroke;
+              // Recolouring with the Text tool armed moves the TEXT default only.
+              App.Markup.stop();
+              App.Markup.startTool('text');
+              App.$('#mk-stroke').value='#2f6fed';
+              App.$('#mk-stroke').dispatchEvent(new Event('input',{bubbles:true}));
+              const textAfter=(App.Markup.defaultsFor('text')||{}).stroke;
+              const shapeAfter=(App.Markup.defaultsFor('rect')||{}).stroke;
+              App.Markup.stop();
+              // Leave the persisted defaults as they were found.
+              A.annoStyle=Object.assign({},SHAPE); A.annoTextStyle=null;
+              if(App.Prefs){App.Prefs.set('annoStyle',A.annoStyle);App.Prefs.set('annoTextStyle',null);}
+              // Saved as a real FreeText annotation: no /C background, /BS width 0.
+              A.saveAnnots=true;
+              let bytesLen=0,err='',freeText=false,hasC=true,bsZero=false,da='';
+              try{
+                const b=await App.Save.buildBytes(); bytesLen=b.length;
+                // Read the dictionary back rather than grepping the bytes:
+                // pdf-lib packs the objects it writes into compressed streams.
+                const {PDFDocument,PDFName}=window.PDFLib;
+                const d2=await PDFDocument.load(b);
+                const arr=d2.getPages()[0].node.Annots();
+                let ft=null;
+                for(let i=0;arr&&i<arr.size();i++){
+                  const o=d2.context.lookup(arr.get(i));
+                  if(o&&o.get&&String(o.get(PDFName.of('Subtype')))==='/FreeText'){ft=o;break;}
+                }
+                freeText=!!ft;
+                if(ft){
+                  hasC=!!ft.get(PDFName.of('C'));
+                  const bs=ft.get(PDFName.of('BS'));
+                  const bw=bs&&bs.get&&bs.get(PDFName.of('W'));
+                  bsZero=bw!=null&&Number(String(bw))===0;
+                  da=String(ft.get(PDFName.of('DA'))||'');
+                }
+              }catch(e){ err=e.message; }
+              return JSON.stringify({armedStroke,box,h0,h1,text:an.text,shapeStroke,
+                textAfter,shapeAfter,editing,freeText,hasC,bsZero,da,bytesLen,err});
+            })()`, true);
+            console.log('[textbox] ' + r);
+          } catch (e) { console.log('[textbox] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_COMPARE: the compare overlay renders a diff canvas. Comparing the
       // open document against a copy of itself must report zero differences.
       if (process.env.SMOKE_COMPARE) {
@@ -1606,6 +1690,10 @@ function createWindow() {
               await new Promise(r=>setTimeout(r,600));
               const layer=document.querySelector('.page .markup-layer');
               const lr=layer.getBoundingClientRect();
+              // The drift check below finds the mark by hunting for RED pixels in
+              // the rendered page, so colour this box red — text defaults to
+              // black, which the sheet's own linework already is.
+              App.Markup.setDefaultsFor('text',{stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14,fontFamily:'Helvetica'});
               App.Markup.startTool('text');
               App.Markup.handleClick(1,layer,{clientX:lr.left+lr.width*0.45,clientY:lr.top+lr.height*0.30,shiftKey:false});
               const div=document.querySelector('.markup-svg foreignObject .anno-text');
@@ -1623,6 +1711,8 @@ function createWindow() {
               let minX=1e9,minY=1e9,count=0;
               for(let y=0;y<cv.height;y++)for(let x=0;x<cv.width;x++){const i=(y*cv.width+x)*4;if(d[i]>170&&d[i+1]<120&&d[i+2]<120){count++;if(x<minX)minX=x;if(y<minY)minY=y;}}
               const flFx=count?minX/cv.width:-1, flFy=count?minY/cv.height:-1;
+              // Put the text defaults back so later scenarios see the shipped black.
+              App.Markup.setDefaultsFor('text',{stroke:'#000000',fill:'none',width:2,opacity:1,fontSize:14,fontFamily:'Helvetica'});
               return JSON.stringify({onFx:+onFx.toFixed(4),onFy:+onFy.toFixed(4),flFx:+flFx.toFixed(4),flFy:+flFy.toFixed(4),dfx:+(flFx-onFx).toFixed(4),dfy:+(flFy-onFy).toFixed(4)});
             })()`, true);
             console.log('[wysiwyg] ' + r);
@@ -1676,9 +1766,12 @@ function createWindow() {
               App.state.saveAnnots=false;
               const flatBytes=await App.Save.buildBytes();
               const flatOk=flatBytes&&flatBytes.length>1000;
-              // Restore the shared default style so later suite runs aren't poisoned.
+              // Restore the default styles so later suite runs aren't poisoned.
+              // The font change landed on the TEXT defaults, which are their own
+              // persisted set now (see markup.js).
               App.state.annoStyle={stroke:'#e5484d',fill:'none',width:2,opacity:1,fontSize:14,fontFamily:'Helvetica'};
               if(App.Prefs)App.Prefs.set('annoStyle',App.state.annoStyle);
+              App.Markup.setDefaultsFor('text',{stroke:'#000000',fill:'none',width:2,opacity:1,fontSize:14,fontFamily:'Helvetica'});
               return JSON.stringify({hiddenBefore,shownWhenSelected,styFam,stySize,cssFam,daHasFont,flatOk});
             })()`, true);
             console.log('[tfont] ' + r);
