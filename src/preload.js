@@ -21,10 +21,11 @@ contextBridge.exposeInMainWorld('api', {
   // welcome tour — so its full-screen overlay can't disturb SMOKE_* scenarios.
   isSmokeTest: process.argv.includes('--smoke-test'),
 
-  // True on macOS. The renderer tags <html class="platform-mac"> from this so
-  // the Liquid Glass material (translucent frosted chrome that lets the OS
-  // vibrancy behind the window show through) is scoped to macOS only — Windows
-  // and the Android WebView keep the standard opaque drafting-table chrome.
+  // True on macOS. The renderer tags <html class="lg-glass platform-mac"> from
+  // this so the Liquid Glass material (translucent frosted chrome that lets the
+  // OS vibrancy behind the window show through) applies on macOS. The iOS app
+  // gets its own glass scope from window.Capacitor (see js/theme-boot.js);
+  // Windows and Android keep the standard opaque drafting-table chrome.
   isMac: process.platform === 'darwin',
 
   // Native "Open PDF" dialog. Resolves to { ok, path, name, data } or null.

@@ -1,25 +1,46 @@
 /* =============================================================================
- * Liquid Glass — macOS visual overhaul (scoped to html.platform-mac only)
+ * Liquid Glass — Apple visual overhaul for macOS and iPadOS/iOS
  *
- * Re-skins FieldMark's chrome on macOS as Apple's "Liquid Glass" material: the
- * top bar, tool rail, side panels, menus, modals and popovers become
- * translucent frosted surfaces that let the OS vibrancy (main.js sets
- * `vibrancy: 'under-window'`) blur the desktop behind the window, with a
- * specular top-edge highlight, a cool hairline, and a soft floating shadow so
- * each layer reads as a real pane of glass.
+ * Re-skins FieldMark's chrome as Apple's "Liquid Glass" material: the top bar,
+ * tool rail, side panels, menus, modals and popovers become translucent frosted
+ * surfaces with a specular top-edge highlight, a cool hairline, and a soft
+ * floating shadow so each layer reads as a real pane of glass.
  *
- * It is deliberately additive: every rule is prefixed with `html.platform-mac`,
- * so Windows and the Android WebView keep the opaque "drafting table" chrome
+ * Three scopes, all set by js/theme-boot.js before first paint:
+ *
+ *   html.lg-glass       the material itself — shared by both Apple hosts
+ *   html.platform-mac   the Electron window: it is transparent and the OS
+ *                       vibrancy (main.js `vibrancy: 'under-window'`) blurs the
+ *                       desktop behind it; the bar is the title bar and the
+ *                       drag region
+ *   html.platform-ios   the Capacitor WKWebView (iPad, and iPhone — same app).
+ *                       There is no native vibrancy behind a WebView, so the
+ *                       body paints a soft blueprint light field for the bars
+ *                       to frost, while every FLOATING surface (menus, sheets,
+ *                       dialogs, toasts, the find bar, the markup rail) blurs
+ *                       the actual drawing underneath it. Touch gets a press
+ *                       response in place of hover lift.
+ *
+ * It is deliberately additive: every rule is scoped by one of those classes, so
+ * Windows, Android and the plain browser keep the opaque "drafting table" chrome
  * from styles.css untouched. The palette still speaks FieldMark's blueprint
- * language — the glass is tinted graphite-navy in the dark theme and cool
- * vellum-white in the light theme, and blueprint blue remains the accent.
+ * language — graphite-navy glass in the dark theme, cool vellum-white in the
+ * light theme, and blueprint blue remains the accent.
  *
  * Loaded LAST (after styles.css) so these refinements win by source order as
  * well as by the platform-scoped specificity.
+ *
+ * One rule governs every blur below — the BACKDROP ROOT. Per Filter Effects, an
+ * element that carries `backdrop-filter` becomes a backdrop root for its
+ * descendants: their own backdrop-filter then samples *that element's* backdrop
+ * rather than what is behind it. So a surface that HOSTS other glass (the top
+ * bar and the rail host every .tb-menu; a .modal-backdrop hosts its .modal)
+ * must paint its blur on a ::before, never on the element. scripts/verify-web.js
+ * asserts this structurally for both hosts.
  * ========================================================================== */
 
 /* ---- Glass material tokens (themed) ------------------------------------- */
-html.platform-mac[data-theme="dark"] {
+html.lg-glass[data-theme="dark"] {
   --lg-material:        rgba(18, 29, 41, 0.55);   /* frosted graphite-navy */
   --lg-material-strong: rgba(21, 33, 47, 0.74);   /* menus/modals: legibility over blur */
   --lg-material-quiet:  rgba(150, 190, 230, 0.06);/* inset wells, unselected chips */
@@ -34,8 +55,11 @@ html.platform-mac[data-theme="dark"] {
   --lg-blur-strong:     saturate(180%) blur(42px);
   --lg-shadow:          0 10px 34px rgba(0, 0, 0, 0.46), 0 2px 8px rgba(0, 0, 0, 0.34);
   --lg-shadow-lift:     0 16px 44px rgba(0, 0, 0, 0.52), 0 3px 10px rgba(0, 0, 0, 0.4);
+  /* iOS light field behind the bars (stands in for the desktop the Mac frosts). */
+  --lg-field-a:         rgba(62, 155, 224, 0.30);
+  --lg-field-b:         rgba(34, 104, 168, 0.26);
 }
-html.platform-mac[data-theme="light"] {
+html.lg-glass[data-theme="light"] {
   --lg-material:        rgba(255, 255, 255, 0.60);/* frosted vellum */
   --lg-material-strong: rgba(255, 255, 255, 0.80);
   --lg-material-quiet:  rgba(30, 80, 140, 0.05);
@@ -50,49 +74,65 @@ html.platform-mac[data-theme="light"] {
   --lg-blur-strong:     saturate(185%) blur(42px);
   --lg-shadow:          0 10px 34px rgba(18, 42, 74, 0.16), 0 2px 8px rgba(18, 42, 74, 0.10);
   --lg-shadow-lift:     0 16px 44px rgba(18, 42, 74, 0.22), 0 3px 10px rgba(18, 42, 74, 0.14);
+  --lg-field-a:         rgba(96, 170, 232, 0.34);
+  --lg-field-b:         rgba(150, 196, 236, 0.40);
 }
 
-html.platform-mac {
+html.lg-glass {
   /* A little breathing room + softer springs read as "glass", not "panel". */
   --lg-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* The window itself is transparent (vibrancy shows through); keep the app body
- * from painting an opaque fill over it. The document canvas stays opaque via
- * #viewer-wrap below, so only the chrome is see-through. */
+/* ============================ What sits behind ============================ */
+/* macOS: the window itself is transparent (vibrancy shows through); keep the
+ * app body from painting an opaque fill over it. */
 html.platform-mac,
 html.platform-mac body {
   background: transparent;
 }
+/* iOS: a WebView has nothing behind it to frost, so paint a soft blueprint light
+ * field. Only the chrome ever shows it — the document canvas stays opaque (see
+ * "Keep canvas opaque" below) — and the glow is anchored top-left, where the bar
+ * and the rail meet, so both panes catch it. */
+html.platform-ios body {
+  background:
+    radial-gradient(110% 70% at 0% 0%, var(--lg-field-a), transparent 62%),
+    radial-gradient(90% 60% at 100% 0%, var(--lg-field-b), transparent 58%),
+    radial-gradient(80% 60% at 0% 100%, var(--lg-field-b), transparent 60%),
+    var(--bg);
+}
 
-/* Reusable specular sheen: a bright hairline along the top edge that fades as it
- * wraps the sides — the tell-tale of a lit pane of glass. Applied as an inset
- * box-shadow so it layers over any background. */
-html.platform-mac #measure-panel,
-html.platform-mac #markup-panel,
-html.platform-mac .tb-menu,
-html.platform-mac .tab-menu,
-html.platform-mac .modal,
-html.platform-mac #toast {
+/* ============================ Frosted surfaces =========================== */
+/* None of these hosts other glass, so each may carry its own blur. */
+html.lg-glass #measure-panel,
+html.lg-glass #markup-panel,
+html.lg-glass .tb-menu,
+html.lg-glass .tab-menu,
+html.lg-glass .modal,
+html.lg-glass #toast,
+html.platform-ios #organize-panel,
+html.platform-ios #toolchest-panel,
+html.platform-ios #find-bar,
+html.platform-ios #markup-rail,
+html.platform-ios .mr-reopen,
+html.platform-ios #markup-props {
   -webkit-backdrop-filter: var(--lg-blur);
   backdrop-filter: var(--lg-blur);
 }
 
 /* #toolbar is NOT in that list, and must not be.
  *
- * Per Filter Effects, an element that carries `backdrop-filter` becomes a
- * BACKDROP ROOT for its descendants: their own backdrop-filter then samples
- * *that element's* backdrop rather than what is behind the window. The top bar
- * hosts three .tb-menu dropdowns (#bookmark-menu, #help-menu, #more-menu), so
- * blurring the bar itself silently switched their blur off — leaving only the
- * 0.74/0.80-alpha material, through which the drawing underneath read perfectly
- * sharply. The bookmark shelf over a title block was unreadable.
+ * The top bar hosts three .tb-menu dropdowns (#bookmark-menu, #help-menu,
+ * #more-menu), so blurring the bar itself silently switched their blur off —
+ * leaving only the 0.74/0.80-alpha material, through which the drawing
+ * underneath read perfectly sharply. The bookmark shelf over a title block was
+ * unreadable.
  *
  * Painting the blur on a pseudo-element gives the identical frosted bar without
  * the *element* #toolbar carrying the property, so it is no longer a backdrop
- * root and its dropdowns blur the desktop again. #toolbar already has
+ * root and its dropdowns blur what is under them again. #toolbar already has
  * `position: relative`, which contains the pseudo-element. */
-html.platform-mac #toolbar::before {
+html.lg-glass #toolbar::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -108,14 +148,17 @@ html.platform-mac #toolbar::before {
 }
 
 /* ============================ Top bar (title bar) ========================= */
-/* Under hiddenInset the toolbar IS the drag region and the title bar. Clear the
- * traffic lights on the left, drop the hard border for a frosted seam, and let
- * the OS vibrancy show through. */
-html.platform-mac #toolbar {
-  padding-left: 82px;                    /* clear the traffic-light cluster */
+html.lg-glass #toolbar {
   background: transparent;               /* material + sheen are on ::before */
   border-bottom: 0.5px solid var(--lg-hairline);
   box-shadow: 0 1px 12px rgba(0, 0, 0, 0.16);
+}
+html.lg-glass .tb-sep { background: var(--lg-hairline-soft); }
+
+/* macOS: under hiddenInset the toolbar IS the drag region and the title bar.
+ * Clear the traffic lights on the left. */
+html.platform-mac #toolbar {
+  padding-left: 82px;                    /* clear the traffic-light cluster */
   -webkit-app-region: drag;              /* empty bar area drags the window */
 }
 /* Anything interactive must opt back out of the drag region, or clicks become
@@ -129,12 +172,11 @@ html.platform-mac #toolbar input,
 html.platform-mac #toolbar select {
   -webkit-app-region: no-drag;
 }
-html.platform-mac .tb-sep { background: var(--lg-hairline-soft); }
 
 /* ============================== Buttons ================================== */
 /* Glass pills: translucent fill, hairline, a faint top sheen, and a spring lift
- * on hover. */
-html.platform-mac .tb-btn {
+ * on hover (pointer devices) or a spring press (touch). */
+html.lg-glass .tb-btn {
   background: var(--lg-material-quiet);
   border: 0.5px solid var(--lg-hairline);
   border-radius: 9px;
@@ -144,33 +186,23 @@ html.platform-mac .tb-btn {
               box-shadow var(--dur-med) var(--lg-ease),
               transform var(--dur-fast) var(--lg-ease);
 }
-html.platform-mac .tb-btn:hover:not(:disabled) {
-  background: var(--lg-hover);
-  border-color: var(--lg-hairline);
-  box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow);
-  transform: translateY(-1px);
-}
-html.platform-mac .tb-btn:active:not(:disabled) {
+html.lg-glass .tb-btn:active:not(:disabled) {
   transform: translateY(0);
   background: var(--lg-press);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.22);
 }
-html.platform-mac .tb-btn.ghost {
+html.lg-glass .tb-btn.ghost {
   background: transparent;
   border-color: transparent;
   box-shadow: none;
-}
-html.platform-mac .tb-btn.ghost:hover:not(:disabled) {
-  background: var(--lg-hover);
-  box-shadow: inset 0 1px 0 var(--lg-specular);
 }
 
 /* Primary + armed: tinted accent glass with a glow — the one place the material
  * catches colour. The ::after is a diagonal specular streak (the "liquid"
  * signature) that slides across on hover. */
-html.platform-mac .tb-btn.primary,
-html.platform-mac .tb-btn.armed,
-html.platform-mac .rail-btn.armed {
+html.lg-glass .tb-btn.primary,
+html.lg-glass .tb-btn.armed,
+html.lg-glass .rail-btn.armed {
   position: relative;
   overflow: hidden;
   background: linear-gradient(var(--lg-accent-glass), var(--lg-accent-glass)),
@@ -179,10 +211,10 @@ html.platform-mac .rail-btn.armed {
   box-shadow: inset 0 1px 0 var(--lg-specular), 0 0 0 0.5px var(--lg-accent-glow),
               0 6px 18px var(--lg-accent-glass);
 }
-html.platform-mac .tb-btn.primary { color: var(--text); }
-html.platform-mac .tb-btn.primary::after,
-html.platform-mac .tb-btn.armed::after,
-html.platform-mac .rail-btn.armed::after {
+html.lg-glass .tb-btn.primary { color: var(--text); }
+html.lg-glass .tb-btn.primary::after,
+html.lg-glass .tb-btn.armed::after,
+html.lg-glass .rail-btn.armed::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -192,25 +224,14 @@ html.platform-mac .rail-btn.armed::after {
   transition: transform 0.55s var(--lg-ease);
   pointer-events: none;
 }
-html.platform-mac .tb-btn.primary:hover:not(:disabled)::after,
-html.platform-mac .tb-btn.armed:hover:not(:disabled)::after,
-html.platform-mac .rail-btn.armed:hover::after {
-  transform: translateX(120%);
-}
-html.platform-mac .tb-btn.primary:hover:not(:disabled),
-html.platform-mac .tb-btn.armed:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 var(--lg-specular), 0 0 0 0.5px var(--lg-accent-glow),
-              0 10px 26px var(--lg-accent-glass);
-}
 
 /* Danger keeps its solid red identity (safety signal) but gains the glass edge. */
-html.platform-mac .tb-btn.danger {
+html.lg-glass .tb-btn.danger {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), var(--lg-shadow);
   border-color: transparent;
 }
 
-html.platform-mac #page-input {
+html.lg-glass #page-input {
   background: var(--lg-material-quiet);
   border: 0.5px solid var(--lg-hairline);
   border-radius: 7px;
@@ -220,11 +241,11 @@ html.platform-mac #page-input {
 /* Same backdrop-root treatment as #toolbar above, and for the same reason: the
    rail hosts the Measure, Markup and Document flyouts, so blurring the rail
    ELEMENT switched their own blur off and left them sheer over the drawing. */
-html.platform-mac #tool-rail {
+html.lg-glass #tool-rail {
   background: transparent;               /* material + sheen are on ::before */
   border-right: 0.5px solid var(--lg-hairline);
 }
-html.platform-mac #tool-rail::before {
+html.lg-glass #tool-rail::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -235,83 +256,98 @@ html.platform-mac #tool-rail::before {
   background: var(--lg-material);
   box-shadow: inset -1px 0 0 var(--lg-specular);
 }
-html.platform-mac .rail-btn {
+html.lg-glass .rail-btn {
   border-radius: 9px;
   transition: background var(--dur-fast) var(--lg-ease),
               transform var(--dur-fast) var(--lg-ease),
               box-shadow var(--dur-med) var(--lg-ease);
 }
-html.platform-mac .rail-btn:hover:not(:disabled) {
-  background: var(--lg-hover);
-  box-shadow: inset 0 1px 0 var(--lg-specular);
-  transform: translateY(-1px);
-}
-html.platform-mac .rail-sep { background: var(--lg-hairline-soft); }
+html.lg-glass .rail-sep { background: var(--lg-hairline-soft); }
 
 /* ============================== Doc tabs ================================= */
-html.platform-mac #tab-bar {
+html.lg-glass #tab-bar {
   background: var(--lg-material);
   border-bottom: 0.5px solid var(--lg-hairline);
   -webkit-backdrop-filter: var(--lg-blur);
   backdrop-filter: var(--lg-blur);
 }
-html.platform-mac .tab {
+html.lg-glass .tab {
   background: var(--lg-material-quiet);
   border: 0.5px solid var(--lg-hairline-soft);
   border-bottom: none;
   border-radius: 10px 10px 0 0;
 }
-html.platform-mac .tab.active {
+html.lg-glass .tab.active {
   background: var(--lg-hover);
   box-shadow: inset 0 1px 0 var(--lg-specular);
 }
-html.platform-mac .tab-add {
+html.lg-glass .tab-add {
   background: var(--lg-material-quiet);
   border: 0.5px solid var(--lg-hairline);
   border-radius: 8px;
 }
 
 /* =========================== Side panels ================================= */
-html.platform-mac #measure-panel,
-html.platform-mac #markup-panel {
+html.lg-glass #measure-panel,
+html.lg-glass #markup-panel,
+html.platform-ios #organize-panel,
+html.platform-ios #toolchest-panel {
   background: var(--lg-material-strong);
   border-left: 0.5px solid var(--lg-hairline);
   box-shadow: inset 1px 0 0 var(--lg-specular);
 }
-html.platform-mac .mp-head,
-html.platform-mac .mp-totals,
-html.platform-mac .mp-foot { border-color: var(--lg-hairline-soft); }
-html.platform-mac .mp-row { transition: background var(--dur-fast) var(--lg-ease); }
-html.platform-mac .mp-row:hover { background: var(--lg-hover); }
+html.lg-glass .mp-head,
+html.lg-glass .mp-totals,
+html.lg-glass .mp-foot { border-color: var(--lg-hairline-soft); }
+html.lg-glass .mp-row { transition: background var(--dur-fast) var(--lg-ease); }
 
 /* ============================ Mode banner =============================== */
-html.platform-mac #mode-banner {
+html.lg-glass #mode-banner {
   background: linear-gradient(var(--lg-accent-glass), var(--lg-accent-glass)),
               var(--lg-material);
   border-bottom: 0.5px solid var(--lg-hairline);
   -webkit-backdrop-filter: var(--lg-blur);
   backdrop-filter: var(--lg-blur);
+}
+html.platform-mac #mode-banner {
   -webkit-app-region: drag;              /* also part of the title-bar seam */
 }
 html.platform-mac #mode-banner .link-btn,
 html.platform-mac #mode-banner button { -webkit-app-region: no-drag; }
 
 /* ======================== Menus / dropdowns ============================= */
-html.platform-mac .tb-menu,
-html.platform-mac .tab-menu {
+html.lg-glass .tb-menu,
+html.lg-glass .tab-menu {
   background: var(--lg-material-strong);
   border: 0.5px solid var(--lg-hairline);
   border-radius: 13px;
   box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow-lift);
 }
-html.platform-mac .tb-menu-item,
-html.platform-mac .tab-menu-item { border-radius: 8px; }
-html.platform-mac .tb-menu-item:hover:not(:disabled),
-html.platform-mac .tab-menu-item:hover:not(:disabled) { background: var(--lg-hover); }
+html.lg-glass .tb-menu-item,
+html.lg-glass .tab-menu-item { border-radius: 8px; }
 
 /* ============================== Modals ================================== */
-html.platform-mac .modal-backdrop { background: rgba(6, 12, 20, 0.42); }
-html.platform-mac .modal {
+/* styles.css gives .modal-backdrop its own 2px backdrop-filter, which made it a
+ * backdrop root for the .modal inside it: the dialog's 42px glass sampled only
+ * the scrim, never the document, and read as a flat tint. Move the backdrop's
+ * blur to a ::before so the dialog frosts the real page behind it. The
+ * backdrop is position:fixed with a z-index, so it contains the pseudo-element
+ * and a negative z paints it under the dialog. */
+html.lg-glass .modal-backdrop {
+  background: rgba(6, 12, 20, 0.42);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+html.lg-glass .modal-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+}
+html.lg-glass .modal {
   background: var(--lg-material-strong);
   border: 0.5px solid var(--lg-hairline);
   border-radius: 18px;
@@ -319,50 +355,171 @@ html.platform-mac .modal {
   -webkit-backdrop-filter: var(--lg-blur-strong);
   backdrop-filter: var(--lg-blur-strong);
 }
-html.platform-mac .modal-head,
-html.platform-mac .modal-foot { border-color: var(--lg-hairline-soft); }
-html.platform-mac #sig-type-input {
+html.lg-glass .modal-head,
+html.lg-glass .modal-foot { border-color: var(--lg-hairline-soft); }
+html.lg-glass #sig-type-input {
   background: var(--lg-material-quiet);
   border: 0.5px solid var(--lg-hairline);
 }
 
 /* =========================== Toast / loading =========================== */
-html.platform-mac #toast {
+html.lg-glass #toast {
   background: var(--lg-material-strong);
   color: var(--text);
   border: 0.5px solid var(--lg-hairline);
   border-radius: 13px;
   box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow-lift);
 }
-html.platform-mac #toast.error {
+html.lg-glass #toast.error {
   background: linear-gradient(rgba(229, 71, 59, 0.22), rgba(229, 71, 59, 0.22)),
               var(--lg-material-strong);
   border-color: rgba(229, 71, 59, 0.5);
   color: var(--text);
 }
-html.platform-mac #toast.success {
+html.lg-glass #toast.success {
   background: linear-gradient(rgba(52, 192, 122, 0.22), rgba(52, 192, 122, 0.22)),
               var(--lg-material-strong);
   border-color: rgba(52, 192, 122, 0.5);
   color: var(--text);
 }
-html.platform-mac #loading { background: rgba(6, 12, 20, 0.42); }
+html.lg-glass #loading { background: rgba(6, 12, 20, 0.42); }
+
+/* ===================== iOS: floating tools over the page ================ */
+/* These float over the drawing on iPad, so they are the surfaces where the
+ * glass is most visibly real: the page genuinely frosts beneath them. */
+html.platform-ios #find-bar,
+html.platform-ios #markup-rail,
+html.platform-ios .mr-reopen {
+  background: var(--lg-material-strong);
+  border: 0.5px solid var(--lg-hairline);
+  box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow);
+}
+html.platform-ios #find-bar { border-radius: 14px; }
+html.platform-ios #markup-rail { border-radius: 16px; }
+html.platform-ios .mr-reopen { border-right: none; }
+html.platform-ios .mr-btn { border-radius: 9px; }
+html.platform-ios .mr-btn.armed {
+  background: linear-gradient(var(--lg-accent-glass), var(--lg-accent-glass)),
+              var(--lg-material);
+  border-color: var(--lg-accent-glow);
+  box-shadow: inset 0 1px 0 var(--lg-specular), 0 0 0 0.5px var(--lg-accent-glow);
+}
+html.platform-ios #markup-props {
+  background: var(--lg-material);
+  border-bottom: 0.5px solid var(--lg-hairline);
+}
+
+/* ========================= iOS: touch response ========================== */
+/* WebKit on iOS keeps :hover latched after a tap, so the hover lift is gated to
+ * real pointers below; touch gets Apple's press-in instead, and loses the grey
+ * tap-highlight flash that would otherwise paint over the glass. */
+html.platform-ios .tb-btn,
+html.platform-ios .rail-btn,
+html.platform-ios .mr-btn,
+html.platform-ios .tab,
+html.platform-ios .tab-add,
+html.platform-ios .tb-menu button,
+html.platform-ios .mp-row {
+  -webkit-tap-highlight-color: transparent;
+}
+html.platform-ios .tb-btn:active:not(:disabled),
+html.platform-ios .rail-btn:active:not(:disabled),
+html.platform-ios .mr-btn:active:not(:disabled) {
+  transform: scale(0.95);
+  background: var(--lg-hover);
+}
+html.platform-ios .tb-menu button:active:not(:disabled),
+html.platform-ios .tab-menu-item:active:not(:disabled),
+html.platform-ios .mp-row:active { background: var(--lg-hover); }
+html.platform-ios .mr-btn {
+  transition: background var(--dur-fast) var(--lg-ease),
+              transform var(--dur-fast) var(--lg-ease);
+}
+
+/* ================ Hover (real pointers only: mouse, trackpad) =========== */
+@media (hover: hover) {
+  html.lg-glass .tb-btn:hover:not(:disabled) {
+    background: var(--lg-hover);
+    border-color: var(--lg-hairline);
+    box-shadow: inset 0 1px 0 var(--lg-specular), var(--lg-shadow);
+    transform: translateY(-1px);
+  }
+  html.lg-glass .tb-btn.ghost:hover:not(:disabled) {
+    background: var(--lg-hover);
+    box-shadow: inset 0 1px 0 var(--lg-specular);
+  }
+  html.lg-glass .tb-btn.primary:hover:not(:disabled)::after,
+  html.lg-glass .tb-btn.armed:hover:not(:disabled)::after,
+  html.lg-glass .rail-btn.armed:hover::after {
+    transform: translateX(120%);
+  }
+  html.lg-glass .tb-btn.primary:hover:not(:disabled),
+  html.lg-glass .tb-btn.armed:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 var(--lg-specular), 0 0 0 0.5px var(--lg-accent-glow),
+                0 10px 26px var(--lg-accent-glass);
+  }
+  html.lg-glass .rail-btn:hover:not(:disabled) {
+    background: var(--lg-hover);
+    box-shadow: inset 0 1px 0 var(--lg-specular);
+    transform: translateY(-1px);
+  }
+  html.lg-glass .mp-row:hover { background: var(--lg-hover); }
+  html.lg-glass .tb-menu-item:hover:not(:disabled),
+  html.lg-glass .tab-menu-item:hover:not(:disabled) { background: var(--lg-hover); }
+}
+
+/* ========== iOS narrow layout (Split View / Slide Over, iPhone) ========= */
+/* Below 820px styles.css turns the rail into a bottom tab bar and pins the Open
+ * and "..." groups over a horizontally scrolling top row. */
+@media (max-width: 820px) {
+  html.platform-ios #tool-rail {
+    border-right: none;
+    border-top: 0.5px solid var(--lg-hairline);
+  }
+  html.platform-ios #tool-rail::before {
+    box-shadow: inset 0 1px 0 var(--lg-specular);
+  }
+  /* The pinned groups were opaque --panel blocks on the frosted bar. They sit
+   * over scrolled controls, so they keep a strong material — but no
+   * backdrop-filter: .g-more hosts #more-menu, and would become its backdrop
+   * root. */
+  html.platform-ios .tb-group.g-open,
+  html.platform-ios .g-more {
+    background: var(--lg-material-strong);
+  }
+}
 
 /* =========================== Keep canvas opaque ======================== */
 /* The document must never turn translucent — only the chrome is glass. These
- * paint a solid substrate over the transparent window behind the pages. */
-html.platform-mac #viewer-wrap,
-html.platform-mac #viewerContainer,
-html.platform-mac #split-pane { background: var(--bg-canvas); }
+ * paint a solid substrate behind the pages. */
+html.lg-glass #viewer-wrap,
+html.lg-glass #viewerContainer,
+html.lg-glass #split-pane { background: var(--bg-canvas); }
+
+/* ====================== Reduce Transparency (a11y) ===================== */
+/* Where the OS asks for less transparency, keep the shapes and hairlines but
+ * make every material solid enough to read as a plain surface. */
+@media (prefers-reduced-transparency: reduce) {
+  html.lg-glass[data-theme] {
+    --lg-material:        var(--bg-surface);
+    --lg-material-strong: var(--bg-surface);
+  }
+  html.platform-ios body { background: var(--bg); }
+}
 
 /* ============================ Reduced motion =========================== */
-/* Honour the OS setting: drop the lift + specular slide, keep the material. */
+/* Honour the OS setting: drop the lift, press and specular slide; keep the
+ * material. */
 @media (prefers-reduced-motion: reduce) {
-  html.platform-mac .tb-btn:hover:not(:disabled),
-  html.platform-mac .rail-btn:hover:not(:disabled),
-  html.platform-mac .tb-btn.primary:hover:not(:disabled),
-  html.platform-mac .tb-btn.armed:hover:not(:disabled) { transform: none; }
-  html.platform-mac .tb-btn.primary::after,
-  html.platform-mac .tb-btn.armed::after,
-  html.platform-mac .rail-btn.armed::after { display: none; }
+  html.lg-glass .tb-btn:hover:not(:disabled),
+  html.lg-glass .rail-btn:hover:not(:disabled),
+  html.lg-glass .tb-btn.primary:hover:not(:disabled),
+  html.lg-glass .tb-btn.armed:hover:not(:disabled),
+  html.platform-ios .tb-btn:active:not(:disabled),
+  html.platform-ios .rail-btn:active:not(:disabled),
+  html.platform-ios .mr-btn:active:not(:disabled) { transform: none; }
+  html.lg-glass .tb-btn.primary::after,
+  html.lg-glass .tb-btn.armed::after,
+  html.lg-glass .rail-btn.armed::after { display: none; }
 }

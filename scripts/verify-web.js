@@ -515,7 +515,7 @@ function serve(dir) {
     }
     await page.setViewportSize({ width: 1280, height: 800 });
 
-    // ---- macOS "liquid glass": a dropdown must actually blur what is under it ----
+    // ---- Liquid glass (macOS + iOS): glass must actually blur what is under it ----
     //
     // Per Filter Effects, an element carrying backdrop-filter becomes a BACKDROP
     // ROOT for its descendants: their own backdrop-filter then samples that
@@ -539,10 +539,14 @@ function serve(dir) {
     //     raw variance instead just measures the shelf's own rows.
     //
     // Chromium is the engine the mac build runs on too, so forcing
-    // html.platform-mac here exercises the same code path as the real skin.
-    {
-      await page.evaluate(() => {
-        document.documentElement.classList.add('platform-mac');
+    // html.lg-glass.platform-mac here exercises the same code path as the real
+    // skin. The iOS scope is run through the same checks: its WebKit engine
+    // honours the backdrop-root rule the same way, and the structural assertion
+    // is engine-independent.
+    result.glass = {};
+    for (const host of ['platform-mac', 'platform-ios']) {
+      await page.evaluate((host) => {
+        document.documentElement.classList.add('lg-glass', host);
         document.querySelectorAll('#tour-root').forEach((n) => n.remove());
         // A known stimulus under the panel rather than whatever the fixture
         // happens to draw there: 2px black/white stripes are the highest spatial
@@ -562,7 +566,7 @@ function serve(dir) {
         ];
         App.Bookmarks.renderShelf();
         document.querySelector('#bookmark-menu').classList.remove('hidden');
-      });
+      }, host);
       await page.waitForTimeout(400);
 
       const box = await page.evaluate(() => {
@@ -609,29 +613,34 @@ function serve(dir) {
       await page.waitForTimeout(300);
       const pageOnly = await detail((await page.screenshot({ clip: box })).toString('base64'));
 
-      const structure = await page.evaluate(() => {
+      const structure = await page.evaluate((host) => {
         const st = document.querySelector('#glass-stimulus');
         if (st) st.remove();
         document.querySelector('#bookmark-menu').classList.remove('hidden');
         const bad = [];
-        for (const menu of document.querySelectorAll('.tb-menu')) {
-          const cs = getComputedStyle(menu);
-          const own = cs.backdropFilter || cs.webkitBackdropFilter || 'none';
-          const name = menu.id || menu.className;
-          if (own === 'none') bad.push(name + ' carries no backdrop-filter');
-          for (let p = menu.parentElement; p && p !== document.documentElement; p = p.parentElement) {
-            const pcs = getComputedStyle(p);
-            const f = pcs.backdropFilter || pcs.webkitBackdropFilter || 'none';
-            if (f !== 'none') bad.push(name + ' sits under a backdrop root: ' + (p.id || p.className));
+        // Menus and dialogs must carry their own blur (on iOS so must the tools
+        // that float over the page), and NO glass surface may sit under a
+        // backdrop root — which is how .modal-backdrop's own 2px blur used to
+        // switch every dialog's glass off.
+        const OWN = '.tb-menu, .modal' + (host === 'platform-ios' ? ', #find-bar, #markup-rail' : '');
+        const filterOf = (el) => {
+          const cs = getComputedStyle(el);
+          return cs.backdropFilter || cs.webkitBackdropFilter || 'none';
+        };
+        for (const el of document.querySelectorAll('.tb-menu, .tab-menu, .modal, #toast, #find-bar, #markup-rail')) {
+          const name = el.id || el.className;
+          if (el.matches(OWN) && filterOf(el) === 'none') bad.push(name + ' carries no backdrop-filter');
+          for (let p = el.parentElement; p && p !== document.documentElement; p = p.parentElement) {
+            if (filterOf(p) !== 'none') bad.push(name + ' sits under a backdrop root: ' + (p.id || p.className));
           }
         }
         document.querySelector('#bookmark-menu').classList.add('hidden');
-        document.documentElement.classList.remove('platform-mac');
+        document.documentElement.classList.remove('lg-glass', host);
         return bad;
-      });
+      }, host);
 
       const r2 = (n) => Math.round(n * 1000) / 1000;
-      result.glass = {
+      result.glass[host] = {
         detailOverPage: r2(overPage),
         detailOverBlank: r2(overBlank),
         detailPageOnly: r2(pageOnly),
@@ -692,10 +701,13 @@ function serve(dir) {
   //     regressed  excess 15.34%
   //
   // so the threshold sits at ~2.5x either way.
-  const g = result.glass || {};
-  const excess = (g.detailOverPage - g.detailOverBlank) / (g.detailPageOnly || 1);
-  const glassOk = (g.nestedBackdropRoots || []).length === 0 &&
-    g.detailPageOnly > 20 && excess <= 0.06;
+  const excessOf = (g) => (g.detailOverPage - g.detailOverBlank) / (g.detailPageOnly || 1);
+  const glassBad = ['platform-mac', 'platform-ios'].filter((h) => {
+    const g = (result.glass || {})[h] || {};
+    return !((g.nestedBackdropRoots || []).length === 0 &&
+      g.detailPageOnly > 20 && excessOf(g) <= 0.06);
+  });
+  const glassOk = glassBad.length === 0;
 
   const ok = !errors.length && !offsite.length && result.apiOk && result.numPages > 0 &&
     result.canvases > 0 && result.emptyHidden && result.bytesLen > 0 && !result.saveErr &&
@@ -712,9 +724,10 @@ function serve(dir) {
   if (!a11yOk) console.log('[verify-web] a11y FAILED:', JSON.stringify(a, null, 2));
   if (!ocrOk) console.log('[verify-web] OCR check FAILED:', JSON.stringify(o, null, 2));
   if (!tabsOk) console.log('[verify-web] tab rearranging FAILED:', JSON.stringify(t, null, 2));
-  if (!glassOk) {
-    console.log('[verify-web] macOS dropdown glass FAILED:',
-      JSON.stringify(Object.assign({ excessPct: Math.round(excess * 10000) / 100 }, g), null, 2));
+  for (const h of glassBad) {
+    const g = (result.glass || {})[h] || {};
+    console.log('[verify-web] ' + h + ' glass FAILED:',
+      JSON.stringify(Object.assign({ excessPct: Math.round(excessOf(g) * 10000) / 100 }, g), null, 2));
   }
   console.log(ok ? '\n[verify-web] PASS — bundle runs in a browser engine.' : '\n[verify-web] FAIL');
   process.exit(ok ? 0 : 1);
