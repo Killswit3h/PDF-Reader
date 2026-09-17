@@ -57,6 +57,15 @@ jobs:
           java-version: '21'
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # The action's default is `tools platform-tools`, and Google has
+          # removed the obsolete `tools` package from the SDK repository, so
+          # the action's own `sdkmanager tools` call now exits 1 on a fresh
+          # runner ("Failed to find package 'tools'") before any of our steps
+          # run. Drop that one package; platform-tools still installs, and
+          # Gradle pulls the platform + build-tools it needs itself (the action
+          # has already accepted the licences).
+          packages: platform-tools
       - run: npm ci
       - name: Build web bundle + generate Android project
         # android/ is generated (git-ignored); create it fresh from capacitor.config.json.
