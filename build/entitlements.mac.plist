@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Entitlements for the Developer ID (hardened runtime) macOS build.
+
+  Notarization requires the hardened runtime, and the hardened runtime blocks
+  things Chromium needs unless they are declared here. Without these three the
+  app signs and notarizes fine and then crashes on launch, which is the classic
+  way a signed Electron build goes wrong:
+
+    - allow-jit / allow-unsigned-executable-memory: V8 compiles JavaScript to
+      machine code at runtime and maps it executable.
+    - allow-dyld-environment-variables: Electron's helper processes are launched
+      with DYLD_* set.
+
+  Deliberately nothing else. These are the minimum Electron needs; every extra
+  entitlement is a hole in the hardened runtime, so none are added "just in
+  case". The app is offline and has no camera, microphone, or network
+  entitlements to ask for.
+
+  Used by package.json build.mac.entitlements + entitlementsInherit (the helper
+  processes inherit the same set). Ignored entirely on an unsigned/ad-hoc build.
+-->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+  </dict>
+</plist>

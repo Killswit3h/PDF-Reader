@@ -609,7 +609,17 @@ first time — **right-click the app → Open → Open**, or run
 `xattr -dr com.apple.quarantine "/Applications/FieldMark.app"`. To ship a signed +
 notarized build, set these before `npm run dist:mac` (Apple Developer account
 required): `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`,
-`APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`.
+`APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`. The same five, added as repo
+secrets, switch the **Build & Release** workflow's mac job to signing +
+notarizing; without them it keeps building ad-hoc signed artifacts exactly as
+before.
+
+Signing also decides how macOS *updates*: electron-updater drives Squirrel.Mac
+there, and Squirrel refuses to replace an app whose signature it cannot match,
+so an ad-hoc build can only open the release page. A Developer ID build gets the
+same in-app download-and-restart flow Windows has — the app checks its own
+signature at runtime (`canInstallInApp` in `src/shared/update-utils.js`), so no
+flag day: the in-app path lights up for whoever is running a signed build.
 
 Both platforms register **FieldMark** as a handler for `.pdf` (Open With), and
 macOS "Open with" is handled via the app's `open-file` event.
