@@ -1,6 +1,6 @@
 # Spec: Make other apps' annotations editable
 
-**Phase 2 (spec-designer) · slug `annot-import` · type: feature · status: DRAFT, awaiting approval**
+**Phase 2 (spec-designer) · slug `annot-import` · type: feature · status: APPROVED 9/25/2026 (D1-D4 as recommended)**
 
 ## Problem
 
@@ -82,3 +82,18 @@ import a second time.
   0.5 pt; save again and check each page's `/Annots` count equals the markup
   count (no duplicates) and a Stamp annotation survives unchanged.
 - `npm run verify` and `npm run verify:web` pass.
+
+## Notes from the build
+
+- **Box tolerance.** FieldMark's own export pads `/Rect` by 2 pt, so a FieldMark
+  file whose sidecar was stripped brings Square/Circle back 1 pt larger per side
+  and FreeText 2 pt. The smoke check allows 2 pt for those three and 0.5 pt for
+  everything else (vertex shapes, quads and the callout tip come back exact).
+  Foreign files are read by `/RD` or half the border width, which is what
+  Acrobat and Bluebeam write.
+- **Callout box without `/RD`.** Acrobat and Bluebeam write `/RD` for callouts, so
+  the box is exact. A callout with no `/RD` (FieldMark's own export) gets a box
+  covering the whole `/Rect`, leader included; the tip is exact.
+- **Exact count (FR-1).** pdf.js does not expose `/Measure` or `/IT`, so the offer
+  count is confirmed with a pdf-lib read whenever pdf.js finds any candidates.
+  A takeoff file is not offered markups it cannot convert.

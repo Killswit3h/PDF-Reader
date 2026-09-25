@@ -34,7 +34,10 @@
     // showed the previous document's bookmarks. `scaleDetect` is per document
     // for the same reason again: it describes THIS file's pages.
     'rotation', 'bookmarks',
-    'dirty', 'docStamp', 'scaleDetect'
+    'dirty', 'docStamp', 'scaleDetect',
+    // Foreign-annotation import (annotimport.js): the count offered, the refs
+    // already converted, and the bytes before the first conversion (for undo).
+    'foreignAnnots', 'annotImportIds', 'annotImportSource', 'annotImportApplied'
   ];
 
   let sessions = [];   // { id, state, history:{undo,redo}, scaleValue, page }
@@ -66,7 +69,8 @@
       annotations: [], annoSeq: 0, annoSelectedId: null, annoUndo: [], annoRedo: [], saveAnnots: true, flattenForms: false,
       bookmarks: [], rotation: 0,
       dirty: false, docStamp: null,
-      scaleDetect: { status: 'idle', pages: {} }
+      scaleDetect: { status: 'idle', pages: {} },
+      foreignAnnots: 0, annotImportIds: [], annotImportSource: null, annotImportApplied: ''
     };
   }
 
@@ -88,6 +92,7 @@
     App.History._import(session.history);
     if (App.setMode) App.setMode(null);
     App.Viewer._showActive(restoreView ? { scaleValue: session.scaleValue, page: session.page } : null);
+    if (App.AnnotImport) App.AnnotImport.renderBanner();
     renderBar();
   }
 
@@ -137,6 +142,9 @@
       if (App.ScaleDetect && App.ScaleDetect.run) {
         App.ScaleDetect.run().catch(() => { /* detection is best-effort */ });
       }
+      // Offer to make other apps' markups editable (FR-1). Not awaited, for
+      // the same reason as scale detection.
+      if (App.AnnotImport) App.AnnotImport.scan().catch(() => { /* best-effort */ });
       return true;
     } catch (err) {
       console.error(err);

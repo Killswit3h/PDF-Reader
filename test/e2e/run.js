@@ -196,6 +196,38 @@ const SCENARIOS = [
     }
   },
   {
+    // Other apps' annotations made editable (specs/feature-annot-import-spec.md).
+    name: 'annotation import — foreign marks become editable, replaced on save',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_ANNOT_IMPORT: '1' }, [SAMPLE]), 'annotimport');
+      // FR-1: offered, and the count excludes the /Measure takeoff line (D3).
+      check(j.offered === j.wantN, `offered ${j.offered}, expected ${j.wantN}`);
+      check(j.banner === true, 'Make editable banner not shown');
+      // FR-2/FR-3/FR-6: every mark back, right type and page, in place. Box
+      // shapes come from /Rect, which FieldMark pads by 2pt on export.
+      check(j.made === j.wantN, `converted ${j.made} of ${j.wantN}`);
+      const BOX = { rect: 1, ellipse: 1, text: 1 };
+      Object.keys(j.err).forEach((t) => {
+        const e = j.err[t];
+        check(typeof e === 'number', `${t}: ${e}`);
+        check(e <= (BOX[t] ? 2.01 : 0.5), `${t} landed ${e}pt off`);
+      });
+      // FR-4: the originals left the page; the takeoff line and Stamp stayed.
+      check(JSON.stringify(j.afterImport) === '["Line","Stamp"]', `still on the page: ${JSON.stringify(j.afterImport)}`);
+      // One undo reverts the whole import, originals included; redo re-applies.
+      check(j.afterUndo.ann === 0 && JSON.stringify(j.afterUndo.subs) === JSON.stringify(j.before), `undo: ${JSON.stringify(j.afterUndo)}`);
+      check(j.afterRedo.ann === j.wantN && JSON.stringify(j.afterRedo.subs) === '["Line","Stamp"]', `redo: ${JSON.stringify(j.afterRedo)}`);
+      // FR-5: one annotation per markup plus the two native ones; no duplicates.
+      check(j.savedSubs.length === j.wantN + 2, `saved ${j.savedSubs.length} annotations: ${JSON.stringify(j.savedSubs)}`);
+      check(j.savedSubs.filter((s) => s === 'Stamp').length === 1, 'Stamp not kept exactly once');
+      check(j.savedSubs.filter((s) => s === 'Line+M').length === 1, 'takeoff line not kept exactly once');
+      // FR-7: reopens editable through the sidecar, and is not offered again.
+      check(j.reAnn === j.wantN, `reopened with ${j.reAnn} markups`);
+      check(j.reOffered === 0, `import offered again on reopen (${j.reOffered})`);
+      check(JSON.stringify(j.reSubs) === '["Line","Stamp"]', `reopened page draws originals: ${JSON.stringify(j.reSubs)}`);
+    }
+  },
+  {
     // Automatic per-page scale detection. A wrong auto-scale is worse than none
     // — it turns into confident numbers on a bid — so this asserts the value a
     // user reads off the page rather than an internal factor, and pins the two

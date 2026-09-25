@@ -643,6 +643,10 @@
       <button id="mkp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <input id="mkp-filter" aria-label="Filter markups" class="mp-filter" type="text" placeholder="Filter markups…" />
+    <div id="mkp-import" class="mkp-import hidden" role="status">
+      <span id="mkp-import-msg" class="mkp-import-msg"></span>
+      <button id="mkp-import-btn" class="tb-btn" title="Turn the markups made in Bluebeam, Acrobat or Preview into FieldMark markups you can move, restyle and delete. The originals are replaced when you save.">Make editable</button>
+    </div>
     <div id="mkp-list" class="mp-list"></div>
     <label class="mkp-opt"><input id="mkp-annots" type="checkbox" /> Save markups as editable PDF annotations (else flatten)</label>
     <div class="mp-foot">
@@ -1163,6 +1167,7 @@
   <script src="../shared/tab-order.js"></script>
   <script src="../shared/favorite-colors.js"></script>
   <script src="../shared/count-groups.js"></script>
+  <script src="../shared/annot-import.js"></script>
 
   <!-- ======= App modules ======= -->
   <script src="js/util.js"></script>
@@ -1183,6 +1188,7 @@
   <script src="js/print.js"></script>
   <script src="js/bookmarks.js"></script>
   <script src="js/save.js"></script>
+  <script src="js/annotimport.js"></script>
   <script src="js/digisign.js"></script>
   <script src="js/tabs.js"></script>
   <script src="js/compare.js"></script>
