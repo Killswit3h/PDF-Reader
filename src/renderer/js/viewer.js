@@ -158,7 +158,20 @@
       linkService.setDocument(doc, null);
 
       if (App.Measure) App.Measure.renderPanel();
-      App.toast(`Opened ${App.state.fileName}`, 'success');
+
+      // Import any existing PDF annotations as editable markups.
+      if (App.Interop) {
+        App.Interop.importFrom(doc).then((n) => {
+          if (n > 0) {
+            refreshOverlays();
+            App.toast(`Opened ${App.state.fileName} — imported ${n} annotation${n > 1 ? 's' : ''}`, 'success');
+          } else {
+            App.toast(`Opened ${App.state.fileName}`, 'success');
+          }
+        }).catch(() => App.toast(`Opened ${App.state.fileName}`, 'success'));
+      } else {
+        App.toast(`Opened ${App.state.fileName}`, 'success');
+      }
     } catch (err) {
       console.error(err);
       Viewer._clearState();
@@ -242,7 +255,7 @@
   Viewer._updateControls = function (enabled) {
     ['#btn-sign', '#btn-initials', '#btn-date', '#btn-markup', '#btn-measure', '#btn-zoom-out',
      '#btn-zoom-in', '#btn-fit-width', '#btn-prev', '#btn-next', '#btn-save',
-     '#btn-save-as', '#page-input']
+     '#btn-save-as', '#btn-save-menu', '#page-input']
       .forEach((s) => { App.$(s).disabled = !enabled; });
   };
 

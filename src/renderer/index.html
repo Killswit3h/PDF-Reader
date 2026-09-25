@@ -98,6 +98,13 @@
     <div class="tb-group">
       <button id="btn-save" class="tb-btn primary" disabled title="Save — overwrites the opened file (Ctrl+S)">💾 Save</button>
       <button id="btn-save-as" class="tb-btn" disabled title="Save As — choose a new file (Ctrl+Shift+S)">Save As…</button>
+      <div class="tb-dropdown">
+        <button id="btn-save-menu" class="tb-btn icon" disabled title="Export options">▾</button>
+        <div id="save-menu" class="tb-menu hidden">
+          <button data-save="flatten">💾 Save (flatten markups)</button>
+          <button data-save="editable">✏️ Save As (editable annotations)…</button>
+        </div>
+      </div>
     </div>
 
     <div class="tb-group">
@@ -331,6 +338,7 @@
   <script src="js/viewer.js"></script>
   <script src="js/measure.js"></script>
   <script src="js/markup.js"></script>
+  <script src="js/interop.js"></script>
   <script src="js/save.js"></script>
   <script src="js/app.js"></script>
 </body>

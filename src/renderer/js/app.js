@@ -310,6 +310,25 @@
     });
   }
 
+  function setupSaveMenu() {
+    const btn = App.$('#btn-save-menu');
+    const menu = App.$('#save-menu');
+    if (!btn || !menu) return;
+    const close = () => menu.classList.add('hidden');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (btn.disabled) return;
+      menu.classList.toggle('hidden');
+    });
+    menu.querySelectorAll('button[data-save]').forEach((b) => {
+      b.addEventListener('click', () => {
+        close();
+        if (b.dataset.save === 'editable') App.Save.saveEditable();
+        else App.Save.saveFlatten();
+      });
+    });
+  }
+
   // ---------- Boot ----------
   function setupMeasureMenu() {
     const btn = App.$('#btn-measure');
@@ -407,6 +426,7 @@
     App.$('#btn-date').addEventListener('click', startDatePlacement);
     App.$('#btn-save').addEventListener('click', () => App.Save.save());
     App.$('#btn-save-as').addEventListener('click', () => App.Save.saveAs());
+    setupSaveMenu();
     App.$('#mode-cancel').addEventListener('click', () => App.setMode(null));
 
     App.$('#btn-zoom-in').addEventListener('click', () => App.Viewer.zoomIn());

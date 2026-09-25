@@ -226,6 +226,60 @@ function createWindow() {
         }, 1500);
         return;
       }
+      if (process.env.SMOKE_INTEROP) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await new Promise(r => setTimeout(r, 100));
+              await new Promise(r => setTimeout(r, 1200));
+              const A = App.state;
+              const st = () => Object.assign({}, A.markupStyle);
+              const mk = (type, pts, extra) => Object.assign({ id: ++A.annotSeq, page: 1, type, pts, style: st(), author: 'Tester', comment: 'note', status: '' }, extra || {});
+              A.annotations.push(mk('rect', [{vx:60,vy:80},{vx:220,vy:180}]));
+              A.annotations.push(mk('ellipse', [{vx:260,vy:80},{vx:420,vy:180}]));
+              A.annotations.push(mk('line', [{vx:60,vy:220},{vx:220,vy:220}]));
+              A.annotations.push(mk('arrow', [{vx:60,vy:250},{vx:220,vy:250}]));
+              A.annotations.push(mk('polygon', [{vx:60,vy:300},{vx:160,vy:320},{vx:120,vy:400}]));
+              A.annotations.push(mk('polyline', [{vx:260,vy:300},{vx:320,vy:340},{vx:400,vy:310}]));
+              A.annotations.push(mk('ink', [{vx:260,vy:420},{vx:280,vy:440},{vx:300,vy:425},{vx:330,vy:450}]));
+              A.annotations.push(mk('highlight', [{vx:60,vy:460},{vx:220,vy:476}], { text: 'hl' }));
+              A.annotations.push(mk('underline', [{vx:60,vy:500},{vx:220,vy:516}], { text: 'ul' }));
+              A.annotations.push(mk('strikeout', [{vx:60,vy:540},{vx:220,vy:556}], { text: 'so' }));
+              A.annotations.push(mk('text', [{vx:60,vy:580}], { text: 'Free text' }));
+              A.annotations.push(mk('callout', [{vx:300,vy:620},{vx:360,vy:580}], { text: 'Callout' }));
+              const drawn = A.annotations.length;
+              // build editable bytes
+              const bytes = await App.Save.buildBytes('editable');
+              // re-parse with pdf.js in-renderer and count annotation subtypes
+              const copy = new Uint8Array(bytes.length); copy.set(bytes);
+              const doc2 = await window.pdfjsLib.getDocument({ data: copy }).promise;
+              const subtypes = {};
+              for (let p = 1; p <= doc2.numPages; p++) {
+                const pg = await doc2.getPage(p);
+                const ans = await pg.getAnnotations();
+                ans.forEach(a => { subtypes[a.subtype] = (subtypes[a.subtype]||0)+1; });
+              }
+              // now round-trip import: clear our list, importFrom the reparsed doc
+              A.annotations = []; A.annotSeq = 0;
+              const importedCount = await App.Interop.importFrom(doc2);
+              const importedTypes = {};
+              A.annotations.forEach(a => { importedTypes[a.type] = (importedTypes[a.type]||0)+1; });
+              // b64 of editable file for external validation
+              let s=''; for (let i=0;i<bytes.length;i++) s+=String.fromCharCode(bytes[i]);
+              const b64 = btoa(s);
+              return JSON.stringify({ drawn, subtypes, importedCount, importedTypes, bytesLen: bytes.length, b64 });
+            })()`, true);
+            const parsed = JSON.parse(r);
+            console.log('[interop]', JSON.stringify({ drawn: parsed.drawn, subtypes: parsed.subtypes, importedCount: parsed.importedCount, importedTypes: parsed.importedTypes, bytesLen: parsed.bytesLen }));
+            if (process.env.SMOKE_INTEROP !== '1' && parsed.b64) {
+              fs.writeFileSync(process.env.SMOKE_INTEROP, Buffer.from(parsed.b64, 'base64'));
+              console.log('[interop] wrote', process.env.SMOKE_INTEROP);
+            }
+          } catch (e) { console.log('[interop] error', e && e.message); }
+          app.quit();
+        }, 1500);
+        return;
+      }
       if (process.env.SMOKE_DRIVE) {
         setTimeout(async () => {
           try {

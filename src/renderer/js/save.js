@@ -47,8 +47,13 @@
     return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
   }
 
-  // Build the final PDF bytes with all placements flattened onto their pages.
-  S.buildBytes = async function () {
+  // Build the final PDF bytes.
+  //   mode 'flatten'  (default): draw everything as static vector graphics.
+  //   mode 'editable': signatures/dates/measurements flatten, but markup
+  //                    annotations are written as real, re-editable PDF
+  //                    annotation dictionaries (see interop.js).
+  S.buildBytes = async function (mode) {
+    mode = mode || 'flatten';
     const { PDFDocument, StandardFonts, degrees, rgb } = window.PDFLib;
 
     const pdfDoc = await PDFDocument.load(App.state.pdfBytes);
@@ -149,8 +154,14 @@
         });
       }
 
-      // ---- markup annotations (flatten as vector graphics) ----
-      await S.flattenAnnotations(pdfDoc, helv);
+      // ---- markup annotations ----
+      if (mode === 'editable' && App.Interop) {
+        // Write real, re-editable PDF annotation dicts (with appearance streams).
+        App.Interop.writeAnnotations(pdfDoc);
+      } else {
+        // Flatten as static vector graphics.
+        await S.flattenAnnotations(pdfDoc, helv);
+      }
 
       return await pdfDoc.save();
   };
@@ -271,18 +282,25 @@
     });
   }
 
+  // Current export mode: 'flatten' (default) or 'editable'.
+  S.exportMode = 'flatten';
+
   // Save: overwrite the file that was opened, in place, with no dialog.
   // Falls back to Save As when there's no known path (e.g. dropped bytes).
-  S.save = () => doSave(false);
+  S.save = () => doSave(false, S.exportMode);
 
   // Save As: always prompt for a location / name.
-  S.saveAs = () => doSave(true);
+  S.saveAs = () => doSave(true, S.exportMode);
 
-  async function doSave(forceDialog) {
+  // Explicit-mode entry points (used by the Save dropdown).
+  S.saveFlatten = () => { S.exportMode = 'flatten'; doSave(false, 'flatten'); };
+  S.saveEditable = () => { S.exportMode = 'editable'; doSave(true, 'editable'); };
+
+  async function doSave(forceDialog, mode) {
     if (!App.state.pdfDoc) return;
     App.showLoading('Saving…');
     try {
-      const bytes = await S.buildBytes();
+      const bytes = await S.buildBytes(mode);
       const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
 
       if (!forceDialog && App.state.filePath) {
