@@ -1348,6 +1348,7 @@
     if (App.FavColors) App.FavColors.init();
     App.Measure.init();
     App.Markup.init();
+    if (App.AnnotImport) App.AnnotImport.init();
     if (App.Organize) App.Organize.init();
     if (App.OCR) App.OCR.init();
     if (App.DocStamp) App.DocStamp.init();

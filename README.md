@@ -248,8 +248,11 @@ at runtime. Handwriting fonts are bundled with the app.
   On save, markups are **flattened** by default, or written as **real, editable PDF
   annotations** (Square/Circle/Line/PolyLine/Polygon/Ink/FreeText) when you tick
   *"Save markups as editable PDF annotations"* in the Markups List — interoperable
-  with other PDF tools. (Existing annotations from other apps are displayed and
-  preserved on save; importing them for in-app editing is planned.)
+  with other PDF tools. Markups made in another app (Bluebeam, Acrobat, Preview)
+  are displayed and preserved on save; when a file has them, the Markups List
+  offers **Make editable**, which turns them into FieldMark markups you can move,
+  restyle and delete. The originals are replaced when you save. Measurements,
+  stamps, replies and locked marks stay as they are.
 - **Favorite colors** — a palette of colors you keep, one click each, on every
   toolbar. Open **Favorites…**, **pick a color** off the swatch grid or the color
   wheel, name it, add it — that is the whole path. Or hit the **★** beside any

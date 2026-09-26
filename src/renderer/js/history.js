@@ -18,7 +18,10 @@
   // changes the saved output, exactly like the other keys.
   const KEYS = [
     'placements', 'measurements', 'viewports', 'scales', 'annotations',
-    'selectedId', 'measureSelectedId', 'annoSelectedId', 'docStamp'
+    'selectedId', 'measureSelectedId', 'annoSelectedId', 'docStamp',
+    // Which foreign annotations were turned into markups (annotimport.js). The
+    // working document itself is rebuilt from this by AnnotImport.sync().
+    'annotImportIds'
   ];
   const CAP = 60;
   let undo = [];
@@ -46,6 +49,9 @@
     // redrawn too — otherwise undo restores the config but the page still shows
     // the old watermark.
     if (App.DocStamp) App.DocStamp.repositionAll();
+    // Undoing an import has to put the originals back into the page as well as
+    // take the markups away; sync() swaps the matching working document in.
+    if (App.AnnotImport) App.AnnotImport.sync();
     if (App.refreshChrome) App.refreshChrome();
     // Saving is meaningful whenever anything exists.
     const save = App.$('#btn-save');

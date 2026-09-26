@@ -2359,6 +2359,114 @@ function createWindow() {
         }, 1200);
         return;
       }
+      // SMOKE_ANNOT_IMPORT: other apps' annotations become editable markups
+      // (specs/feature-annot-import-spec.md). Exports marks of every supported
+      // type as real annotations with NO sidecar (a stand-in for a Bluebeam or
+      // Acrobat file), adds a native Stamp, reopens, imports, and checks the
+      // geometry, that the originals left the page (no double draw), that one
+      // undo puts them back, that a save carries no duplicates, and that the
+      // saved file reopens editable without offering the import again.
+      if (process.env.SMOKE_ANNOT_IMPORT) {
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async()=>{
+              const wait = (ms) => new Promise(r => setTimeout(r, ms));
+              const until = async (fn, ms) => { for (let t = 0; t < ms && !fn(); t += 100) await wait(100); return fn(); };
+              await until(() => App.state.numPages, 8000);
+              await wait(800);
+              const { PDFDocument, PDFName } = window.PDFLib;
+              const A = App.state;
+              const st = (c) => ({ stroke: c || '#2f6fed', fill:'none', width:2, opacity:1, fontSize:14, fontFamily:'Helvetica' });
+              const add = (o, c) => { A.annoSeq=(A.annoSeq||0)+1; A.annotations.push(Object.assign({id:A.annoSeq,page:1,style:st(c)},o)); };
+              add({type:'rect', pts:[{vx:40,vy:40},{vx:170,vy:110}]});
+              add({type:'ellipse', pts:[{vx:190,vy:40},{vx:310,vy:110}]});
+              add({type:'line', pts:[{vx:40,vy:130},{vx:170,vy:170}]});
+              add({type:'arrow', pts:[{vx:190,vy:130},{vx:310,vy:170}]});
+              add({type:'polyline', pts:[{vx:40,vy:190},{vx:100,vy:240},{vx:170,vy:190}]});
+              add({type:'polygon', pts:[{vx:190,vy:190},{vx:300,vy:200},{vx:250,vy:265}]});
+              add({type:'cloud', pts:[{vx:40,vy:285},{vx:150,vy:295},{vx:95,vy:360}]});
+              add({type:'ink', pts:[{vx:190,vy:290},{vx:215,vy:325},{vx:255,vy:290},{vx:300,vy:335}]});
+              add({type:'text', pts:[{vx:40,vy:410},{vx:220,vy:452}], text:'Editable note'}, '#000000');
+              add({type:'callout', pts:[{vx:40,vy:470},{vx:220,vy:512},{vx:300,vy:545}], text:'Callout'}, '#000000');
+              add({type:'texthighlight', quads:[{x:40,y:570,w:180,h:15}]}, '#ffd400');
+              add({type:'underline', quads:[{x:40,y:600,w:180,h:15}]}, '#2f6fed');
+              add({type:'strikeout', quads:[{x:40,y:630,w:180,h:15}]}, '#e5484d');
+              // A calibrated length exports as a Line carrying /Measure: a
+              // takeoff, which must stay native (D3).
+              A.scales = A.scales || {}; A.scales[1] = { factor: 20/72, unit:'ft' };
+              A.measureSeq=(A.measureSeq||0)+1;
+              A.measurements.push({ id:A.measureSeq, page:1, type:'length', pts:[{vx:360,vy:60},{vx:520,vy:60}], value:0, unit:'ft', color:'#2f6fed', width:1.4, label:'' });
+              if (App.Measure && App.Measure.recomputeAll) App.Measure.recomputeAll();
+              A.saveAnnots = true;
+              const want = JSON.parse(JSON.stringify(A.annotations));
+
+              // The foreign stand-in: real annotations, no sidecar, plus a Stamp.
+              let bytes = await App.Save.buildBytes({ noSidecar: true });
+              const fd = await PDFDocument.load(bytes);
+              const fctx = fd.context;
+              fd.getPage(0).node.Annots().push(fctx.register(fctx.obj({ Type:'Annot', Subtype:'Stamp', Rect:[400,700,500,760], Name:'Approved', F:4 })));
+              bytes = await fd.save();
+              const ab = (b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+              const subs = async () => (await (await A.pdfDoc.getPage(1)).getAnnotations()).map(a => a.subtype).sort();
+
+              await App.Viewer.load(ab(bytes), 'foreign.pdf', null);
+              await until(() => App.state.numPages && App.state.fileName === 'foreign.pdf', 8000);
+              await wait(600);
+              const before = await subs();
+              const offered = await App.AnnotImport.scan();
+              const banner = !document.querySelector('#mkp-import').classList.contains('hidden');
+
+              const made = await App.AnnotImport.importAll();
+              const got = JSON.parse(JSON.stringify(App.state.annotations));
+              // Geometry. Box shapes come back from /Rect, which FieldMark pads by
+              // 2pt when it writes; vertex shapes and quads come back exact.
+              const d = (p, q) => Math.max(Math.abs(p.vx - q.vx), Math.abs(p.vy - q.vy));
+              const err = {};
+              want.forEach((w, i) => {
+                const g = got[i];
+                if (!g || g.type !== w.type || g.page !== w.page) { err[w.type] = 'type/page: ' + (g && g.type); return; }
+                let e = 0;
+                if (w.quads) e = Math.max(...w.quads.map((q, k) => { const h = g.quads[k]; return Math.max(Math.abs(q.x-h.x), Math.abs(q.y-h.y), Math.abs(q.w-h.w), Math.abs(q.h-h.h)); }));
+                else if (w.type === 'ink') e = Math.max(d(w.pts[0], g.pts[0]), d(w.pts[w.pts.length-1], g.pts[g.pts.length-1]));
+                else if (w.type === 'callout') e = d(w.pts[2], g.pts[2]);
+                else e = Math.max(...w.pts.map((p, k) => d(p, g.pts[k])));
+                if ((w.type === 'text' || w.type === 'callout') && g.text !== w.text) { err[w.type] = 'text: ' + g.text; return; }
+                err[w.type] = Math.round(e * 1000) / 1000;
+              });
+              const afterImport = await subs();
+
+              App.History.undo();
+              await until(() => !App.state.annotImportApplied, 8000);
+              await wait(300);
+              const afterUndo = { ann: App.state.annotations.length, subs: await subs() };
+              App.History.redo();
+              await until(() => !!App.state.annotImportApplied, 8000);
+              await wait(300);
+              const afterRedo = { ann: App.state.annotations.length, subs: await subs() };
+
+              const saved = await App.Save.buildBytes();
+              const sd = await PDFDocument.load(saved);
+              const sAnn = sd.getPage(0).node.Annots();
+              const savedSubs = [];
+              for (let i = 0; i < sAnn.size(); i++) {
+                const dict = sd.context.lookup(sAnn.get(i));
+                savedSubs.push(dict.get(PDFName.of('Subtype')).decodeText() + (dict.get(PDFName.of('Measure')) ? '+M' : ''));
+              }
+
+              await App.Viewer.load(ab(saved), 'saved.pdf', null);
+              await until(() => App.state.numPages && App.state.fileName === 'saved.pdf', 8000);
+              await wait(600);
+              const reAnn = App.state.annotations.length;
+              const reOffered = await App.AnnotImport.scan();
+              const reSubs = await subs();
+              return JSON.stringify({ wantN: want.length, before, offered, banner, made, err, afterImport, afterUndo, afterRedo, savedSubs, reAnn, reOffered, reSubs });
+            })()`, true);
+            console.log('[annotimport] ' + r);
+          } catch (e) { console.log('[annotimport] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       // SMOKE_ROUNDTRIP: the editable round-trip, including the two failure
       // states that used to lose work silently. Covers AC-1 (a normal save and
       // reopen restores live marks), AC-2 (a base that cannot be built writes

@@ -1322,6 +1322,18 @@ body.toolbar-collapsed #more-menu {
   cursor: pointer;
 }
 .mkp-opt:hover { border-color: var(--border-strong); color: var(--text); }
+/* "N markups from another app — Make editable" (annotimport.js). */
+.mkp-import {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3); margin: var(--sp-2) var(--sp-3) 0;
+  background: var(--bg-input); border: 1px solid var(--accent);
+  border-radius: var(--r-sm); font-size: var(--fs-sm); color: var(--text);
+}
+.mkp-import.hidden { display: none; }
+.mkp-import-msg { flex: 1; min-width: 0; }
+.mkp-import .tb-btn { flex: none; }
+/* Who made an imported mark (D4): shown, never written back out. */
+.mp-row .mp-from { color: var(--text-dim); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90px; }
 .mkp-opt input { flex: none; margin-top: 1px; }
 
 .mp-filter {

@@ -785,6 +785,7 @@
     if (!p.classList.contains('hidden')) Panel.render();
   };
   Panel.render = function () {
+    if (App.AnnotImport) App.AnnotImport.renderBanner();
     const list = App.$('#mkp-list'); if (!list) return;
     const all = App.state.annotations;
     const q = ((App.$('#mkp-filter') && App.$('#mkp-filter').value) || '').trim().toLowerCase();
@@ -807,6 +808,7 @@
         `<span class="mp-swatch" style="background:${an.style.stroke}"></span>` +
         `<span class="mp-type">${an.type}</span>` +
         `<span class="mp-val">${an.text ? esc(an.text) : ''}</span>` +
+        (an.importedFrom ? `<span class="mp-from" title="Made in another app by ${esc(an.importedFrom)}">From: ${esc(an.importedFrom)}</span>` : '') +
         `<span class="mp-pg">p${an.page}</span>` +
         `<button class="mp-del" title="Delete" aria-label="Delete">${App.icon('trash')}</button>`;
       // A tab stop that does nothing on Enter is worse than no tab stop.

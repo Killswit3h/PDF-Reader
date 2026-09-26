@@ -583,6 +583,7 @@
       if (App.ScaleDetect && App.ScaleDetect.run) {
         App.ScaleDetect.run().catch(() => { /* detection is best-effort */ });
       }
+      if (App.AnnotImport) App.AnnotImport.scan().catch(() => { /* best-effort */ });
       return true;
     } catch (err) {
       console.error(err);
@@ -630,6 +631,10 @@
     App.state.flattenForms = false;
     App.state.ocr = {}; // recognition results are per-document
     App.state.scaleDetect = { status: 'idle', pages: {} }; // as are detections
+    App.state.foreignAnnots = 0;       // foreign-annotation import (annotimport.js)
+    App.state.annotImportIds = [];
+    App.state.annotImportSource = null;
+    App.state.annotImportApplied = '';
     if (App.Snap) App.Snap.clear(); // page geometry is per-document; drop stale index
     if (App.History) App.History.reset();
     App.setMode && App.setMode(null);
