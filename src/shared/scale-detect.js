@@ -485,6 +485,60 @@
     });
   }
 
+  /* ------------------------------------------- tier A: viewport /BBox fit */
+
+  // Put an embedded viewport's /BBox where it belongs on the page, or reject it.
+  //
+  // The spec says /BBox is in default user space, i.e. the page as stored,
+  // before /Rotate. Bluebeam Revu does not always follow that: on a /Rotate 90
+  // sheet it writes the box in the ROTATED frame, so a whole-sheet viewport on
+  // a 792x1224 page comes out as [0 0 1224 792]. Taken literally that box is
+  // half off the paper, and the app drew it as a dashed orange rectangle
+  // running past the edge of the sheet. Rule:
+  //   1. fits the page as stored          -> use it as is
+  //   2. on a 90/270 page, fits the page only with width and height swapped
+  //                                       -> it was written rotated; map it back
+  //   3. anything else                    -> clip it to the page
+  //
+  // `view` is the page's crop box [x0,y0,x1,y1] (PDF.js page.view, or
+  // viewport.viewBox) and `rotate` its /Rotate. Returns null when nothing
+  // usable is left, else { bbox, fix: null|'rotated'|'clipped', wholePage }.
+  // `wholePage` marks a region covering (nearly) the whole sheet: that is a
+  // page scale, and drawing a box around the entire sheet only hides it.
+  function fitViewportBBox(bbox, view, rotate) {
+    if (!Array.isArray(bbox) || bbox.length < 4 || !Array.isArray(view) || view.length < 4) return null;
+    if (bbox.slice(0, 4).concat(view.slice(0, 4)).some((n) => typeof n !== 'number' || !isFinite(n))) return null;
+    const vx0 = Math.min(view[0], view[2]), vy0 = Math.min(view[1], view[3]);
+    const W = Math.abs(view[2] - view[0]), H = Math.abs(view[3] - view[1]);
+    if (!(W > 0) || !(H > 0)) return null;
+    let b = [Math.min(bbox[0], bbox[2]), Math.min(bbox[1], bbox[3]),
+      Math.max(bbox[0], bbox[2]), Math.max(bbox[1], bbox[3])];
+    const tol = Math.max(2, 0.005 * Math.max(W, H));
+    const fits = (r, w, h, ox, oy) => r[0] >= ox - tol && r[1] >= oy - tol && r[2] <= ox + w + tol && r[3] <= oy + h + tol;
+
+    let fix = null;
+    const rot = ((Math.round(rotate || 0) % 360) + 360) % 360;
+    if (!fits(b, W, H, vx0, vy0)) {
+      if ((rot === 90 || rot === 270) && fits(b, H, W, vx0, vy0)) {
+        // Rotated display frame: width H, height W, bottom-left origin.
+        // /Rotate 90 (clockwise):  x = W - dy, y = dx
+        // /Rotate 270:             x = dy,     y = H - dx
+        const d = [b[0] - vx0, b[1] - vy0, b[2] - vx0, b[3] - vy0];
+        const map = (dx, dy) => (rot === 90 ? [vx0 + W - dy, vy0 + dx] : [vx0 + dy, vy0 + H - dx]);
+        const p = map(d[0], d[1]), q = map(d[2], d[3]);
+        b = [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[0], q[0]), Math.max(p[1], q[1])];
+        fix = 'rotated';
+      } else {
+        fix = 'clipped';
+      }
+    }
+    // Clip in every case: the tolerance above lets a box overhang slightly.
+    b = [Math.max(b[0], vx0), Math.max(b[1], vy0), Math.min(b[2], vx0 + W), Math.min(b[3], vy0 + H)];
+    const bw = b[2] - b[0], bh = b[3] - b[1];
+    if (!(bw > 0.5) || !(bh > 0.5)) return null;
+    return { bbox: b, fix, wholePage: (bw * bh) / (W * H) >= 0.95 };
+  }
+
   return {
     ScaleDetect: {
       UNIT_ALIASES,
@@ -497,6 +551,7 @@
       parseScaleNotes,
       classify,
       halfSizePages,
+      fitViewportBBox,
       // exported for tests + the renderer's review-list rows
       safeLabel,
       trimNum,

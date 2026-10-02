@@ -494,3 +494,60 @@ describe('safeLabel — NFR-9', () => {
     expect(safeLabel(undefined)).toBe('(none)');
   });
 });
+
+/* ------------------------------------------------- tier A: /BBox placement */
+
+describe('fitViewportBBox — embedded viewport placement', () => {
+  const { fitViewportBBox } = ScaleDetect;
+  const SHEET = [0, 0, 792, 1224]; // 11x17 stored portrait, shown landscape via /Rotate 90
+
+  it('keeps a box that already fits the page as stored', () => {
+    const r = fitViewportBBox([100, 200, 400, 600], SHEET, 90);
+    expect(r.bbox).toEqual([100, 200, 400, 600]);
+    expect(r.fix).toBe(null);
+    expect(r.wholePage).toBe(false);
+  });
+
+  it('maps back a Bluebeam whole-sheet box written in the rotated frame', () => {
+    // Exact /VP from a Bluebeam Revu 21 plan sheet (I-395 RD395-37, 10/2/26).
+    const r = fitViewportBBox([0, 0, 1224, 792], SHEET, 90);
+    expect(r.fix).toBe('rotated');
+    expect(r.bbox).toEqual([0, 0, 792, 1224]);
+    expect(r.wholePage).toBe(true);
+  });
+
+  it('maps a partial rotated box onto the right part of a /Rotate 90 page', () => {
+    // Display frame is 1224 wide x 792 tall; the box is the right half, full
+    // height. x reaches 1224, so it cannot be in the stored (792-wide) frame.
+    const r = fitViewportBBox([600, 0, 1224, 792], SHEET, 90);
+    expect(r.fix).toBe('rotated');
+    // /Rotate 90: user x = 792 - display y, user y = display x
+    expect(r.bbox).toEqual([0, 600, 792, 1224]);
+    expect(r.wholePage).toBe(false);
+  });
+
+  it('maps a rotated box on a /Rotate 270 page', () => {
+    // /Rotate 270: user x = display y, user y = 1224 - display x
+    const r = fitViewportBBox([600, 0, 1224, 792], SHEET, 270);
+    expect(r.fix).toBe('rotated');
+    expect(r.bbox).toEqual([0, 0, 792, 624]);
+  });
+
+  it('clips a box that overhangs an unrotated page', () => {
+    const r = fitViewportBBox([500, 500, 1000, 1000], [0, 0, 792, 612], 0);
+    expect(r.fix).toBe('clipped');
+    expect(r.bbox).toEqual([500, 500, 792, 612]);
+  });
+
+  it('rejects a box entirely off the page, and junk input', () => {
+    expect(fitViewportBBox([2000, 2000, 2100, 2100], SHEET, 0)).toBe(null);
+    expect(fitViewportBBox(null, SHEET, 0)).toBe(null);
+    expect(fitViewportBBox([0, 0, NaN, 10], SHEET, 0)).toBe(null);
+  });
+
+  it('honours a crop box that does not start at the origin', () => {
+    const r = fitViewportBBox([20, 20, 812, 1244], [20, 20, 812, 1244], 0);
+    expect(r.fix).toBe(null);
+    expect(r.wholePage).toBe(true);
+  });
+});
