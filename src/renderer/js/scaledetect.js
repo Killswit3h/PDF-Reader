@@ -254,7 +254,11 @@
             const bad = [];
             for (const v of vps) {
               if (!v.scale) { bad.push(v.reason || 'unreadable'); continue; }
-              const rect = viewports[p] ? bboxToRect(v.bbox, viewports[p]) : null;
+              const pv = viewports[p];
+              // Bluebeam writes /BBox in the rotated frame on 90/270 sheets;
+              // fitViewportBBox maps it back and clips it to the page.
+              const fit = pv ? S.fitViewportBBox(v.bbox, pv.viewBox, pv.rotation) : null;
+              const rect = fit ? bboxToRect(fit.bbox, pv) : null;
               if (!rect) { bad.push('unusable region (/BBox)'); continue; }
               regions.push({
                 id: ++App.state.viewportSeq,
@@ -262,7 +266,8 @@
                 factor: v.scale.factor, unit: v.scale.unit,
                 ratioLabel: v.scale.ratioLabel,
                 label: v.name || v.scale.ratioLabel,
-                source: 'embedded'
+                source: 'embedded',
+                wholePage: fit.wholePage
               });
             }
 
@@ -282,17 +287,26 @@
             }
 
             if (regions.length) {
-              setEmbeddedViewports(p, regions);                       // FR-12
+              // A region covering the whole sheet is a page scale, not a
+              // region: no dashed box over the entire drawing (it cannot be
+              // selected, and it read as a stray markup). It still sets the
+              // page scale below.
+              const whole = regions.find((r) => r.wholePage);
+              const boxes = regions.filter((r) => !r.wholePage).map((r) => {
+                const o = Object.assign({}, r); delete o.wholePage; return o;
+              });
+              setEmbeddedViewports(p, boxes);                         // FR-12
               // FR-13: when every region agrees, the page as a whole is that
               // scale too, so a measurement outside every box still reads right.
               const first = regions[0];
               const uniform = regions.every((r) => r.unit === first.unit
                 && Math.abs(r.factor - first.factor) <= 1e-9 * Math.max(r.factor, first.factor));
-              if (uniform) {
+              const pageScale = uniform ? first : whole;
+              if (pageScale) {
                 // FR-32: embedded metadata already describes the plotted
                 // geometry - a half-size correction on top would double-count.
                 setPageScale(p, {
-                  factor: first.factor, unit: first.unit, ratioLabel: first.ratioLabel,
+                  factor: pageScale.factor, unit: pageScale.unit, ratioLabel: pageScale.ratioLabel,
                   source: 'embedded', confidence: 'high'
                 });
               }
