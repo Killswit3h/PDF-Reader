@@ -110,6 +110,13 @@
       <symbol id="i-text-highlight" viewBox="0 0 24 24"><path d="M6.5 14l4-9 4 9M8 11h5"/><path d="M4 19.5h16" stroke-width="3"/></symbol>
       <symbol id="i-underline" viewBox="0 0 24 24"><path d="M7 4v7a5 5 0 0 0 10 0V4"/><path d="M5 20h14"/></symbol>
       <symbol id="i-strikeout" viewBox="0 0 24 24"><path d="M16.5 7.5A4 3.2 0 0 0 8 8c0 2 2 2.7 4 3.2"/><path d="M8 16.2a4 3.2 0 0 0 8.4-.7c0-1.4-.9-2.2-2.2-2.8"/><path d="M4 12h16"/></symbol>
+      <symbol id="i-squiggly" viewBox="0 0 24 24"><path d="M7 4v6a5 5 0 0 0 10 0V4"/><path d="M3 19l2.25-2 2.25 2 2.25-2 2.25 2 2.25-2 2.25 2 2.25-2 2.25 2"/></symbol>
+      <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 4h16v11l-5 5H4z"/><path d="M15 20v-5h5"/><path d="M8 9h8M8 12.5h5"/></symbol>
+      <symbol id="i-stamp" viewBox="0 0 24 24"><path d="M9 3h6v5.5l2 3.5H7l2-3.5z"/><path d="M4 12h16v4H4z"/><path d="M6 20h12"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2"/></symbol>
+      <symbol id="i-eraser" viewBox="0 0 24 24"><path d="M15.5 4.5l5 5L11 19H6l-3-3z"/><path d="M9.5 10.5l5 5"/><path d="M11 19h10"/></symbol>
+      <symbol id="i-redact" viewBox="0 0 24 24"><path d="M3 5h18v14H3z"/><path d="M6 9h12v6H6z" fill="currentColor"/></symbol>
+      <symbol id="i-snapshot" viewBox="0 0 24 24"><path d="M3 8V4h4M17 4h4v4M21 16v4h-4M7 20H3v-4"/><circle cx="12" cy="12" r="3.5"/></symbol>
       <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 10h10.5a5 5 0 0 1 0 10H9"/><path d="M8 6l-4 4 4 4"/></symbol>
       <symbol id="i-redo" viewBox="0 0 24 24"><path d="M20 10H9.5a5 5 0 0 0 0 10H15"/><path d="M16 6l4 4-4 4"/></symbol>
 
@@ -291,7 +298,14 @@
           <div class="tb-menu-sep"></div>
           <button data-mk="texthighlight"><svg class="ico" aria-hidden="true"><use href="#i-text-highlight"/></svg>Highlight Text</button>
           <button data-mk="underline"><svg class="ico" aria-hidden="true"><use href="#i-underline"/></svg>Underline Text</button>
-          <button data-mk="strikeout"><svg class="ico" aria-hidden="true"><use href="#i-strikeout"/></svg>Strikeout Text</button>
+          <button data-mk="strikeout"><svg class="ico" aria-hidden="true"><use href="#i-strikeout"/></svg>Strikeout Text<span class="mk-key">D</span></button>
+          <button data-mk="squiggly"><svg class="ico" aria-hidden="true"><use href="#i-squiggly"/></svg>Squiggly Text<span class="mk-key">⇧U</span></button>
+          <div class="tb-menu-sep"></div>
+          <button data-mk="note" title="Sticky note with a comment"><svg class="ico" aria-hidden="true"><use href="#i-note"/></svg>Note<span class="mk-key">N</span></button>
+          <button data-mk="__stamp" title="Approved, Revise &amp; Resubmit, As-Built and other review stamps, or your own text"><svg class="ico" aria-hidden="true"><use href="#i-stamp"/></svg>Stamp…<span class="mk-key">S</span></button>
+          <button data-mk="link" title="Link an area to another page or a web address"><svg class="ico" aria-hidden="true"><use href="#i-link"/></svg>Hyperlink<span class="mk-key">⇧H</span></button>
+          <button data-mk="eraser" title="Erase markups by clicking or dragging over them"><svg class="ico" aria-hidden="true"><use href="#i-eraser"/></svg>Eraser<span class="mk-key">E</span></button>
+          <button data-mk="redact" title="Mark an area for redaction; Document &gt; Apply Redactions removes it for good"><svg class="ico" aria-hidden="true"><use href="#i-redact"/></svg>Mark for Redaction<span class="mk-key">⇧R</span></button>
           <div class="tb-menu-sep"></div>
           <button data-mk="__list"><svg class="ico" aria-hidden="true"><use href="#i-list"/></svg>Markups List</button>
         </div>
@@ -312,6 +326,9 @@
           <button data-doc="digisign"><svg class="ico" aria-hidden="true"><use href="#i-certificate"/></svg>Digital Signature…</button>
           <button data-doc="compare"><svg class="ico" aria-hidden="true"><use href="#i-compare"/></svg>Compare Documents…</button>
           <button data-doc="overlay"><svg class="ico" aria-hidden="true"><use href="#i-overlay"/></svg>Overlay Documents…</button>
+          <button data-doc="redact-apply" title="Permanently remove everything under the redaction marks (the pages are flattened to images)"><svg class="ico" aria-hidden="true"><use href="#i-redact"/></svg>Apply Redactions…</button>
+          <button data-doc="snapshot" title="Drag a box to copy that area as an image, then click to paste it on any page"><svg class="ico" aria-hidden="true"><use href="#i-snapshot"/></svg>Snapshot<span class="mk-key">G</span></button>
+          <button data-doc="grid" title="Show a grid and snap markups to it"><svg class="ico" aria-hidden="true"><use href="#i-grid"/></svg>Grid…</button>
           <div class="tb-menu-sep"></div>
           <button data-doc="split"><svg class="ico" aria-hidden="true"><use href="#i-split"/></svg>Side by Side<span class="mk-key">\</span></button>
         </div>
@@ -346,6 +363,14 @@
     <label class="mk-prop"><input id="mk-fill-on" type="checkbox" aria-label="Enable fill" /> Fill <input id="mk-fill" type="color" value="#ffcc00" aria-label="Fill colour" /></label>
     <label class="mk-prop">Width <input id="mk-width" type="range" min="1" max="12" step="1" value="2" aria-label="Line width" /></label>
     <label class="mk-prop">Opacity <input id="mk-opacity" type="range" min="10" max="100" step="5" value="100" aria-label="Opacity" /></label>
+    <label class="mk-prop" title="Line style">Style
+      <select id="mk-dash" aria-label="Line style">
+        <option value="solid">Solid</option>
+        <option value="dashed">Dashed</option>
+        <option value="dotted">Dotted</option>
+        <option value="dashdot">Dash-dot</option>
+      </select>
+    </label>
     <label class="mk-prop mk-font-only" title="Text font">Font
       <select id="mk-font-family" aria-label="Text font">
         <option value="Helvetica">Helvetica</option>
@@ -433,7 +458,13 @@
         <div class="mr-sep"></div>
         <button class="mr-btn" data-mk="texthighlight" title="Highlight text" aria-label="Highlight text"><svg class="ico" aria-hidden="true"><use href="#i-text-highlight"/></svg></button>
         <button class="mr-btn" data-mk="underline" title="Underline text" aria-label="Underline text"><svg class="ico" aria-hidden="true"><use href="#i-underline"/></svg></button>
-        <button class="mr-btn" data-mk="strikeout" title="Strikeout text" aria-label="Strikeout text"><svg class="ico" aria-hidden="true"><use href="#i-strikeout"/></svg></button>
+        <button class="mr-btn" data-mk="strikeout" title="Strikeout text (D)" aria-label="Strikeout text"><svg class="ico" aria-hidden="true"><use href="#i-strikeout"/></svg></button>
+        <button class="mr-btn" data-mk="squiggly" title="Squiggly text (Shift+U)" aria-label="Squiggly text"><svg class="ico" aria-hidden="true"><use href="#i-squiggly"/></svg></button>
+        <div class="mr-sep"></div>
+        <button class="mr-btn" data-mk="note" title="Note (N)" aria-label="Note"><svg class="ico" aria-hidden="true"><use href="#i-note"/></svg></button>
+        <button class="mr-btn" data-mk="__stamp" title="Stamp (S)" aria-label="Stamp"><svg class="ico" aria-hidden="true"><use href="#i-stamp"/></svg></button>
+        <button class="mr-btn" data-mk="link" title="Hyperlink (Shift+H)" aria-label="Hyperlink"><svg class="ico" aria-hidden="true"><use href="#i-link"/></svg></button>
+        <button class="mr-btn" data-mk="eraser" title="Eraser (E)" aria-label="Eraser"><svg class="ico" aria-hidden="true"><use href="#i-eraser"/></svg></button>
         <div class="mr-sep"></div>
         <button class="mr-btn" data-mr="undo" title="Undo (Ctrl+Z)" aria-label="Undo"><svg class="ico" aria-hidden="true"><use href="#i-undo"/></svg></button>
         <button class="mr-btn" data-mr="redo" title="Redo (Ctrl+Y)" aria-label="Redo"><svg class="ico" aria-hidden="true"><use href="#i-redo"/></svg></button>
@@ -643,6 +674,50 @@
       <button id="mkp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
     </div>
     <input id="mkp-filter" aria-label="Filter markups" class="mp-filter" type="text" placeholder="Filter markups…" />
+    <div class="mkp-tools">
+      <label class="mkp-tool">Status
+        <select id="mkp-status-filter" aria-label="Show markups with this status">
+          <option value="*">All</option>
+          <option value="">None</option>
+          <option value="review">For Review</option>
+          <option value="accepted">Accepted</option>
+          <option value="rejected">Rejected</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </label>
+      <label class="mkp-tool">Sort
+        <select id="mkp-sort" aria-label="Sort markups by">
+          <option value="page">Page</option>
+          <option value="type">Type</option>
+          <option value="subject">Subject</option>
+          <option value="status">Status</option>
+          <option value="date">Date</option>
+          <option value="comment">Comment</option>
+        </select>
+      </label>
+      <button id="mkp-sort-dir" class="tb-btn icon" type="button" title="Reverse the sort order" aria-label="Reverse the sort order" aria-pressed="false">↓</button>
+    </div>
+    <div id="mkp-props" class="mkp-props hidden" aria-label="Selected markup properties">
+      <span class="mp-props-title">Selected markup</span>
+      <label class="mkp-field">Subject <input id="mkp-subject" type="text" maxlength="120" aria-label="Subject" /></label>
+      <label class="mkp-field">Status
+        <select id="mkp-status" aria-label="Status">
+          <option value="">None</option>
+          <option value="review">For Review</option>
+          <option value="accepted">Accepted</option>
+          <option value="rejected">Rejected</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </label>
+      <label class="mkp-field">Comment <textarea id="mkp-comment" rows="2" maxlength="4000" aria-label="Comment"></textarea></label>
+      <div class="mkp-row">
+        <label class="mkp-check"><input id="mkp-locked" type="checkbox" /> Locked</label>
+        <button id="mkp-link-edit" class="tb-btn hidden" type="button">Edit link…</button>
+        <button id="mkp-link-go" class="tb-btn hidden" type="button">Open link</button>
+      </div>
+    </div>
     <div id="mkp-import" class="mkp-import hidden" role="status">
       <span id="mkp-import-msg" class="mkp-import-msg"></span>
       <button id="mkp-import-btn" class="tb-btn" title="Turn the markups made in Bluebeam, Acrobat or Preview into FieldMark markups you can move, restyle and delete. The originals are replaced when you save.">Make editable</button>
@@ -651,6 +726,7 @@
     <label class="mkp-opt"><input id="mkp-annots" type="checkbox" /> Save markups as editable PDF annotations (else flatten)</label>
     <div class="mp-foot">
       <button id="mkp-export" class="tb-btn">⤓ Export CSV</button>
+      <button id="mkp-summary" class="tb-btn" title="Save a PDF report of the markups shown, with their status and comments (Bluebeam Markup Summary)">Summary PDF</button>
       <button id="mkp-clear" class="tb-btn">Clear all</button>
     </div>
   </aside>
@@ -672,6 +748,12 @@
         <span>Thickness</span>
         <input id="mp-width" type="range" min="1" max="8" step="0.5" aria-label="Selected measurement thickness" />
         <span id="mp-width-val" class="mp-width-val"></span>
+      </label>
+      <label id="mp-depth-row" class="mp-prop hidden" title="Depth turns an area into a volume (concrete in cubic yards); a height turns a length into a wall or fence-fabric area">
+        <span id="mp-depth-label">Depth</span>
+        <input id="mp-depth" type="number" min="0" step="0.1" inputmode="decimal" aria-label="Depth or height for the selected measurement" />
+        <span id="mp-depth-unit" class="mp-width-val"></span>
+        <span id="mp-depth-val" class="mp-depth-val"></span>
       </label>
     </div>
     <div id="mp-list" class="mp-list"></div>
@@ -845,6 +927,60 @@
   </div>
 
   <!-- ============ Confirm dialog (destructive actions) ============ -->
+  <div id="prompt-modal" class="modal-backdrop hidden">
+    <div class="modal confirm" role="dialog" aria-modal="true" aria-labelledby="prompt-title">
+      <div class="modal-head"><h2 id="prompt-title">Enter text</h2></div>
+      <div class="confirm-body">
+        <p id="prompt-msg"></p>
+        <input id="prompt-input" class="prompt-input" type="text" aria-labelledby="prompt-msg" />
+        <textarea id="prompt-area" class="prompt-input hidden" rows="4" aria-labelledby="prompt-msg"></textarea>
+      </div>
+      <div class="modal-foot">
+        <button id="prompt-no" class="tb-btn">Cancel</button>
+        <button id="prompt-yes" class="tb-btn primary">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Stamp picker ============ -->
+  <div id="stamp-modal" class="modal-backdrop hidden">
+    <div class="modal stamp-modal" role="dialog" aria-modal="true" aria-labelledby="stamp-title">
+      <div class="modal-head">
+        <h2 id="stamp-title">Stamps</h2>
+        <button id="stamp-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+      <div id="stamp-list" class="stamp-list" role="listbox" aria-label="Standard stamps"></div>
+      <div class="stamp-custom">
+        <input id="stamp-custom-text" type="text" maxlength="40" placeholder="Custom stamp text, e.g. FIELD VERIFIED" aria-label="Custom stamp text" />
+        <label class="mkp-check"><input id="stamp-custom-date" type="checkbox" checked /> Date</label>
+        <input id="stamp-custom-color" type="color" value="#1d4ed8" aria-label="Custom stamp color" />
+        <button id="stamp-custom-go" class="tb-btn primary" type="button">Place</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Grid ============ -->
+  <div id="grid-modal" class="modal-backdrop hidden">
+    <div class="modal confirm" role="dialog" aria-modal="true" aria-labelledby="grid-title">
+      <div class="modal-head">
+        <h2 id="grid-title">Grid</h2>
+        <button id="grid-close" class="modal-x" title="Close" aria-label="Close"><svg class="ico" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </div>
+      <div class="confirm-body grid-body">
+        <label class="mkp-check"><input id="grid-show" type="checkbox" /> Show grid</label>
+        <label class="mkp-check"><input id="grid-snap" type="checkbox" /> Snap markups to grid</label>
+        <label class="mkp-field">Spacing
+          <select id="grid-spacing" aria-label="Grid spacing">
+            <option value="9">1/8 in (9 pt)</option>
+            <option value="18">1/4 in (18 pt)</option>
+            <option value="36">1/2 in (36 pt)</option>
+            <option value="72">1 in (72 pt)</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </div>
+
   <div id="confirm-modal" class="modal-backdrop hidden">
     <div class="modal confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       <div class="modal-head"><h2 id="confirm-title">Confirm</h2></div>
@@ -1168,6 +1304,8 @@
   <script src="../shared/favorite-colors.js"></script>
   <script src="../shared/count-groups.js"></script>
   <script src="../shared/annot-import.js"></script>
+  <script src="../shared/markup-meta.js"></script>
+  <script src="../shared/markup-tools.js"></script>
 
   <!-- ======= App modules ======= -->
   <script src="js/util.js"></script>
@@ -1185,6 +1323,10 @@
   <script src="js/docstamp.js"></script>
   <script src="js/favcolors.js"></script>
   <script src="js/toolchest.js"></script>
+  <script src="js/stamps.js"></script>
+  <script src="js/grid.js"></script>
+  <script src="js/snapshot.js"></script>
+  <script src="js/redact.js"></script>
   <script src="js/print.js"></script>
   <script src="js/bookmarks.js"></script>
   <script src="js/save.js"></script>

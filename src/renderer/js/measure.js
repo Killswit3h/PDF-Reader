@@ -63,6 +63,17 @@
     return value == null ? '(set scale)' : App.fmtMeasure(type, value, unit, fmtOpts());
   }
 
+  // Label with the depth result appended: an Area with a depth shows its
+  // volume, a Length / Perimeter with a height its wall (surface) area.
+  function depthOf(m) { return App.depthResult ? App.depthResult(m.type, m.value, m.unit, m.depth) : null; }
+  function labelFor(m) {
+    const base = fmtVal(m.type, m.value, m.unit);
+    const r = depthOf(m);
+    if (!r) return base;
+    return base + (r.kind === 'volume' ? ' · V ' : ' · Wall ') + App.fmtDepthResult(r);
+  }
+  M.depthOf = depthOf;
+
   /* ---------------- geometry (shared, unit-tested: src/shared/geometry.js) --- */
   const { dist, angleAt, centroid } = App.Geom;
 
@@ -94,7 +105,7 @@
     App.state.measurements.forEach((m) => {
       const { value, unit } = computeValue(m.type, m.page, m.pts);
       m.value = value; m.unit = unit;
-      m.label = fmtVal(m.type, value, unit);
+      m.label = labelFor(m);
     });
     M.repositionAll();
     M.renderPanel();
@@ -1067,6 +1078,12 @@
         LINEAR[m.type] ? `length ${m.unit}` : null;
       if (!key) return;
       tot[key] = (tot[key] || 0) + m.value;
+      const r = depthOf(m);
+      if (r) {
+        const k2 = r.kind === 'volume' ? `volume ${r.unit}³` : `wall area ${r.unit}²`;
+        tot[k2] = (tot[k2] || 0) + r.value;
+        if (r.kind === 'volume' && r.cy != null && r.unit !== 'yd') tot['volume yd³'] = (tot['volume yd³'] || 0) + r.cy;
+      }
     });
     const totEl = App.$('#mp-totals');
     const parts = Object.keys(tot).map((k) => {
@@ -1141,7 +1158,7 @@
   function liveRecompute(m) {
     const { value, unit } = computeValue(m.type, m.page, m.pts);
     m.value = value; m.unit = unit;
-    m.label = fmtVal(m.type, value, unit);
+    m.label = labelFor(m);
   }
 
   // Snap a dragged vertex to a nearby point: another measurement's vertex, this
@@ -1223,6 +1240,24 @@
   }
   M.setSelectedColor = function (hex) { if (hex) editSelected({ color: hex }); };
   M.setSelectedWidth = function (w) { const n = +w; if (n > 0) editSelected({ width: n }); };
+  // Depth (area -> volume) or height (length -> wall area), in the scale unit.
+  // 0 or blank clears it.
+  M.setSelectedDepth = function (d) {
+    const n = parseFloat(d);
+    editSelected({ depth: n > 0 ? n : undefined });
+    syncDepthReadout();
+  };
+  function syncDepthReadout() {
+    const m = M.getSelected();
+    const row = App.$('#mp-depth-row'); if (!row) return;
+    const ok = m && App.depthResult && ({ area: 1, length: 1, continuous: 1, perimeter: 1, arcLength: 1 })[m.type];
+    row.classList.toggle('hidden', !ok);
+    if (!ok) return;
+    App.$('#mp-depth-label').textContent = m.type === 'area' ? 'Depth' : 'Height';
+    App.$('#mp-depth-unit').textContent = m.unit || '(set scale)';
+    const r = depthOf(m);
+    App.$('#mp-depth-val').textContent = r ? '= ' + App.fmtDepthResult(r) : '';
+  }
   // End the current edit gesture: the next change starts a fresh undo step.
   M.endEdit = function () { _editing = false; M.renderPanel(); };
 
@@ -1238,6 +1273,9 @@
     const w = widthOf(m);
     const wr = App.$('#mp-width'); if (wr) wr.value = w;
     const wl = App.$('#mp-width-val'); if (wl) wl.textContent = String(w).replace(/\.0$/, '') + ' px';
+    const dp = App.$('#mp-depth');
+    if (dp && document.activeElement !== dp) dp.value = m.depth != null ? m.depth : '';
+    syncDepthReadout();
   };
 
   // ---------- Copy / duplicate ----------
@@ -1255,7 +1293,7 @@
     m.pts = m.pts.map((p) => ({ vx: p.vx + (dx || 0), vy: p.vy + (dy || 0) }));
     const { value, unit } = computeValue(m.type, m.page, m.pts);
     m.value = value; m.unit = unit;
-    m.label = fmtVal(m.type, value, unit);
+    m.label = labelFor(m);
     App.state.measurements.push(m);
     App.$('#btn-save').disabled = false;
     M.select(m.id, true); // reveal the freshly pasted copy
@@ -1288,7 +1326,7 @@
   M.exportCsv = async function () {
     const ms = App.state.measurements;
     if (!ms.length) { App.toast('No measurements to export.', 'error'); return; }
-    const rows = [['#', 'Type', 'Page', 'Value', 'Unit', 'Display', 'Points']];
+    const rows = [['#', 'Type', 'Page', 'Value', 'Unit', 'Display', 'Points', 'Depth/Height', 'Volume / Wall area', 'Result unit', 'Cubic yards']];
     // Counts export as one row per tally, not one per dot: what a take-off sheet
     // needs is "38 pull boxes over pages 3-8", not 38 rows of "1".
     let n = 0;
@@ -1302,11 +1340,14 @@
         if (seenTally[key]) return;
         seenTally[key] = true;
         const g = byKey[key];
-        rows.push([++n, 'count', g.pages.join(' '), g.total, 'ct', g.name, g.total]);
+        rows.push([++n, 'count', g.pages.join(' '), g.total, 'ct', g.name, g.total, '', '', '', '']);
         return;
       }
       const unit = m.type === 'area' ? (m.unit ? m.unit + '²' : '') : (m.unit || '');
-      rows.push([++n, m.type, m.page, m.value == null ? '' : m.value.toFixed(3), unit, m.label || '', m.pts.length]);
+      const r = depthOf(m);
+      rows.push([++n, m.type, m.page, m.value == null ? '' : m.value.toFixed(3), unit, m.label || '', m.pts.length,
+        m.depth != null ? m.depth : '', r ? r.value.toFixed(3) : '', r ? (r.unit + (r.kind === 'volume' ? '³' : '²')) : '',
+        r && r.cy != null ? r.cy.toFixed(3) : '']);
     });
     const csv = rows.map((r) => r.map((c) => {
       const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
@@ -1437,6 +1478,11 @@
         if (wl) wl.textContent = String(mpWidth.value).replace(/\.0$/, '') + ' px';
       });
       mpWidth.addEventListener('change', () => M.endEdit());
+    }
+    const mpDepth = App.$('#mp-depth');
+    if (mpDepth) {
+      mpDepth.addEventListener('input', () => M.setSelectedDepth(mpDepth.value));
+      mpDepth.addEventListener('change', () => M.endEdit());
     }
   };
 

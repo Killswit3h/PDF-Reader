@@ -19,6 +19,7 @@
     // truthy mode disarms it — no recursion.
     if (mode && App.Viewer && App.Viewer.setMarquee) App.Viewer.setMarquee(false);
     document.body.classList.toggle('tool-active', !!mode);
+    document.body.classList.toggle('snapshot-mode', mode === 'snapshot');
     const banner = App.$('#mode-banner');
     const textEl = App.$('#mode-banner-text');
 
@@ -76,6 +77,14 @@
       textEl.textContent = mode === 'markup'
         ? 'Markup — draw on the page. Enter finishes a shape, Esc stops.'
         : 'Measuring — press Enter to finish a shape, Esc to stop.';
+      banner.classList.remove('hidden');
+      document.body.classList.add('has-banner');
+      App.refreshChrome();
+      return;
+    }
+
+    if (mode === 'snapshot') {
+      textEl.textContent = 'Snapshot — drag a box over the area to copy. Esc cancels.';
       banner.classList.remove('hidden');
       document.body.classList.add('has-banner');
       App.refreshChrome();
@@ -416,8 +425,22 @@
   // inEditable() so these never fire while typing in a field or a text box.
   const MARKUP_KEYS = {
     v: null, a: 'arrow', l: 'line', b: 'rect', o: 'ellipse',
-    p: 'ink', h: 'highlight', t: 'text', c: 'callout'
+    p: 'ink', h: 'highlight', t: 'text', c: 'callout',
+    // Revu's own keys where they do not collide with ours (R stays Rotate).
+    n: 'note', e: 'eraser', s: '__stamp', g: '__snapshot', u: 'underline', d: 'strikeout'
   };
+  // Shift+letter tools (Revu: Shift+U squiggly, Shift+H hyperlink, Shift+R
+  // mark for redaction).
+  const SHIFT_MARKUP_KEYS = { u: 'squiggly', h: 'link', r: 'redact' };
+  // One entry point for "arm this tool id" from a key, menu or rail button.
+  function armMarkupTool(mk) {
+    if (App.Markup.textTool) App.Markup.stopTextMarkup();
+    if (mk === '__stamp') { App.Stamps.open(); return; }
+    if (mk === '__snapshot') { App.Snapshot.start(); return; }
+    if (App.Markup.isTextTool && App.Markup.isTextTool(mk)) App.Markup.startTextMarkup(mk);
+    else App.Markup.startTool(mk);
+  }
+  App.armMarkupTool = armMarkupTool;
   function setupKeys() {
     window.addEventListener('keydown', (e) => {
       // Escape closes whichever modal is open (via its cancel/close button, so
@@ -430,7 +453,8 @@
           ['#whatsnew-modal', '#wn-close'],
           ['#digisign-modal', '#dsig-close'], ['#compare-modal', '#cmp-close'],
           ['#favcolor-modal', '#fav-close'],
-          ['#printprev-modal', '#pp-cancel']
+          ['#printprev-modal', '#pp-cancel'], ['#prompt-modal', '#prompt-no'],
+          ['#stamp-modal', '#stamp-close'], ['#grid-modal', '#grid-close']
         ].find(([m]) => { const el = App.$(m); return el && !el.classList.contains('hidden'); });
         if (open) { e.preventDefault(); const btn = App.$(open[1]); if (btn) btn.click(); return; }
         // An open flyout swallows Esc: dismiss it and hand focus back to its
@@ -556,12 +580,13 @@
       // reserved for app/OS commands). A single character key that maps to a tool
       // arms it and consumes the event.
       if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
-        const mk = MARKUP_KEYS[e.key.toLowerCase()];
+        const lk = e.key.toLowerCase();
+        const mk = e.shiftKey && SHIFT_MARKUP_KEYS[lk] !== undefined ? SHIFT_MARKUP_KEYS[lk] : MARKUP_KEYS[lk];
         if (mk !== undefined) {
           e.preventDefault();
           if (App.Markup.textTool) App.Markup.stopTextMarkup();
           if (mk === null) { App.setMode(null); App.toast('Select / move tool', 'info', 1500); }
-          else App.Markup.startTool(mk);
+          else armMarkupTool(mk);
           return;
         }
       }
@@ -596,6 +621,7 @@
       if (e.target.closest('.placed') || e.target.closest('.hit') || e.target.closest('.handle')) return;
       const pl = pageLayerFor(e);
       if (!pl) return;
+      if (App.state.mode === 'snapshot') return; // snapshot.js owns the drag
       if (App.state.mode === 'markup') {
         App.Markup.handleClick(pl.page, pl.layer, e);
       } else if (App.state.mode === 'measure') {
@@ -740,8 +766,7 @@
         if (dd) dd.close();
         const mk = b.dataset.mk;
         if (mk === '__list') App.MarkupPanel.toggle();
-        else if (App.Markup.isTextTool && App.Markup.isTextTool(mk)) App.Markup.startTextMarkup(mk);
-        else App.Markup.startTool(mk);
+        else armMarkupTool(mk);
       });
     });
     App.$('#mk-undo').addEventListener('click', () => App.Markup.undo());
@@ -779,10 +804,7 @@
         else if (mr === 'undo') { App.Markup.undo(); }
         else if (mr === 'redo') { App.Markup.redo(); }
         else if (mr === 'list') { App.MarkupPanel.toggle(); }
-        else if (mk) {
-          if (App.Markup.isTextTool && App.Markup.isTextTool(mk)) App.Markup.startTextMarkup(mk);
-          else App.Markup.startTool(mk);
-        }
+        else if (mk) armMarkupTool(mk);
         App.MarkupRail.sync();
       });
     });
@@ -797,7 +819,7 @@
         rail.querySelectorAll('.mr-btn').forEach((b) => {
           const mk = b.dataset.mk, mr = b.dataset.mr;
           let on = false;
-          if (mk && markupMode && drawTool) on = (mk === drawTool);
+          if (mk && markupMode && drawTool) on = (mk === drawTool) || (mk === '__stamp' && drawTool === 'stamp');
           else if (mk && textTool) on = (mk === textTool);
           else if (mr === 'select') on = !App.state.mode && !textTool;
           b.classList.toggle('armed', on);
@@ -827,6 +849,9 @@
         else if (d === 'compare') App.Compare.open();
         else if (d === 'overlay') App.Overlay.open();
         else if (d === 'split') App.SplitView.toggle();
+        else if (d === 'redact-apply') App.Redact.apply();
+        else if (d === 'snapshot') App.Snapshot.start();
+        else if (d === 'grid') App.Grid.open();
       });
     });
   }
@@ -1235,7 +1260,15 @@
       { combos: [['O']], label: 'Oval (ellipse)' },
       { combos: [['P']], label: 'Pen (freehand)' },
       { combos: [['H']], label: 'Highlighter' },
-      { combos: [['T'], ['C']], label: 'Text / callout' }
+      { combos: [['T'], ['C']], label: 'Text / callout' },
+      { combos: [['N']], label: 'Note' },
+      { combos: [['S']], label: 'Stamp' },
+      { combos: [['E']], label: 'Eraser' },
+      { combos: [['U'], ['D']], label: 'Underline / strikeout text' },
+      { combos: [['Shift', 'U']], label: 'Squiggly text' },
+      { combos: [['Shift', 'H']], label: 'Hyperlink' },
+      { combos: [['Shift', 'R']], label: 'Mark for redaction' },
+      { combos: [['G']], label: 'Snapshot' }
     ] },
     { title: 'View', rows: [
       { combos: [['mod', 'F']], label: 'Find' },
@@ -1353,6 +1386,9 @@
     if (App.OCR) App.OCR.init();
     if (App.DocStamp) App.DocStamp.init();
     if (App.ToolChest) App.ToolChest.init();
+    if (App.Stamps) App.Stamps.init();
+    if (App.Grid) App.Grid.init();
+    if (App.Snapshot) App.Snapshot.init();
     if (App.DigiSign) App.DigiSign.init();
     if (App.Compare) App.Compare.init();
     if (App.Overlay) App.Overlay.init();

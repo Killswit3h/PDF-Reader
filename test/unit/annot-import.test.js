@@ -11,12 +11,12 @@ const base = (o) => Object.assign({ flags: 4, measure: false, irt: false, it: nu
 
 describe('annotImportable', () => {
   it('accepts the supported subtypes', () => {
-    for (const s of ['Square', 'Circle', 'Line', 'PolyLine', 'Polygon', 'Ink', 'Highlight', 'Underline', 'StrikeOut', 'FreeText']) {
+    for (const s of ['Square', 'Circle', 'Line', 'PolyLine', 'Polygon', 'Ink', 'Highlight', 'Underline', 'StrikeOut', 'Squiggly', 'FreeText', 'Text']) {
       expect(annotImportable(base({ subtype: s }))).toBe(true);
     }
   });
   it('leaves everything else native', () => {
-    for (const s of ['Stamp', 'FileAttachment', 'Link', 'Widget', 'Popup', 'Redact', 'Sound', 'Text']) {
+    for (const s of ['Stamp', 'FileAttachment', 'Link', 'Widget', 'Popup', 'Redact', 'Sound']) {
       expect(annotImportable(base({ subtype: s }))).toBe(false);
     }
   });
@@ -107,5 +107,23 @@ describe('annotToMarkups', () => {
     expect(m.pts).toEqual([{ vx: 600, vy: 100 }, { vx: 700, vy: 200 }]);
     const [h] = annotToMarkups(base({ subtype: 'Highlight', quadPoints: [100, 700, 200, 700, 100, 690, 200, 690] }), vp90);
     expect(h.quads).toEqual([{ x: 690, y: 100, w: 10, h: 100 }]);
+  });
+});
+
+describe('sticky notes and squiggly (Bluebeam parity)', () => {
+  it('maps a Text note to a FieldMark note at the icon corner, words as comment', () => {
+    const [n] = annotToMarkups(base({ subtype: 'Text', rect: [100, 700, 120, 720], contents: 'Check post depth', color: [1, 1, 0] }), vp0);
+    expect(n.type).toBe('note');
+    expect(n.pts).toEqual([{ vx: 100, vy: 72 }]);
+    expect(n.comment).toBe('Check post depth');
+    expect(n.style.fill).toBe('#ffff00');
+  });
+  it('leaves a review-state reply (a Text with /IRT) native', () => {
+    expect(annotImportable(base({ subtype: 'Text', irt: true }))).toBe(false);
+  });
+  it('maps Squiggly quads like the other text markups', () => {
+    const [q] = annotToMarkups(base({ subtype: 'Squiggly', quadPoints: [10, 710, 60, 710, 10, 700, 60, 700] }), vp0);
+    expect(q.type).toBe('squiggly');
+    expect(q.quads).toEqual([{ x: 10, y: 82, w: 50, h: 10 }]);
   });
 });

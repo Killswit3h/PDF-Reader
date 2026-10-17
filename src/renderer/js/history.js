@@ -81,6 +81,10 @@
       App.state.dirty = true;
       if (App.refreshDirtyIndicator) App.refreshDirtyIndicator();
     },
+    // Forget the most recent snapshot without applying it: for a creation the
+    // user backed out of (a note or link cancelled before it was filled in) whose
+    // state the caller has already put back by hand.
+    discardLast() { undo.pop(); },
     // Drop all history (e.g. when a new document loads).
     reset() { undo = []; redo = []; App.state.dirty = false; if (App.refreshDirtyIndicator) App.refreshDirtyIndicator(); },
     canUndo() { return undo.length > 0; },

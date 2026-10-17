@@ -17,6 +17,7 @@ try { ({ autoUpdater } = require('electron-updater')); } catch (_) { autoUpdater
 const { buildMenuTemplate } = require('./shared/menu-template');
 const { addRecent, pruneRecent } = require('./shared/recent-files');
 const { sanitizeBounds } = require('./shared/window-state');
+const { safeLinkUrl } = require('./shared/markup-tools');
 const { createStore } = require('./desktop-store');
 
 // The app's display name changed to "FieldMark" (was "PDF Signer"), which would
@@ -3291,6 +3292,141 @@ function createWindow() {
         }, 1200);
         return;
       }
+      if (process.env.SMOKE_BLUEBEAM) {
+        // Bluebeam-parity tools end to end through the real renderer: stamp,
+        // note, hyperlink, squiggly, review status + lock, eraser, Markups List
+        // filter + summary PDF, grid snap, volume, snapshot, apply redactions.
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              const wait = (ms) => new Promise(r => setTimeout(r, ms));
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await wait(100);
+              await wait(900);
+              const A = App.state, out = {};
+              const layer = document.querySelector('.page[data-page-number="1"] .markup-layer');
+              const clickAt = (vx, vy) => {
+                const b = layer.getBoundingClientRect(), z = A.zoom || 1;
+                layer.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: b.left + vx * z, clientY: b.top + vy * z }));
+              };
+              const last = () => A.annotations[A.annotations.length - 1];
+              const answer = async (text) => {
+                for (let i = 0; i < 20 && document.querySelector('#prompt-modal').classList.contains('hidden'); i++) await wait(50);
+                const area = document.querySelector('#prompt-area'), line = document.querySelector('#prompt-input');
+                (area.classList.contains('hidden') ? line : area).value = text;
+                document.querySelector('#prompt-yes').click();
+                await wait(50);
+              };
+
+              // Stamp: pick from the library, one click places it.
+              App.Stamps.arm(App.stampById('approved'));
+              out.stampTool = App.Markup.tool;
+              clickAt(150, 120);
+              const st = last();
+              out.stamp = { type: st.type, text: st.text, color: st.style.stroke, name: st.stampName };
+
+              // Note: click, then type the comment in the prompt.
+              App.armMarkupTool('note');
+              clickAt(300, 100);
+              await answer('Check post depth');
+              out.note = { type: last().type, comment: last().comment };
+
+              // Hyperlink: drag box (two clicks), then a page number.
+              App.armMarkupTool('link');
+              clickAt(320, 200); clickAt(420, 240);
+              await answer('1');
+              out.link = { type: last().type, page: last().link && last().link.page };
+              out.badUrl = App.parseLinkTarget('javascript:alert(1)', A.numPages);
+
+              // Squiggly on a text quad.
+              App.setMode(null);
+              App.Markup.applyTextMarkup('squiggly', { 1: [{ x: 60, y: 300, w: 120, h: 12 }] });
+              out.squiggly = last().type;
+
+              // Review status, subject and lock.
+              App.Markup.setMeta(st.id, { status: 'accepted', subject: 'Submittal 05' });
+              App.Markup.setMeta(out.note && last().id, {});
+              App.MarkupPanel.setView({ status: 'accepted' });
+              out.acceptedVisible = App.MarkupPanel.visible().length;
+              App.MarkupPanel.setView({ status: '*', sort: 'type' });
+              out.allVisible = App.MarkupPanel.visible().length;
+              App.Markup.setMeta(st.id, { locked: true });
+              const before = A.annotations.length;
+              App.Markup.remove(st.id);
+              out.lockedSurvivesDelete = A.annotations.length === before;
+
+              // Eraser: removes a line it touches, never the locked stamp.
+              A.annoSeq++; A.annotations.push({ id: A.annoSeq, page: 1, type: 'line', pts: [{ vx: 60, vy: 400 }, { vx: 260, vy: 400 }], style: { stroke: '#f00', fill: 'none', width: 2, opacity: 1 } });
+              const lineId = A.annoSeq;
+              App.armMarkupTool('eraser');
+              App.Markup._eraseAt(1, { vx: 150, vy: 401 });
+              App.Markup._eraseAt(1, { vx: 150, vy: 130 });
+              out.lineErased = !A.annotations.some(a => a.id === lineId);
+              out.stampKept = A.annotations.some(a => a.id === st.id);
+              App.setMode(null);
+
+              // Summary PDF + CSV rows.
+              const sum = await App.MarkupPanel.buildSummaryBytes();
+              out.summaryPdf = sum.length > 800 && String.fromCharCode(sum[0], sum[1], sum[2], sum[3]) === '%PDF';
+              out.csvRows = App.markupRows(App.MarkupPanel.visible()).length;
+
+              // Grid snap.
+              App.Grid.set({ show: true, snap: true, spacing: 18 });
+              out.gridOn = document.body.classList.contains('grid-on');
+              App.armMarkupTool('rect');
+              clickAt(100, 505); clickAt(205, 560);
+              const g = last();
+              out.gridSnapped = g.type === 'rect' && g.pts.every(p => Math.abs(p.vx / 18 - Math.round(p.vx / 18)) < 1e-6 && Math.abs(p.vy / 18 - Math.round(p.vy / 18)) < 1e-6);
+              App.Grid.set({ show: false, snap: false });
+              App.setMode(null);
+
+              // Volume: an area with a depth.
+              A.scales = A.scales || {}; A.scales[1] = { factor: 20 / 72, unit: 'ft' };
+              A.measureSeq = (A.measureSeq || 0) + 1;
+              A.measurements.push({ id: A.measureSeq, page: 1, type: 'area', pts: [{ vx: 400, vy: 400 }, { vx: 472, vy: 400 }, { vx: 472, vy: 472 }, { vx: 400, vy: 472 }], color: '#21a366', width: 1.4 });
+              App.Measure.recomputeAll();
+              App.Measure.select(A.measureSeq);
+              App.Measure.setSelectedDepth('0.5');
+              App.Measure.endEdit();
+              const m = A.measurements[A.measurements.length - 1];
+              out.volumeLabel = m.label;
+
+              // Snapshot: crop the rendered page, arm it as a paste.
+              const canvas = document.querySelector('.page[data-page-number="1"] canvas');
+              const cr = canvas.getBoundingClientRect();
+              const shot = App.Snapshot.capture(canvas, { x0: cr.left + 10, y0: cr.top + 10, x1: cr.left + 110, y1: cr.top + 70 });
+              out.snapshot = !!shot && shot.dataUrl.indexOf('data:image/png') === 0 && shot.aspect > 1;
+              await App.Snapshot.deliver(shot);
+              out.snapshotArmed = A.mode === 'stamp' && !!App.Placement.pending;
+              App.setMode(null);
+
+              // Export with every new type, editable and flattened.
+              A.saveAnnots = true; const b1 = await App.Save.buildBytes();
+              A.saveAnnots = false; const b2 = await App.Save.buildBytes();
+              A.saveAnnots = true;
+              out.exported = b1.length > 0 && b2.length > 0;
+
+              // Apply redactions: page 1 text under the box is really gone.
+              const p1 = await A.pdfDoc.getPage(1);
+              const vp = p1.getViewport({ scale: 1 });
+              out.textBefore = (await p1.getTextContent()).items.length;
+              A.annoSeq++;
+              A.annotations.push({ id: A.annoSeq, page: 1, type: 'redact', pts: [{ vx: 0, vy: 0 }, { vx: vp.width, vy: vp.height }], style: { stroke: '#000', fill: 'none', width: 1, opacity: 1 } });
+              const marksBefore = A.annotations.length;
+              out.redactOk = await App.Redact.apply({ skipConfirm: true });
+              for (let i = 0; i < 40 && !A.numPages; i++) await wait(100);
+              await wait(500);
+              const q1 = await A.pdfDoc.getPage(1);
+              out.textAfter = (await q1.getTextContent()).items.length;
+              out.redactMarkGone = !A.annotations.some(a => a.type === 'redact');
+              out.otherMarksKept = A.annotations.length === marksBefore - 1;
+              return JSON.stringify(out);
+            })()`, true);
+            console.log('[bluebeam] ' + r);
+          } catch (e) { console.log('[bluebeam] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SELECT) {
         setTimeout(async () => {
           try {
@@ -4301,7 +4437,12 @@ ipcMain.handle('app:checkUpdates', async () => {
 });
 
 ipcMain.handle('app:openExternal', async (_e, url) => {
-  await shell.openExternal(url);
+  // The renderer can now pass URLs that came out of a PDF (hyperlink markups).
+  // shell.openExternal hands any scheme to the OS -- file:, smb: or a custom
+  // protocol can launch programs -- so only http(s) and mailto get through.
+  const safe = safeLinkUrl(url);
+  if (!safe) return false;
+  await shell.openExternal(safe);
   return true;
 });
 

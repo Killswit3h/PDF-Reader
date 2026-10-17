@@ -18,7 +18,7 @@ The tables below are that script's contract.
 
 ## Markup tools — export status
 
-All fourteen export as live annotations when "save editable annotations" is on.
+All nineteen export as live annotations when "save editable annotations" is on.
 Flattening still happens when the setting is off, unchanged.
 
 | Tool | PDF subtype exported | Live in Revu / Acrobat |
@@ -37,6 +37,15 @@ Flattening still happens when the setting is off, unchanged.
 | texthighlight | `Highlight` + `/QuadPoints` + `/AP` | yes |
 | underline | `Underline` + `/QuadPoints` + `/AP` | yes |
 | strikeout | `StrikeOut` + `/QuadPoints` + `/AP` | yes |
+| squiggly | `Squiggly` + `/QuadPoints` + `/AP` | yes |
+| note | `Text` (`/Name /Comment`) | yes |
+| stamp | `Stamp` + Acrobat `/Name` + `/AP` | yes |
+| link | `Link` (`/Dest` or `/URI`), written live even when flattening | yes |
+| redact | `Redact` until applied; applied pages are rebuilt as images | yes |
+
+Every markup also carries its review fields: `/Subj`, `/Contents` (comment),
+`/F` with the Locked bit, `/BS /D` for dashed styles, and a hidden `/IRT`
+review-state reply for its status. See `docs/bluebeam-parity.md`.
 
 ## Measure tools — export status
 
@@ -94,15 +103,15 @@ exported calibration can never disagree with the number the user is looking at.
 
 ## Still open
 
-- **`/Squiggly`.** Acrobat and Revu offer a wavy text underline; we have no such
-  tool. Now trivial — same quad path as underline with a different subtype and
-  appearance.
+- ~~**`/Squiggly`.**~~ Closed on `feat/bluebeam-parity`.
 - **Per-region scale UI.** Revu supports different scales on different regions of
   one sheet, common when a detail sits on a plan. The plumbing exists —
   `computeValue` takes an explicit scale and `scaleFor` already prefers a region
   — but there is no UI to define regions beyond the existing viewport tool.
-- **Volume / depth.** Revu carries a depth on area measurements to produce
-  volume. No equivalent here.
+- ~~**Volume / depth.**~~ Closed on `feat/bluebeam-parity`: depth on an area gives
+  volume (and cubic yards), height on a length gives wall area. It shows in the
+  label, the totals and the CSV. It is not yet written into `/Measure`; Revu
+  keeps depth in its own private keys.
 - **Quantity export.** `Measure.exportCsv` exists, but there is no export of
   measurement data *into the PDF* as a summary the way Revu produces takeoff
   reports.

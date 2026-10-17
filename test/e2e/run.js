@@ -723,6 +723,32 @@ const SCENARIOS = [
     }
   },
   {
+    name: 'bluebeam — stamps, notes, links, status/lock, eraser, summary, grid, volume, snapshot, redaction',
+    run: () => {
+      const j = tagJson(runApp({ SMOKE_BLUEBEAM: '1' }, [SAMPLE]), 'bluebeam');
+      check(j.stampTool === 'stamp', 'stamp picker did not arm the stamp tool');
+      check(j.stamp && j.stamp.type === 'stamp' && /^APPROVED\n/.test(j.stamp.text) && j.stamp.name === 'Approved', 'stamp not placed: ' + JSON.stringify(j.stamp));
+      check(j.note && j.note.type === 'note' && j.note.comment === 'Check post depth', 'note comment not saved: ' + JSON.stringify(j.note));
+      check(j.link && j.link.type === 'link' && j.link.page === 1, 'hyperlink target not set: ' + JSON.stringify(j.link));
+      check(j.badUrl === null, 'a javascript: link target was accepted');
+      check(j.squiggly === 'squiggly', 'squiggly text markup not created');
+      check(j.acceptedVisible === 1, 'status filter should show exactly the accepted stamp, saw ' + j.acceptedVisible);
+      check(j.allVisible >= 4, 'All filter hides markups, saw ' + j.allVisible);
+      check(j.lockedSurvivesDelete === true, 'a locked markup was deleted');
+      check(j.lineErased === true && j.stampKept === true, 'eraser removed the wrong thing (line erased ' + j.lineErased + ', locked stamp kept ' + j.stampKept + ')');
+      check(j.summaryPdf === true, 'markup summary PDF not built');
+      check(j.csvRows >= 5, 'CSV rows missing, saw ' + j.csvRows);
+      check(j.gridOn === true && j.gridSnapped === true, 'grid did not show or snap (on ' + j.gridOn + ', snapped ' + j.gridSnapped + ')');
+      check(/V .*ft³ \(.*yd³\)/.test(j.volumeLabel || ''), 'area with depth should show volume in ft³ and yd³, got ' + j.volumeLabel);
+      check(j.snapshot === true && j.snapshotArmed === true, 'snapshot capture/paste failed');
+      check(j.exported === true, 'export with the new markup types failed');
+      check(j.redactOk === true, 'apply redactions failed');
+      check(j.textBefore > 0, 'fixture page 1 has no text to redact');
+      check(j.textAfter === 0, 'text still extractable after redaction: ' + j.textAfter + ' items');
+      check(j.redactMarkGone === true && j.otherMarksKept === true, 'redaction should consume only its own marks');
+    }
+  },
+  {
     name: 'select — Select tool disarms drawing tools and enables item selection',
     run: () => {
       const j = tagJson(runApp({ SMOKE_SELECT: '1' }, [SAMPLE]), 'select');

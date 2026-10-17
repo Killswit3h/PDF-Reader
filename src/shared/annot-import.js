@@ -23,7 +23,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   const SUPPORTED = {
     Square: 1, Circle: 1, Line: 1, PolyLine: 1, Polygon: 1, Ink: 1,
-    Highlight: 1, Underline: 1, StrikeOut: 1, FreeText: 1
+    Highlight: 1, Underline: 1, StrikeOut: 1, Squiggly: 1, FreeText: 1, Text: 1
   };
   // Annotation flags (ISO 32000 table 165). Hidden/NoView marks are not on the
   // sheet; ReadOnly/Locked marks were locked on purpose by whoever made them.
@@ -168,7 +168,7 @@
         });
         return out;
       }
-      case 'Highlight': case 'Underline': case 'StrikeOut': {
+      case 'Highlight': case 'Underline': case 'StrikeOut': case 'Squiggly': {
         const Q = Array.isArray(d.quadPoints) ? d.quadPoints : [];
         const quads = [];
         for (let i = 0; i + 7 < Q.length; i += 8) {
@@ -176,10 +176,20 @@
           if (b.x1 - b.x0 > 0 && b.y1 - b.y0 > 0) quads.push({ x: b.x0, y: b.y0, w: b.x1 - b.x0, h: b.y1 - b.y0 });
         }
         if (!quads.length) return [];
-        const type = d.subtype === 'Highlight' ? 'texthighlight' : d.subtype === 'Underline' ? 'underline' : 'strikeout';
+        const type = d.subtype === 'Highlight' ? 'texthighlight' : d.subtype === 'Underline' ? 'underline'
+          : d.subtype === 'Squiggly' ? 'squiggly' : 'strikeout';
         const m = mk(type, { quads }, true);
         m.style.fill = 'none';
         return [m];
+      }
+      case 'Text': {
+        // A sticky note. Its icon sits at the top-left of /Rect; the note's
+        // words become the FieldMark note's comment.
+        if (!Array.isArray(d.rect) || d.rect.length !== 4) return [];
+        const b = rectBox(toVP, d.rect);
+        return [Object.assign({ type: 'note', pts: [{ vx: b.x0, vy: b.y0 }],
+          style: Object.assign({}, style, { fill: pdfColorToHex(d.color) || '#ffd400' }) },
+        note ? { comment: note } : {}, extra)];
       }
       case 'FreeText': {
         if (!Array.isArray(d.rect) || d.rect.length !== 4) return [];

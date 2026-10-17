@@ -279,6 +279,46 @@ App.confirm = (message, opts = {}) => {
   });
 };
 
+// -------- Text prompt (Promise<string|null>) --------
+// Themed replacement for window.prompt(), which Electron does not implement.
+// Resolves the trimmed text on OK / Enter (Ctrl+Enter when multiline), or null
+// on Cancel / Esc.
+App.promptText = (message, opts = {}) => {
+  const { title = 'Enter text', okLabel = 'OK', value = '', placeholder = '', multiline = false } = opts;
+  return new Promise((resolve) => {
+    const modal = App.$('#prompt-modal');
+    App.$('#prompt-title').textContent = title;
+    App.$('#prompt-msg').textContent = message || '';
+    const line = App.$('#prompt-input'), area = App.$('#prompt-area');
+    const input = multiline ? area : line;
+    line.classList.toggle('hidden', multiline);
+    area.classList.toggle('hidden', !multiline);
+    input.value = value;
+    input.placeholder = placeholder;
+    const ok = App.$('#prompt-yes');
+    const no = App.$('#prompt-no');
+    ok.textContent = okLabel;
+    modal.classList.remove('hidden');
+    input.focus();
+    if (input.select) input.select();
+    const cleanup = (result) => {
+      modal.classList.add('hidden');
+      ok.removeEventListener('click', onOk);
+      no.removeEventListener('click', onNo);
+      input.removeEventListener('keydown', onKey);
+      resolve(result);
+    };
+    const onOk = () => cleanup(input.value.trim());
+    const onNo = () => cleanup(null);
+    const onKey = (e) => {
+      if (e.key === 'Enter' && (!multiline || e.ctrlKey || e.metaKey)) { e.preventDefault(); onOk(); }
+    };
+    ok.addEventListener('click', onOk);
+    no.addEventListener('click', onNo);
+    input.addEventListener('keydown', onKey);
+  });
+};
+
 // -------- Lazy vendor libraries --------
 // Heavy dependencies that aren't needed just to open and view a PDF are loaded
 // on first use instead of at startup, to cut cold-start download + parse (most
