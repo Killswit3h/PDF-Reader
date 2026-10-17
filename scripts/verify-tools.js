@@ -81,7 +81,16 @@ const TOOLS = [
   // Quad-based text markups, exported with a generated /AP appearance stream.
   { type: 'texthighlight', expect: 'Highlight', quads: [{ x: 60, y: 560, w: 120, h: 14 }] },
   { type: 'underline', expect: 'Underline', quads: [{ x: 60, y: 590, w: 120, h: 14 }] },
-  { type: 'strikeout', expect: 'StrikeOut', quads: [{ x: 60, y: 620, w: 120, h: 14 }] }
+  { type: 'strikeout', expect: 'StrikeOut', quads: [{ x: 60, y: 620, w: 120, h: 14 }] },
+  // Bluebeam-parity tools (docs/bluebeam-parity.md).
+  { type: 'squiggly', expect: 'Squiggly', quads: [{ x: 60, y: 650, w: 120, h: 14 }] },
+  { type: 'note', expect: 'Text', pts: [{ vx: 220, vy: 650 }], extra: { comment: 'Check post depth' } },
+  { type: 'stamp', expect: 'Stamp', pts: [{ vx: 260, vy: 640 }, { vx: 400, vy: 690 }],
+    extra: { text: 'APPROVED\n10/16/2026', stampName: 'Approved', subject: 'Submittal 05', status: 'accepted' } },
+  { type: 'link', expect: 'Link', pts: [{ vx: 420, vy: 640 }, { vx: 500, vy: 680 }], extra: { link: { page: 1 } } },
+  { type: 'redact', expect: 'Redact', pts: [{ vx: 420, vy: 700 }, { vx: 500, vy: 730 }] },
+  { type: 'rect', expect: 'Square', pts: [{ vx: 60, vy: 700 }, { vx: 200, vy: 740 }],
+    extra: { locked: true, comment: 'Dashed + locked', subject: 'Fence line' }, styleExtra: { dash: 'dashed' } }
 ];
 
 /*
@@ -155,7 +164,8 @@ const MEASURES = [
       for (const t of tools) {
         A.annoSeq = (A.annoSeq || 0) + 1;
         ids[t.type] = A.annoSeq;
-        const an = { id: A.annoSeq, page: 1, style: style(), type: t.type };
+        const an = { id: A.annoSeq, page: 1, style: Object.assign(style(), t.styleExtra || {}), type: t.type };
+        if (t.extra) Object.assign(an, t.extra);
         if (t.pts) an.pts = t.pts;
         if (t.quads) an.quads = t.quads;
         if (t.text) an.text = t.text;
@@ -222,7 +232,7 @@ const MEASURES = [
         };
         const on = await draw(pdfjsLib.AnnotationMode.ENABLE);
         const off = await draw(pdfjsLib.AnnotationMode.DISABLE);
-        const want = { Highlight: 0, Underline: 0, StrikeOut: 0 };
+        const want = { Highlight: 0, Underline: 0, StrikeOut: 0, Squiggly: 0, Stamp: 0 };
         for (const a of await p.getAnnotations()) {
           if (!(a.subtype in want)) continue;
           const [x0, y0, x1, y1] = vp.convertToViewportRectangle(a.rect);
@@ -264,6 +274,10 @@ const MEASURES = [
         found[a.subtype] = (found[a.subtype] || 0) + 1;
         // /CreationDate + /M: without them Acrobat and Bluebeam show a blank
         // date column and cannot sort a markup list by when things were drawn.
+        // pdf.js only parses the dates on markup annotations (ISO 32000
+        // §12.5.6.2); a Link is not one and Redact falls back to its base
+        // class, so those two are written with dates but not counted here.
+        if (a.subtype === 'Link' || a.subtype === 'Redact') continue;
         dated.total++;
         if (a.creationDate) dated.creation++;
         if (a.modificationDate) dated.mod++;
@@ -298,7 +312,13 @@ const MEASURES = [
           const helv = fonts && doc.context.lookup(fonts.get(PDFName.of('Helv')));
           if (helv) labelFont = String(helv.get(PDFName.of('BaseFont')) || 'present').replace(/^\//, '');
         } catch (_) { /* leave null */ }
+        const str = (k) => { const v = a.get(PDFName.of(k)); return v && v.decodeText ? v.decodeText() : (v ? String(v) : null); };
+        const flags = (() => { const v = a.get(PDFName.of('F')); return v && v.asNumber ? v.asNumber() : 0; })();
+        const bsD = (() => { try { const bs = a.get(PDFName.of('BS')); const d = bs && bs.get(PDFName.of('D')); return d ? d.asArray().length : 0; } catch (_) { return 0; } })();
         dicts.push({
+          state: str('State'), stateModel: str('StateModel'), irt: !!a.get(PDFName.of('IRT')),
+          subj: str('Subj'), flags, dash: bsD,
+          dest: !!a.get(PDFName.of('Dest')),
           subtype: nm(a, 'Subtype'),
           it: nm(a, 'IT'),
           measure: !!a.get(PDFName.of('Measure')),
@@ -419,6 +439,15 @@ const MEASURES = [
       `${got != null ? got.toFixed(4) : '— (saw ' + near + ')'} ft, FieldMark reports ` +
       `${mm.arcLen.toFixed(4)} ft`);
   }
+  // ---- review fields: status reply, subject, lock flag, dash, link dest ----
+  const rv = [];
+  const stateReply = dicts.find((d) => d.irt && d.state === 'Accepted' && d.stateModel === 'Review' && (d.flags & 2));
+  rv.push(['status reply (/IRT /State Accepted, hidden)', !!stateReply]);
+  rv.push(['subject (/Subj) on stamp', dicts.some((d) => d.subtype === 'Stamp' && d.subj === 'Submittal 05')]);
+  rv.push(['stamp has an /AP', dicts.some((d) => d.subtype === 'Stamp' && d.ap)]);
+  rv.push(['locked flag (/F & 128) and dash (/BS /D)', dicts.some((d) => d.subtype === 'Square' && (d.flags & 128) && d.dash > 0 && d.subj === 'Fence line')]);
+  rv.push(['link jumps to a page (/Dest)', dicts.some((d) => d.subtype === 'Link' && d.dest)]);
+  rv.forEach(([label, okv]) => { if (!okv) mbad++; mrows.push(`  ${okv ? 'OK  ' : 'FAIL'}  ${label}`); });
   console.log(`[verify-tools] ${out.measCount} measurements exported`);
   console.log(mrows.join('\n'));
   if (structErr) console.log('[verify-tools] structural read failed: ' + structErr);

@@ -17,6 +17,7 @@ try { ({ autoUpdater } = require('electron-updater')); } catch (_) { autoUpdater
 const { buildMenuTemplate } = require('./shared/menu-template');
 const { addRecent, pruneRecent } = require('./shared/recent-files');
 const { sanitizeBounds } = require('./shared/window-state');
+const { safeLinkUrl } = require('./shared/markup-tools');
 const { createStore } = require('./desktop-store');
 
 // The app's display name changed to "FieldMark" (was "PDF Signer"), which would
@@ -3291,6 +3292,196 @@ function createWindow() {
         }, 1200);
         return;
       }
+      if (process.env.SMOKE_BLUEBEAM) {
+        // Bluebeam-parity tools end to end through the real renderer: stamp,
+        // note, hyperlink, squiggly, review status + lock, eraser, Markups List
+        // filter + summary PDF, grid snap, volume, snapshot, apply redactions.
+        setTimeout(async () => {
+          try {
+            const r = await mainWindow.webContents.executeJavaScript(`(async () => {
+              const wait = (ms) => new Promise(r => setTimeout(r, ms));
+              for (let i = 0; i < 60 && !App.state.numPages; i++) await wait(100);
+              await wait(900);
+              const A = App.state, out = {};
+              const layer = document.querySelector('.page[data-page-number="1"] .markup-layer');
+              const clickAt = (vx, vy) => {
+                const b = layer.getBoundingClientRect(), z = A.zoom || 1;
+                layer.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: b.left + vx * z, clientY: b.top + vy * z }));
+              };
+              const last = () => A.annotations[A.annotations.length - 1];
+              const answer = async (text) => {
+                for (let i = 0; i < 20 && document.querySelector('#prompt-modal').classList.contains('hidden'); i++) await wait(50);
+                const area = document.querySelector('#prompt-area'), line = document.querySelector('#prompt-input');
+                (area.classList.contains('hidden') ? line : area).value = text;
+                document.querySelector('#prompt-yes').click();
+                await wait(50);
+              };
+
+              // Stamp: pick from the library, one click places it.
+              App.Stamps.arm(App.stampById('approved'));
+              out.stampTool = App.Markup.tool;
+              clickAt(150, 120);
+              const st = last();
+              out.stamp = { type: st.type, text: st.text, color: st.style.stroke, name: st.stampName };
+
+              // Note: click, then type the comment in the prompt.
+              App.armMarkupTool('note');
+              clickAt(300, 100);
+              await answer('Check post depth');
+              out.note = { type: last().type, comment: last().comment };
+
+              // Hyperlink: drag box (two clicks), then a page number.
+              App.armMarkupTool('link');
+              clickAt(320, 200); clickAt(420, 240);
+              await answer('1');
+              out.link = { type: last().type, page: last().link && last().link.page };
+              out.badUrl = App.parseLinkTarget('javascript:alert(1)', A.numPages);
+
+              // Squiggly on a text quad.
+              App.setMode(null);
+              App.Markup.applyTextMarkup('squiggly', { 1: [{ x: 60, y: 300, w: 120, h: 12 }] });
+              out.squiggly = last().type;
+
+              // Review status, subject and lock.
+              App.Markup.setMeta(st.id, { status: 'accepted', subject: 'Submittal 05' });
+              App.Markup.setMeta(out.note && last().id, {});
+              App.MarkupPanel.setView({ status: 'accepted' });
+              out.acceptedVisible = App.MarkupPanel.visible().length;
+              App.MarkupPanel.setView({ status: '*', sort: 'type' });
+              out.allVisible = App.MarkupPanel.visible().length;
+              App.Markup.setMeta(st.id, { locked: true });
+              const before = A.annotations.length;
+              App.Markup.remove(st.id);
+              out.lockedSurvivesDelete = A.annotations.length === before;
+
+              // Eraser: removes a line it touches, never the locked stamp.
+              A.annoSeq++; A.annotations.push({ id: A.annoSeq, page: 1, type: 'line', pts: [{ vx: 60, vy: 400 }, { vx: 260, vy: 400 }], style: { stroke: '#f00', fill: 'none', width: 2, opacity: 1 } });
+              const lineId = A.annoSeq;
+              App.armMarkupTool('eraser');
+              App.Markup._eraseAt(1, { vx: 150, vy: 401 });
+              App.Markup._eraseAt(1, { vx: 150, vy: 130 });
+              out.lineErased = !A.annotations.some(a => a.id === lineId);
+              out.stampKept = A.annotations.some(a => a.id === st.id);
+              // A real press-and-click over two stacked lines erases ONE of them.
+              const mkLine = () => { A.annoSeq++; A.annotations.push({ id: A.annoSeq, page: 1, type: 'line', pts: [{ vx: 60, vy: 440 }, { vx: 260, vy: 440 }], style: { stroke: '#f00', fill: 'none', width: 2, opacity: 1 } }); return A.annoSeq; };
+              const l1 = mkLine(), l2 = mkLine();
+              const lb = layer.getBoundingClientRect(), lz = A.zoom || 1;
+              const ev = { bubbles: true, clientX: lb.left + 150 * lz, clientY: lb.top + 440 * lz, pointerId: 1, button: 0 };
+              layer.dispatchEvent(new PointerEvent('pointerdown', ev));
+              window.dispatchEvent(new PointerEvent('pointerup', ev));
+              layer.dispatchEvent(new MouseEvent('click', ev));
+              out.oneClickErasesOne = A.annotations.some(a => a.id === l1) && !A.annotations.some(a => a.id === l2);
+              App.setMode(null);
+              // A locked markup ignores the style bar.
+              App.Markup.select(st.id);
+              const strokeIn = document.querySelector('#mk-stroke');
+              strokeIn.value = '#0000ff'; strokeIn.dispatchEvent(new Event('input', { bubbles: true }));
+              out.lockedStyleKept = A.annotations.find(a => a.id === st.id).style.stroke === '#15803d';
+              App.Markup.deselect();
+
+              // Summary PDF + CSV rows.
+              const sum = await App.MarkupPanel.buildSummaryBytes();
+              out.summaryPdf = sum.length > 800 && String.fromCharCode(sum[0], sum[1], sum[2], sum[3]) === '%PDF';
+              out.csvRows = App.markupRows(App.MarkupPanel.visible()).length;
+
+              // Grid snap.
+              App.Grid.set({ show: true, snap: true, spacing: 18 });
+              out.gridOn = document.body.classList.contains('grid-on');
+              App.armMarkupTool('rect');
+              clickAt(100, 505); clickAt(205, 560);
+              const g = last();
+              out.gridSnapped = g.type === 'rect' && g.pts.every(p => Math.abs(p.vx / 18 - Math.round(p.vx / 18)) < 1e-6 && Math.abs(p.vy / 18 - Math.round(p.vy / 18)) < 1e-6);
+              App.Grid.set({ show: false, snap: false });
+              App.setMode(null);
+
+              // Volume: an area with a depth.
+              A.scales = A.scales || {}; A.scales[1] = { factor: 20 / 72, unit: 'ft' };
+              A.measureSeq = (A.measureSeq || 0) + 1;
+              A.measurements.push({ id: A.measureSeq, page: 1, type: 'area', pts: [{ vx: 400, vy: 400 }, { vx: 472, vy: 400 }, { vx: 472, vy: 472 }, { vx: 400, vy: 472 }], color: '#21a366', width: 1.4 });
+              App.Measure.recomputeAll();
+              App.Measure.select(A.measureSeq);
+              App.Measure.setSelectedDepth('0.5');
+              App.Measure.endEdit();
+              const m = A.measurements[A.measurements.length - 1];
+              out.volumeLabel = m.label;
+
+              // Snapshot: crop the rendered page, arm it as a paste.
+              const canvas = document.querySelector('.page[data-page-number="1"] canvas');
+              const cr = canvas.getBoundingClientRect();
+              const shot = App.Snapshot.capture(canvas, { x0: cr.left + 10, y0: cr.top + 10, x1: cr.left + 110, y1: cr.top + 70 });
+              out.snapshot = !!shot && shot.dataUrl.indexOf('data:image/png') === 0 && shot.aspect > 1;
+              await App.Snapshot.deliver(shot);
+              out.snapshotArmed = A.mode === 'stamp' && !!App.Placement.pending;
+              App.setMode(null);
+
+              // Export with every new type, editable and flattened.
+              A.saveAnnots = true; const b1 = await App.Save.buildBytes();
+              A.saveAnnots = false; const b2 = await App.Save.buildBytes();
+              A.saveAnnots = true;
+              out.exported = b1.length > 0 && b2.length > 0;
+
+              // Apply redactions: page 1 text under the box is really gone.
+              const p1 = await A.pdfDoc.getPage(1);
+              const vp = p1.getViewport({ scale: 1 });
+              out.textBefore = (await p1.getTextContent()).items.length;
+              A.annoSeq++;
+              A.annotations.push({ id: A.annoSeq, page: 1, type: 'redact', pts: [{ vx: 0, vy: 0 }, { vx: vp.width, vy: vp.height }], style: { stroke: '#000', fill: 'none', width: 1, opacity: 1 } });
+              // A FieldMark text box wholly under the box must go with it.
+              A.annoSeq++;
+              A.annotations.push({ id: A.annoSeq, page: 1, type: 'text', text: 'SECRET NOTE', pts: [{ vx: 100, vy: 100 }, { vx: 250, vy: 140 }], style: { stroke: '#000', fill: 'none', width: 2, opacity: 1, fontSize: 14 } });
+              const secretId = A.annoSeq;
+              // A link on page 2 that points AT page 1: copying page 2 must not
+              // drag the original page 1 (and its text) into the output.
+              {
+                const L = window.PDFLib;
+                const d = await L.PDFDocument.load(A.pdfBytes);
+                const p2 = d.getPage(1), ctx = d.context;
+                const dest = ctx.obj([d.getPage(0).ref, L.PDFName.of('Fit')]);
+                const link = ctx.register(ctx.obj({ Type: 'Annot', Subtype: 'Link', Rect: [10, 10, 60, 60], Dest: dest }));
+                p2.node.set(L.PDFName.of('Annots'), ctx.obj([link]));
+                A.pdfBytes = new Uint8Array(await d.save());
+              }
+              A.annoSeq++;
+              A.annotations.push({ id: A.annoSeq, page: 2, type: 'rect', pts: [{ vx: 60, vy: 60 }, { vx: 200, vy: 120 }], style: { stroke: '#f00', fill: 'none', width: 2, opacity: 1 } });
+              const page2Id = A.annoSeq;
+              out.redactOk = await App.Redact.apply({ skipConfirm: true });
+              for (let i = 0; i < 40 && !A.numPages; i++) await wait(100);
+              await wait(500);
+              const q1 = await A.pdfDoc.getPage(1);
+              out.textAfter = (await q1.getTextContent()).items.length;
+              out.redactMarkGone = !A.annotations.some(a => a.type === 'redact');
+              out.coveredMarkGone = !A.annotations.some(a => a.id === secretId);
+              {
+                const L = window.PDFLib;
+                const d = await L.PDFDocument.load(A.pdfBytes);
+                let pageObjs = 0, leaked = false;
+                for (const [, obj] of d.context.enumerateIndirectObjects()) {
+                  const dict = obj instanceof L.PDFDict ? obj : (obj && obj.dict);
+                  if (dict && dict.get(L.PDFName.of('Type')) === L.PDFName.of('Page')) pageObjs++;
+                  if (obj instanceof L.PDFRawStream) {
+                    try {
+                      const raw = L.decodePDFRawStream(obj).decode();
+                      if (new TextDecoder('latin1').decode(raw).indexOf('Sample drawing') >= 0) leaked = true;
+                    } catch (_) { /* image or unknown filter */ }
+                  }
+                }
+                out.pageObjects = pageObjs; out.numPagesAfter = d.getPageCount(); out.textLeaked = leaked;
+                try {
+                  const annots = d.getPage(1).node.Annots();
+                  const link = annots && annots.lookup(0, L.PDFDict);
+                  const dest = link && link.lookup(L.PDFName.of('Dest'), L.PDFArray);
+                  out.linkToRedactedPage = !!dest && dest.get(0) === d.getPage(0).ref;
+                } catch (e) { out.linkToRedactedPage = 'err ' + e.message; }
+              }
+              out.otherMarksKept = A.annotations.some(a => a.id === page2Id) && !A.annotations.some(a => a.page === 1);
+              return JSON.stringify(out);
+            })()`, true);
+            console.log('[bluebeam] ' + r);
+          } catch (e) { console.log('[bluebeam] error', e && e.message); }
+          app.quit();
+        }, 1200);
+        return;
+      }
       if (process.env.SMOKE_SELECT) {
         setTimeout(async () => {
           try {
@@ -4301,7 +4492,12 @@ ipcMain.handle('app:checkUpdates', async () => {
 });
 
 ipcMain.handle('app:openExternal', async (_e, url) => {
-  await shell.openExternal(url);
+  // The renderer can now pass URLs that came out of a PDF (hyperlink markups).
+  // shell.openExternal hands any scheme to the OS -- file:, smb: or a custom
+  // protocol can launch programs -- so only http(s) and mailto get through.
+  const safe = safeLinkUrl(url);
+  if (!safe) return false;
+  await shell.openExternal(safe);
   return true;
 });
 

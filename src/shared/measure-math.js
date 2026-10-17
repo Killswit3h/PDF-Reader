@@ -159,5 +159,30 @@
     return realVal / drawPts;
   }
 
-  return { UNITS, fmtMeasure, formatFeetInches, computeValue, ratioToFactor, segmentLengths, circleOf, arcSpanOf };
+  // Depth / height on a takeoff, the way Revu carries it: an Area with a depth
+  // gives a VOLUME (unit³, plus cubic yards when measuring in feet, which is how
+  // concrete is ordered); a Length / Perimeter with a height gives a WALL /
+  // SURFACE area (unit², e.g. fence fabric = run × height). `depth` is in the
+  // same unit as the scale. Returns null when there is nothing to compute.
+  const DEPTH_TYPES = { area: 'volume', length: 'surface', continuous: 'surface', perimeter: 'surface', arcLength: 'surface' };
+  function depthResult(type, value, unit, depth) {
+    const kind = DEPTH_TYPES[type];
+    const d = +depth;
+    if (!kind || value == null || !unit || !(d > 0)) return null;
+    if (kind === 'volume') {
+      const v = value * d;
+      return { kind, value: v, unit, cy: unit === 'ft' ? v / 27 : unit === 'yd' ? v : null };
+    }
+    return { kind, value: value * d, unit };
+  }
+  function fmtDepthResult(r) {
+    if (!r) return '';
+    if (r.kind === 'volume') {
+      const cy = r.cy != null && r.unit !== 'yd' ? ` (${r.cy.toFixed(2)} yd³)` : '';
+      return `${r.value.toFixed(2)} ${r.unit}³${cy}`;
+    }
+    return `${r.value.toFixed(2)} ${r.unit}²`;
+  }
+
+  return { UNITS, fmtMeasure, formatFeetInches, computeValue, ratioToFactor, segmentLengths, circleOf, arcSpanOf, depthResult, fmtDepthResult };
 });

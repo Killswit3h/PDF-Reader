@@ -235,6 +235,16 @@ at runtime. Handwriting fonts are bundled with the app.
   (`Ctrl+Shift+S`) writes a copy to a location you choose (default
   `<original>-signed.pdf`). If the document was opened by dropping raw bytes with
   no file path, Save behaves like Save As the first time, then remembers it.
+- **Review tools (Bluebeam parity)** — **stamps** (Approved, Approved as Noted,
+  Revise & Resubmit, As-Built, Void and 9 more, or your own text, with the date),
+  **sticky notes**, **squiggly** text, **hyperlinks** to a page or web address,
+  an **eraser**, **mark for redaction + Apply Redactions** (really removes the
+  content), **status / subject / comment / lock** on every markup, **dashed and
+  dotted** line styles, a Markups List with **status filter, sort, and a PDF
+  Markup Summary**, **volume** (area × depth, in cubic yards) and **wall area**
+  (length × height), **snapshot** to the clipboard, and a **snap-to grid**. All of
+  it saves as live annotations Revu and Acrobat read. Full matrix:
+  [docs/bluebeam-parity.md](docs/bluebeam-parity.md).
 - **Markup tools** (Bluebeam-style) — under the **✏️ Markup** menu: **arrow, line,
   rectangle, ellipse, polyline, polygon, revision cloud, freehand ink, text box,
   callout, and highlight**, plus **text-anchored Highlight / Underline /

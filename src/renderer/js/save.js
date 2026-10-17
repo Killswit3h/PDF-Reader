@@ -118,9 +118,24 @@
     // A callout keeps its frame: /BS is also what its leader line is stroked with.
     const freeText = an.type === 'text' || an.type === 'callout';
     const bare = an.type === 'text';
-    if (!freeText) set('C', numArr(col));
+    const isLink = an.type === 'link';
+    if (!freeText && !isLink) set('C', numArr(col));
     if (op < 1) set('CA', PDFNumber.of(op));
-    const bs = ctx.obj({}); bs.set(PDFName.of('W'), PDFNumber.of(bare ? 0 : width)); set('BS', bs);
+    if (isLink) {
+      set('Border', numArr([0, 0, 0]));
+    } else {
+      const bs = ctx.obj({}); bs.set(PDFName.of('W'), PDFNumber.of(bare ? 0 : width));
+      // Line style rides in /BS as a dash pattern, which Acrobat and Revu both
+      // show as the markup's line style.
+      const dash = App.dashArray ? App.dashArray(s.dash, width) : null;
+      if (dash && !bare) { bs.set(PDFName.of('S'), PDFName.of('D')); bs.set(PDFName.of('D'), numArr(dash)); }
+      set('BS', bs);
+    }
+    // Review fields: /Subj is the Subject column in Revu and Acrobat; Print +
+    // Locked flags keep a locked markup locked in the other app too.
+    if (an.subject) set('Subj', PDFString.of(String(an.subject)));
+    set('F', PDFNumber.of(4 | (an.locked ? 128 : 0)));
+    if (an.id != null) set('NM', PDFString.of('fieldmark-' + an.id));
 
     switch (an.type) {
       case 'rect':
@@ -167,14 +182,136 @@
         }
         break;
       }
-      default: return;
+      case 'note': {
+        // Sticky note: a /Text annotation, the comment icon every viewer draws
+        // itself. /Rect is the icon's box.
+        set('Subtype', PDFName.of('Text'));
+        set('Name', PDFName.of('Comment'));
+        set('Open', window.PDFLib.PDFBool.False);
+        const a0 = vp.convertToPdfPoint(an.pts[0].vx, an.pts[0].vy);
+        const a1 = vp.convertToPdfPoint(an.pts[0].vx + 22, an.pts[0].vy + 22);
+        set('Rect', numArr([Math.min(a0[0], a1[0]), Math.min(a0[1], a1[1]), Math.max(a0[0], a1[0]), Math.max(a0[1], a1[1])]));
+        if (hasFill) set('C', numArr(hexArr(s.fill)));
+        break;
+      }
+      case 'stamp': {
+        set('Subtype', PDFName.of('Stamp'));
+        set('Name', PDFName.of(an.stampName || 'Approved'));
+        set('Contents', PDFString.of(String(an.text || '').replace(/\n/g, ' ')));
+        const ap = stampAppearance(pdfDoc, an, vp);
+        if (ap) { set('Rect', numArr(ap.rect)); set('AP', ctx.obj({ N: ap.ref })); }
+        break;
+      }
+      case 'link': {
+        const target = an.link;
+        if (!target) return null;
+        set('Subtype', PDFName.of('Link'));
+        set('H', PDFName.of('I'));
+        if (target.page) {
+          const n = Math.min(pdfDoc.getPageCount(), Math.max(1, target.page));
+          const dest = PDFArray.withContext(ctx);
+          dest.push(pdfDoc.getPage(n - 1).ref); dest.push(PDFName.of('Fit'));
+          set('Dest', dest);
+        } else {
+          const url = App.safeLinkUrl(target.url);
+          if (!url) return null;
+          const act = ctx.obj({}); act.set(PDFName.of('S'), PDFName.of('URI')); act.set(PDFName.of('URI'), PDFString.of(url));
+          set('A', act);
+        }
+        break;
+      }
+      case 'redact': {
+        // A redaction not yet applied is exported as what it is -- a /Redact
+        // mark that Acrobat or Revu can apply -- never as a black box that only
+        // LOOKS like the content was removed.
+        set('Subtype', PDFName.of('Redact'));
+        set('OC', numArr([0, 0, 0]));
+        set('IC', numArr([0, 0, 0]));
+        break;
+      }
+      default: return null;
     }
-    if (an.text && an.type !== 'text' && an.type !== 'callout') set('Contents', PDFString.of(an.text));
+    const comment = an.comment != null && an.comment !== '' ? an.comment : (an.type !== 'text' && an.type !== 'callout' && an.type !== 'stamp' ? an.text : null);
+    if (comment && an.type !== 'text' && an.type !== 'callout') set('Contents', PDFString.of(String(comment)));
 
     const ref = ctx.register(d);
     let annots = page.node.Annots();
     if (!annots) { annots = ctx.obj([]); page.node.set(PDFName.of('Annots'), annots); }
     annots.push(ref);
+    writeStatusReply(pdfDoc, page, ref, an, d.get(PDFName.of('Rect')));
+    return ref;
+  }
+
+  // A markup's review status travels the way Acrobat and Revu write it: a
+  // hidden reply (/IRT) carrying /StateModel /Review and the /State name.
+  function writeStatusReply(pdfDoc, page, parentRef, an, rectObj) {
+    const st = App.markupStatusOf ? App.markupStatusOf(an) : null;
+    if (!st || !st.pdf || !st.id) return;
+    const { PDFName, PDFNumber, PDFString } = window.PDFLib;
+    const ctx = pdfDoc.context;
+    const d = ctx.obj({});
+    const set = (k, v) => d.set(PDFName.of(k), v);
+    set('Type', PDFName.of('Annot'));
+    set('Subtype', PDFName.of('Text'));
+    if (rectObj) set('Rect', rectObj);
+    set('IRT', parentRef);
+    set('State', PDFString.of(st.pdf));
+    set('StateModel', PDFString.of('Review'));
+    set('Contents', PDFString.of(st.label));
+    set('F', PDFNumber.of(2 | 32));                  // Hidden + NoView: data, not a mark
+    setAnnotDates(set, PDFString, an);
+    pushAnnot(pdfDoc, page, d);
+  }
+
+  // Appearance stream for a review stamp: rounded frame plus centred bold
+  // label and date, laid out by the same geometry the screen uses.
+  function stampAppearance(pdfDoc, an, vp) {
+    const { PDFName, PDFArray, PDFNumber, PDFRawStream } = window.PDFLib;
+    const ctx = pdfDoc.context;
+    const lines = String(an.text || 'STAMP').split('\n');
+    const vb = App.Geom.bbox(an.pts);
+    const geo = App.Markup.stampGeometry(vb, lines);
+    // Map the box corners: page rotation is a multiple of 90deg, so the box
+    // stays axis-aligned in PDF space. Text is drawn in a form whose Matrix
+    // turns it with the page, so it reads upright on screen.
+    const c0 = vp.convertToPdfPoint(vb.x, vb.y), c1 = vp.convertToPdfPoint(vb.x + vb.w, vb.y + vb.h);
+    const rect = [Math.min(c0[0], c1[0]), Math.min(c0[1], c1[1]), Math.max(c0[0], c1[0]), Math.max(c0[1], c1[1])];
+    const o = vp.convertToPdfPoint(vb.x, vb.y + vb.h);         // viewport bottom-left
+    const ux = vp.convertToPdfPoint(vb.x + 1, vb.y + vb.h);    // +x on screen
+    const uy = vp.convertToPdfPoint(vb.x, vb.y + vb.h - 1);    // +y up on screen
+    const a = ux[0] - o[0], b = ux[1] - o[1], c = uy[0] - o[0], dd = uy[1] - o[1];
+    const col = hexArr((an.style && an.style.stroke) || '#15803d').map((n) => n.toFixed(3)).join(' ');
+    const lw = Math.max(1, ((an.style && an.style.width) || 3) * 0.8);
+    const w = vb.w, h = vb.h, r = Math.min(6, h / 4);
+    const k = 0.5523 * r;
+    const ops = [
+      `${col} RG ${col} rg ${lw} w`,
+      `${r} 0 m ${w - r} 0 l ${w - r + k} 0 ${w} ${r - k} ${w} ${r} c`,
+      `${w} ${h - r} l ${w} ${h - r + k} ${w - r + k} ${h} ${w - r} ${h} c`,
+      `${r} ${h} l ${r - k} ${h} 0 ${h - r + k} 0 ${h - r} c`,
+      `0 ${r} l 0 ${r - k} ${r - k} 0 ${r} 0 c s`
+    ];
+    lines.forEach((ln, i) => {
+      const size = geo.sizes[i];
+      const font = i === 0 ? '/HB' : '/H';
+      const est = geo.widths && geo.widths[i] != null ? geo.widths[i] : (i === 0 ? 0.72 : 0.56) * size * ln.length;
+      const x = (w - est) / 2;
+      const y = h - (geo.baselines[i] - vb.y);
+      ops.push(`BT ${font} ${size.toFixed(2)} Tf ${x.toFixed(2)} ${y.toFixed(2)} Td (${pdfEsc(ln.replace(/[^\x20-\x7E]/g, '?'))}) Tj ET`);
+    });
+    const numArr = (arr) => { const x = PDFArray.withContext(ctx); arr.forEach((n) => x.push(PDFNumber.of(n))); return x; };
+    const fonts = ctx.obj({
+      H: ctx.obj({ Type: 'Font', Subtype: 'Type1', BaseFont: 'Helvetica', Encoding: 'WinAnsiEncoding' }),
+      HB: ctx.obj({ Type: 'Font', Subtype: 'Type1', BaseFont: 'Helvetica-Bold', Encoding: 'WinAnsiEncoding' })
+    });
+    const dict = ctx.obj({
+      Type: 'XObject', Subtype: 'Form',
+      BBox: numArr([-lw, -lw, w + lw, h + lw]),
+      Matrix: numArr([a, b, c, dd, o[0], o[1]]),
+      Resources: ctx.obj({ Font: fonts })
+    });
+    const ref = ctx.register(PDFRawStream.of(dict, new TextEncoder().encode(ops.join('\n'))));
+    return { ref, rect: [rect[0] - lw, rect[1] - lw, rect[2] + lw, rect[3] + lw] };
   }
 
   // Append an annotation reference to a page's /Annots, creating the array on
@@ -202,7 +339,7 @@
     const ctx = pdfDoc.context;
     const s = an.style || {};
     const quads = an.quads || [];
-    const SUB = { texthighlight: 'Highlight', underline: 'Underline', strikeout: 'StrikeOut' };
+    const SUB = { texthighlight: 'Highlight', underline: 'Underline', strikeout: 'StrikeOut', squiggly: 'Squiggly' };
     const subtype = SUB[an.type];
     if (!subtype || !quads.length) return;
 
@@ -246,6 +383,9 @@
       // does; a plain opaque fill would bury it.
       ops = ['/GS0 gs', `${c3} rg`].concat(boxes.map((b) => `${b.x} ${b.y} ${b.w} ${b.h} re f`));
       resources = ctx.obj({ ExtGState: ctx.obj({ GS0: ctx.obj({ Type: 'ExtGState', BM: 'Multiply', ca: 1 }) }) });
+    } else if (an.type === 'squiggly') {
+      ops = [`${c3} RG`, `${Math.max(0.8, lw * 0.7)} w`].concat(boxes.map((b) => squiggleOps(b).join(' ') + ' S'));
+      resources = ctx.obj({});
     } else {
       ops = [`${c3} RG`, `${lw} w`].concat(boxes.map((b) => {
         const yy = an.type === 'underline' ? b.y + lw : b.y + b.h / 2;
@@ -272,6 +412,19 @@
     set('AP', ctx.obj({ N: apRef }));
     if (an.text) set('Contents', PDFString.of(an.text));
     pushAnnot(pdfDoc, page, d);
+  }
+
+  // Wave along the bottom of a PDF-space box (y up), matching the screen's.
+  function squiggleWave(b) {
+    const amp = Math.max(0.8, b.h * 0.08), period = Math.max(3, b.h * 0.35);
+    const base = b.y + amp + 0.5;
+    const steps = Math.max(2, Math.ceil(b.w / (period / 2)));
+    const pts = [];
+    for (let i = 0; i <= steps; i++) pts.push([b.x + (b.w * i) / steps, base + (i % 2 ? -amp : amp)]);
+    return pts;
+  }
+  function squiggleOps(b) {
+    return squiggleWave(b).map((p, i) => `${p[0].toFixed(2)} ${p[1].toFixed(2)} ${i ? 'l' : 'm'}`);
   }
 
   // Escape a literal string for a content stream's ( ) operand.
@@ -729,7 +882,7 @@
         // take the QuadPoints writer rather than writeRealAnnot. With editable
         // annotations on they export as real Highlight/Underline/StrikeOut
         // objects; otherwise they flatten into page content as before.
-        if (an.type === 'texthighlight' || an.type === 'underline' || an.type === 'strikeout') {
+        if (an.type === 'texthighlight' || an.type === 'underline' || an.type === 'strikeout' || an.type === 'squiggly') {
           if (App.state.saveAnnots) { writeTextMarkupAnnot(pdfDoc, page, an, vp); continue; }
           const tcol = hexRgb((an.style && an.style.stroke) || '#ffd400');
           (an.quads || []).forEach((q) => {
@@ -739,6 +892,11 @@
             const w = Math.abs(a1[0] - a0[0]), h = Math.abs(a1[1] - a0[1]);
             if (an.type === 'texthighlight') {
               page.drawRectangle({ x, y, width: w, height: h, color: tcol, opacity: 0.35 });
+            } else if (an.type === 'squiggly') {
+              const wave = squiggleWave({ x, y, w, h });
+              for (let i = 0; i < wave.length - 1; i++) {
+                page.drawLine({ start: { x: wave[i][0], y: wave[i][1] }, end: { x: wave[i + 1][0], y: wave[i + 1][1] }, thickness: Math.max(0.8, ((an.style && an.style.width) || 1.5) * 0.7), color: tcol });
+              }
             } else {
               const yy = an.type === 'underline' ? y : y + h / 2;
               page.drawLine({ start: { x, y: yy }, end: { x: x + w, y: yy }, thickness: Math.max(1, (an.style && an.style.width) || 1.5), color: tcol });
@@ -746,6 +904,12 @@
           });
           continue;
         }
+        // A hyperlink has no look of its own, so it is always written as a live
+        // /Link -- flattening would just throw the link away. A redaction that
+        // was never applied is not drawn into a flattened file: a black box over
+        // text that is still there is the classic fake redaction.
+        if (an.type === 'link') { writeRealAnnot(pdfDoc, page, an, vp); continue; }
+        if (an.type === 'redact' && !App.state.saveAnnots) continue;
         if (App.state.saveAnnots) { writeRealAnnot(pdfDoc, page, an, vp); continue; }
         const s = an.style || {};
         const col = hexRgb(s.stroke || '#e5484d');
@@ -763,16 +927,42 @@
         const polyDraw = (close) => {
           const seq = close ? P.concat([P[0]]) : P;
           for (let i = 0; i < seq.length - 1; i++) {
-            page.drawLine({ start: { x: seq[i][0], y: seq[i][1] }, end: { x: seq[i + 1][0], y: seq[i + 1][1] }, thickness: w, color: col, opacity: op });
+            page.drawLine(Object.assign({ start: { x: seq[i][0], y: seq[i][1] }, end: { x: seq[i + 1][0], y: seq[i + 1][1] }, thickness: w, color: col, opacity: op }, dashOpt));
           }
         };
 
+        if (an.type === 'note') {
+          // Flattened note: the icon plus its comment as small text beside it.
+          const a0 = vp.convertToPdfPoint(an.pts[0].vx, an.pts[0].vy + 22);
+          const a1 = vp.convertToPdfPoint(an.pts[0].vx + 22, an.pts[0].vy);
+          const nx = Math.min(a0[0], a1[0]), ny = Math.min(a0[1], a1[1]);
+          page.drawRectangle({ x: nx, y: ny, width: Math.abs(a1[0] - a0[0]), height: Math.abs(a1[1] - a0[1]), color: fillCol || hexRgb('#ffd400'), borderColor: hexRgb('#7a5c00'), borderWidth: 1, opacity: op });
+          if (an.comment) {
+            const t0 = vp.convertToPdfPoint(an.pts[0].vx + 26, an.pts[0].vy + 9);
+            const t1 = vp.convertToPdfPoint(an.pts[0].vx + 27, an.pts[0].vy + 9);
+            page.drawText(String(an.comment).replace(/[\r\n]+/g, ' ').replace(/[^\x20-\x7E\xA0-\xFF]/g, '?').slice(0, 200), { x: t0[0], y: t0[1], size: 8, font: helv, color: rgb(0.1, 0.1, 0.1), rotate: degrees(angleDeg(t0, t1)) });
+          }
+          continue;
+        }
+        if (an.type === 'stamp') {
+          const ap = stampAppearance(pdfDoc, an, vp);
+          if (ap) {
+            // Draw the same form XObject the live annotation would carry.
+            // newXObject normalizes the page's resources first, so an indirect
+            // /XObject dict or a page with no /Resources does not throw.
+            const key = page.node.newXObject('FmStamp', ap.ref);
+            page.pushOperators(window.PDFLib.pushGraphicsState(), window.PDFLib.drawObject(key), window.PDFLib.popGraphicsState());
+          }
+          continue;
+        }
+        const dashArr = App.dashArray ? App.dashArray(s.dash, w) : null;
+        const dashOpt = dashArr ? { dashArray: dashArr } : {};
         if (an.type === 'line' || an.type === 'arrow') {
-          page.drawLine({ start: { x: P[0][0], y: P[0][1] }, end: { x: P[1][0], y: P[1][1] }, thickness: w, color: col, opacity: op });
+          page.drawLine(Object.assign({ start: { x: P[0][0], y: P[0][1] }, end: { x: P[1][0], y: P[1][1] }, thickness: w, color: col, opacity: op }, dashOpt));
           if (an.type === 'arrow') drawArrowPdf(page, P[0], P[1], col, w);
         } else if (an.type === 'rect') {
           const b = corners();
-          page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined });
+          page.drawRectangle({ x: b.x, y: b.y, width: b.w, height: b.h, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined, borderDashArray: dashArr || undefined });
         } else if (an.type === 'highlight') {
           // Freehand highlighter: one wide, translucent, round-capped band along
           // the pen path (matches the on-screen SVG stroke). It MUST be drawn as a
@@ -801,7 +991,7 @@
           }
         } else if (an.type === 'ellipse') {
           const b = corners();
-          page.drawEllipse({ x: b.x + b.w / 2, y: b.y + b.h / 2, xScale: b.w / 2, yScale: b.h / 2, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined });
+          page.drawEllipse({ x: b.x + b.w / 2, y: b.y + b.h / 2, xScale: b.w / 2, yScale: b.h / 2, borderColor: col, borderWidth: w, borderOpacity: op, color: fillCol || undefined, opacity: fillCol ? op : undefined, borderDashArray: dashArr || undefined });
         } else if (an.type === 'polyline' || an.type === 'ink') {
           polyDraw(false);
         } else if (an.type === 'polygon' || an.type === 'cloud') {

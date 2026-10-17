@@ -280,3 +280,12 @@ surface), so its icon-only rows — Marquee, Rotate, Bookmark, Bookmarked pages 
 are more prominent. Each carries a `data-tip` name now, which the sheet could
 render as a text label beside the glyph rather than leaving a bare icon in a
 dropdown.
+
+## Bluebeam parity, wave 2 and later
+
+Wave 1 (stamps, notes, links, squiggly, eraser, redaction, status/subject/lock,
+line styles, Markups List filter/sort/summary, volume and wall area, snapshot,
+grid) is on `feat/bluebeam-parity`. The ranked list of what is still missing
+against Revu 21 is in `docs/bluebeam-parity.md` ("Backlog, ranked for GFC").
+Cutouts, multi-select/align/group, legends, page labels with Batch Link, and
+slope come first.

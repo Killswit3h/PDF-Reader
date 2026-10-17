@@ -8,6 +8,9 @@
  * like placements/measurements:
  *   { id, page, type, pts:[{vx,vy}], style:{stroke,fill,width,opacity,arrow,fontSize}, text }
  * types: line arrow rect ellipse polyline polygon cloud ink text callout highlight
+ *        note stamp link redact (+ quad-based texthighlight underline strikeout squiggly)
+ * review fields (Markups List columns, src/shared/markup-meta.js):
+ *   subject, status, comment, locked, createdAt
  *
  * Interaction:
  *   - A drawing tool active (App.state.mode==='markup')  -> clicks/drag create.
@@ -17,7 +20,11 @@
  */
 (function () {
   const SVGNS = 'http://www.w3.org/2000/svg';
-  const TWO_POINT = { line: 1, arrow: 1, rect: 1, ellipse: 1 };
+  const TWO_POINT = { line: 1, arrow: 1, rect: 1, ellipse: 1, link: 1, redact: 1 };
+  // One click drops these: a sticky note's icon, or a review stamp sized to its
+  // text. The eraser is a tool, not a markup type -- it removes what it touches.
+  const ONE_CLICK = { note: 1, stamp: 1 };
+  const NOTE_SIZE = 22;
   const N_POINT = { polyline: 1, polygon: 1, cloud: 1 };
   // Freehand tools use press-drag-release and paint a live stroke as the pen
   // moves. `highlight` joined `ink` here: it used to be a two-point drag box, but
@@ -72,6 +79,7 @@
   }
 
   const K = {
+    stampDef: null,      // stamp chosen in the stamp picker, for the stamp tool
     tool: null,          // current drawing tool or null
     active: null,        // { type, page, pts:[], hover }
     inkDrawing: false
@@ -112,14 +120,19 @@
     K.active = null;
     App.setMode('markup');
     const hint = type === 'text' ? 'Click to place a text box, then type. Click away to finish.'
+      : type === 'note' ? 'Click to drop a note, then type the comment.'
+      : type === 'stamp' ? `Click to place the ${(K.stampDef && K.stampDef.text) || 'stamp'} stamp.`
+      : type === 'eraser' ? 'Click or drag over markups to erase them. Locked markups stay.'
+      : type === 'link' ? 'Drag a box over the area to link, then enter a page number or web address.'
+      : type === 'redact' ? 'Drag a box over what to remove. Document > Apply Redactions removes it for good.'
       : type === 'callout' ? 'Click the target, then where the note goes.'
       : N_POINT[type] ? 'Click points, Enter/double-click to finish.'
       : FREEHAND[type] ? `Press and drag to draw. Hold still ${holdMsFor(type) / 1000}s to snap it straight.`
       : 'Click start then end.';
-    App.toast(`Markup: ${type}. ${hint}`, 'info', 3500);
+    App.toast(`Markup: ${App.markupTypeLabel ? App.markupTypeLabel(type).replace(/^eraser$/, 'Eraser') : type}. ${hint}`, 'info', 3500);
     syncPropBar();
   };
-  K.isFreehand = (t) => !!FREEHAND[t];
+  K.isFreehand = (t) => !!FREEHAND[t] || t === 'eraser';
   K.stop = function () {
     if (K.clearHold) K.clearHold();
     K.inkDrawing = false;
@@ -146,8 +159,15 @@
       type: a.type,
       pts: a.pts.map((p) => ({ vx: p.vx, vy: p.vy })),
       style: Object.assign({}, defaults(a.type)),
-      text: a.type === 'text' || a.type === 'callout' ? (a.text || 'Text') : undefined
+      text: a.type === 'text' || a.type === 'callout' ? (a.text || 'Text') : undefined,
+      createdAt: Date.now()
     };
+    if (a.type === 'stamp') {
+      an.text = a.text;
+      an.stampName = a.stampName;
+      an.style = Object.assign({}, an.style, { stroke: a.color, fill: 'none', width: 3, opacity: 1 });
+    }
+    if (a.type === 'note') an.style = Object.assign({}, an.style, { fill: '#ffd400' });
     App.state.annotations.push(an);
     App.state.annoSelectedId = an.id;
     App.$('#btn-save').disabled = false;
@@ -159,9 +179,74 @@
       K.tool = null;
       App.setMode(null);
       startTextEdit(an);
+    } else if (an.type === 'note') {
+      K.repositionAll();
+      editComment(an, true);
+    } else if (an.type === 'link') {
+      K.repositionAll();
+      editLink(an, true);
     } else {
       K.repositionAll();
     }
+    if (App.MarkupPanel) App.MarkupPanel.render();
+  }
+
+  // Sticky note: type the comment right after dropping it. Cancelling a brand
+  // new note removes it rather than leaving an empty one behind.
+  async function editComment(an, fresh) {
+    if (an.locked) { App.toast('This markup is locked. Unlock it in the Markups list first.', 'info', 3000); return; }
+    const txt = await App.promptText('Comment', {
+      title: an.type === 'note' ? 'Note' : 'Comment', value: an.comment || '', multiline: true,
+      placeholder: 'Type the comment (Ctrl+Enter to save)', okLabel: 'Save'
+    });
+    if (txt == null) { if (fresh && !an.comment) dropFresh(an); return; }
+    snapshot();
+    an.comment = txt;
+    K.repositionAll();
+    if (App.MarkupPanel) App.MarkupPanel.render();
+  }
+  K.editComment = (id) => { const an = annoById(id); if (an) editComment(an, false); };
+
+  // Hyperlink target: a page number jumps inside the document, anything else
+  // must be an http(s) or mailto address (App.parseLinkTarget refuses the rest).
+  async function editLink(an, fresh) {
+    if (an.locked) { App.toast('This markup is locked. Unlock it in the Markups list first.', 'info', 3000); return; }
+    const cur = an.link ? (an.link.url || String(an.link.page || '')) : '';
+    const txt = await App.promptText('Page number in this document, or a web address (https://...)', {
+      title: 'Hyperlink', value: cur, placeholder: 'e.g. 12  or  https://www.fdot.gov', okLabel: 'Link'
+    });
+    if (txt == null) { if (fresh && !an.link) dropFresh(an); return; }
+    const target = App.parseLinkTarget(txt, App.state.numPages);
+    if (!target) {
+      App.toast('Not a page in this document or a web address (http, https or mailto only).', 'error', 5000);
+      if (fresh && !an.link) dropFresh(an);
+      return;
+    }
+    snapshot();
+    an.link = target;
+    K.repositionAll();
+    if (App.MarkupPanel) App.MarkupPanel.render();
+  }
+  K.editLink = (id) => { const an = annoById(id); if (an) editLink(an, false); };
+
+  // Follow a hyperlink markup: jump to its page, or hand a vetted URL to the OS.
+  K.followLink = function (an) {
+    const l = an && an.link;
+    if (!l) return false;
+    if (l.page) { App.Viewer.goToPage(l.page); return true; }
+    const url = App.safeLinkUrl(l.url);
+    if (!url) { App.toast('This link is not a web address and was not opened.', 'error'); return false; }
+    if (window.api && window.api.openExternal) window.api.openExternal(url);
+    return true;
+  };
+
+  // Undo the creation of a markup the user backed out of (no history entry).
+  function dropFresh(an) {
+    App.state.annotations = App.state.annotations.filter((x) => x.id !== an.id);
+    if (App.state.annoSelectedId === an.id) App.state.annoSelectedId = null;
+    if (App.History.discardLast) App.History.discardLast();
+    K.repositionAll();
+    if (App.MarkupPanel) App.MarkupPanel.render();
   }
 
   /* ---------------- interaction (from app.js delegation) ---------------- */
@@ -173,6 +258,8 @@
     // ortho on Shift, relative to the last placed point
     if (K.active && K.active.pts.length && e.shiftKey) {
       p = App.Geom.ortho(K.active.pts[K.active.pts.length - 1], p);
+    } else if (App.Grid && App.Grid.snapOn() && !FREEHAND[K.tool] && K.tool !== 'eraser') {
+      p = App.snapToGrid(p, App.Grid.spacing());
     }
     return p;
   }
@@ -180,6 +267,22 @@
   K.handleClick = function (page, layer, e) {
     if (!K.tool || FREEHAND[K.tool]) return;
     const p = ptFromEvent(layer, e);
+
+    // The eraser works on pointerdown (inkStart); the click that follows the
+    // same press must not erase the next markup underneath as well.
+    if (K.tool === 'eraser') return;
+    if (K.tool === 'note') {
+      finalize({ type: 'note', page, pts: [{ vx: p.vx - NOTE_SIZE / 2, vy: p.vy - NOTE_SIZE / 2 }] });
+      return;
+    }
+    if (K.tool === 'stamp') {
+      const def = K.stampDef || App.stampById('approved');
+      const lines = App.stampLines(def, new Date());
+      const sz = App.stampSize(lines, 18);
+      finalize({ type: 'stamp', page, text: lines.join('\n'), color: def.color, stampName: def.name,
+        pts: [{ vx: p.vx - sz.w / 2, vy: p.vy - sz.h / 2 }, { vx: p.vx + sz.w / 2, vy: p.vy + sz.h / 2 }] });
+      return;
+    }
 
     // Text: one click drops a default-size editable box.
     if (K.tool === 'text') {
@@ -249,7 +352,30 @@
     K.repositionAll(page);
   }
 
+  // Eraser: everything the pointer touches while pressed is removed, in one undo
+  // step. Locked markups are skipped -- that is what the lock is for.
+  let _erasing = null;
+  function eraseAt(page, p) {
+    const tol = 6 / (App.state.zoom || 1);
+    const hit = App.topMarkupAt(App.state.annotations.filter((a) => !a.locked), page, p, tol);
+    if (!hit) return false;
+    if (!_erasing || !_erasing.snap) { snapshot(); if (_erasing) _erasing.snap = true; }
+    App.state.annotations = App.state.annotations.filter((a) => a.id !== hit.id);
+    if (App.state.annoSelectedId === hit.id) App.state.annoSelectedId = null;
+    App.$('#btn-save').disabled = false;
+    K.repositionAll(page);
+    if (App.MarkupPanel) App.MarkupPanel.render();
+    return true;
+  }
+  K._eraseAt = eraseAt;
+
   K.inkStart = function (page, layer, e) {
+    if (K.tool === 'eraser') {
+      _erasing = { page, layer, snap: false };
+      eraseAt(page, App.Viewer.pointFromEvent(layer, e));
+      K.inkDrawing = true;
+      return;
+    }
     if (!FREEHAND[K.tool]) return;
     K.inkDrawing = true;
     const p = ptFromEvent(layer, e);
@@ -257,6 +383,7 @@
     armHold(page);
   };
   function inkMove(page, layer, e) {
+    if (_erasing) { if (_erasing.page === page) eraseAt(page, App.Viewer.pointFromEvent(layer, e)); return; }
     if (!K.active || K.active.page !== page) return;
     const p = ptFromEvent(layer, e);
     if (K.active.straight) {
@@ -279,6 +406,7 @@
   K.inkEnd = function () {
     if (!K.inkDrawing) return;
     K.inkDrawing = false;
+    if (_erasing) { _erasing = null; return; }
     clearHold();
     const a = K.active; K.active = null;
     // finalize() rebuilds the stored annotation from pts alone, so the transient
@@ -289,7 +417,12 @@
 
   /* ---------------- selection / move / resize ---------------- */
   function annoById(id) { return App.state.annotations.find((a) => a.id === id); }
-  K.select = function (id) { App.state.annoSelectedId = id; K.repositionAll(); if (App.MarkupPanel) App.MarkupPanel.render(); syncPropBar(); App.refreshChrome && App.refreshChrome(); };
+  K.select = function (id) {
+    // Finish any edit in the panel's property fields against the markup it was
+    // typed for, before the selection moves on (its change event fires on blur).
+    const ae = document.activeElement;
+    if (ae && ae.closest && ae.closest('#mkp-props') && App.state.annoSelectedId !== id) ae.blur();
+    App.state.annoSelectedId = id; K.repositionAll(); if (App.MarkupPanel) App.MarkupPanel.render(); syncPropBar(); App.refreshChrome && App.refreshChrome(); };
   K.deselect = function () { if (App.state.annoSelectedId != null) { App.state.annoSelectedId = null; K.repositionAll(); App.refreshChrome && App.refreshChrome(); } };
 
   // ---------- Copy / duplicate ----------
@@ -311,7 +444,7 @@
   // Keyboard nudge (arrow keys) for the selected annotation.
   K.nudge = function (dx, dy) {
     const an = annoById(App.state.annoSelectedId);
-    if (!an) return;
+    if (!an || an.locked) return;
     snapshot();
     if (an.quads) an.quads = an.quads.map((q) => ({ x: q.x + dx, y: q.y + dy, w: q.w, h: q.h }));
     else an.pts = an.pts.map((pt) => ({ vx: pt.vx + dx, vy: pt.vy + dy }));
@@ -319,6 +452,8 @@
   };
 
   K.remove = function (id) {
+    const target = annoById(id);
+    if (target && target.locked) { App.toast('This markup is locked. Unlock it in the Markups list first.', 'info', 3500); return; }
     snapshot();
     App.state.annotations = App.state.annotations.filter((a) => a.id !== id);
     if (App.state.annoSelectedId === id) App.state.annoSelectedId = null;
@@ -327,7 +462,18 @@
 
   function startDrag(an, e) {
     e.preventDefault(); e.stopPropagation();
+    // Double-click a hyperlink to follow it (single click still selects it).
+    if (an.type === 'link' || an.type === 'note') {
+      const now = Date.now();
+      if (_lastClick.id === an.id && now - _lastClick.t < 350) {
+        _lastClick = { id: null, t: 0 };
+        if (an.type === 'link') K.followLink(an); else editComment(an, false);
+        return;
+      }
+      _lastClick = { id: an.id, t: now };
+    }
     K.select(an.id);
+    if (an.locked) return;
     const z = App.state.zoom, sx = e.clientX, sy = e.clientY;
     const orig = an.pts.map((p) => ({ vx: p.vx, vy: p.vy }));
     snapshot();
@@ -355,9 +501,12 @@
 
   function snapEnabled() { return App.Prefs ? App.Prefs.get('snap', true) : true; }
 
+  let _lastClick = { id: null, t: 0 };
+
   function startResize(an, e) {
     e.preventDefault(); e.stopPropagation();
     K.select(an.id);
+    if (an.locked) return;
     const sx = e.clientX, sy = e.clientY;
     const b = bbox(an.pts);
     const orig = an.pts.map((p) => ({ vx: p.vx, vy: p.vy }));
@@ -396,6 +545,7 @@
   };
   function doReposition(onlyPage) {
     const z = App.state.zoom;
+    if (App.Grid) App.Grid.refresh();
     (App.state.pageEls || []).forEach((pe, i) => {
       if (!pe) return;
       const page = i + 1;
@@ -456,6 +606,8 @@
       el.setAttribute('stroke-width', s.width);
       el.setAttribute('fill', fill);
       el.setAttribute('opacity', s.opacity);
+      const dash = App.dashArray ? App.dashArray(s.dash, s.width) : null;
+      if (dash) el.setAttribute('stroke-dasharray', dash.join(' '));
       if (hit) { el.setAttribute('class', 'hit'); el.addEventListener('pointerdown', (e) => startDrag(an, e)); }
       svg.appendChild(el);
     };
@@ -526,11 +678,141 @@
       path.setAttribute('fill', fill); common(path, true);
     } else if (an.type === 'text' || an.type === 'callout') {
       drawText(svg, an, z);
-    } else if (an.type === 'texthighlight' || an.type === 'underline' || an.type === 'strikeout') {
+    } else if (an.type === 'texthighlight' || an.type === 'underline' || an.type === 'strikeout' || an.type === 'squiggly') {
       drawTextMarkup(svg, an, z);
+    } else if (an.type === 'note') {
+      drawNote(svg, an, z, (e) => startDrag(an, e));
+    } else if (an.type === 'stamp') {
+      drawStamp(svg, an, z, (e) => startDrag(an, e));
+    } else if (an.type === 'link' || an.type === 'redact') {
+      const b = bbox(an.pts);
+      const r = ns('rect');
+      r.setAttribute('x', b.x * z); r.setAttribute('y', b.y * z);
+      r.setAttribute('width', b.w * z); r.setAttribute('height', b.h * z);
+      if (an.type === 'link') {
+        // On screen only: a link has no appearance in the saved file, like
+        // Acrobat's and Revu's, so this dashed box is just a handle to find it.
+        r.setAttribute('fill', 'rgba(47,111,237,0.08)');
+        r.setAttribute('stroke', '#2f6fed');
+        r.setAttribute('stroke-dasharray', '5 3');
+        r.setAttribute('stroke-width', 1.2);
+        const t = ns('title'); t.textContent = an.link ? (an.link.url || 'Go to page ' + an.link.page) + ' (double-click to open)' : 'Hyperlink (no target)';
+        r.appendChild(t);
+      } else {
+        // Pending redaction: red outline over a translucent black, so what will
+        // be removed is visible until Apply Redactions burns it out.
+        r.setAttribute('fill', 'rgba(0,0,0,0.35)');
+        r.setAttribute('stroke', '#e5484d');
+        r.setAttribute('stroke-width', 1.5);
+      }
+      r.setAttribute('class', 'hit');
+      r.addEventListener('pointerdown', (e) => startDrag(an, e));
+      svg.appendChild(r);
     }
 
     if (selected) { if (an.quads) drawQuadsSel(svg, an, z); else drawSelection(svg, an, z); }
+    if (an.locked && selected) drawLockBadge(svg, an, z);
+  }
+
+  // Sticky note icon: a folded yellow sheet. A dot in the corner shows the note
+  // has a comment.
+  function drawNote(svg, an, z, onDown) {
+    const x = an.pts[0].vx * z, y = an.pts[0].vy * z, w = NOTE_SIZE * z;
+    const g = ns('g');
+    const body = ns('path');
+    const f = w * 0.3;
+    body.setAttribute('d', `M${x} ${y} h${w} v${w - f} l${-f} ${f} h${-(w - f)} z`);
+    body.setAttribute('fill', (an.style && an.style.fill && an.style.fill !== 'none') ? an.style.fill : '#ffd400');
+    body.setAttribute('stroke', '#7a5c00'); body.setAttribute('stroke-width', 1);
+    g.appendChild(body);
+    const fold = ns('path');
+    fold.setAttribute('d', `M${x + w} ${y + w - f} h${-f} v${f}`);
+    fold.setAttribute('fill', 'none'); fold.setAttribute('stroke', '#7a5c00'); fold.setAttribute('stroke-width', 1);
+    g.appendChild(fold);
+    for (let i = 1; i <= 3; i++) {
+      const l = ns('line');
+      l.setAttribute('x1', x + w * 0.2); l.setAttribute('x2', x + w * (i === 3 ? 0.55 : 0.8));
+      l.setAttribute('y1', y + w * 0.22 * i); l.setAttribute('y2', y + w * 0.22 * i);
+      l.setAttribute('stroke', '#7a5c00'); l.setAttribute('stroke-width', 1);
+      g.appendChild(l);
+    }
+    const t = ns('title'); t.textContent = an.comment || 'Note (double-click to edit)';
+    g.appendChild(t);
+    g.setAttribute('class', 'hit');
+    g.setAttribute('opacity', an.style && an.style.opacity != null ? an.style.opacity : 1);
+    if (onDown) g.addEventListener('pointerdown', onDown);
+    svg.appendChild(g);
+  }
+
+  // Review stamp: rounded frame in the stamp colour, bold label, optional date
+  // line. Text scales with the box, so resizing a stamp resizes its lettering.
+  function drawStamp(svg, an, z, onDown) {
+    const b = bbox(an.pts);
+    const col = (an.style && an.style.stroke) || '#15803d';
+    const lines = String(an.text || 'STAMP').split('\n');
+    const g = ns('g');
+    const r = ns('rect');
+    r.setAttribute('x', b.x * z); r.setAttribute('y', b.y * z);
+    r.setAttribute('width', b.w * z); r.setAttribute('height', b.h * z);
+    r.setAttribute('rx', 6 * z); r.setAttribute('fill', 'rgba(255,255,255,0.01)');
+    r.setAttribute('stroke', col); r.setAttribute('stroke-width', Math.max(1, ((an.style && an.style.width) || 3) * z * 0.8));
+    g.appendChild(r);
+    const geo = stampGeometry(b, lines);
+    lines.forEach((ln, i) => {
+      const t = ns('text');
+      t.setAttribute('x', (b.x + b.w / 2) * z);
+      t.setAttribute('y', geo.baselines[i] * z);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-family', 'Helvetica, Arial, sans-serif');
+      t.setAttribute('font-weight', i === 0 ? '700' : '400');
+      t.setAttribute('font-size', geo.sizes[i] * z);
+      t.setAttribute('fill', col);
+      t.textContent = ln;
+      g.appendChild(t);
+    });
+    g.setAttribute('opacity', an.style && an.style.opacity != null ? an.style.opacity : 1);
+    g.setAttribute('class', 'hit');
+    if (onDown) g.addEventListener('pointerdown', onDown);
+    svg.appendChild(g);
+  }
+  // Shared by the screen and save.js so a stamp prints where it shows: font
+  // size and baseline (viewport points) for each line inside box b.
+  // Advance width of a line in ems, measured with Helvetica on a canvas (the
+  // PDF side draws Helvetica / Helvetica-Bold, so this is what it will occupy).
+  // Falls back to an average capital width where there is no canvas.
+  let _measureCtx = null;
+  function emWidth(text, bold) {
+    try {
+      if (!_measureCtx) _measureCtx = document.createElement('canvas').getContext('2d');
+      _measureCtx.font = (bold ? 'bold ' : '') + '100px Helvetica, Arial, sans-serif';
+      return _measureCtx.measureText(String(text)).width / 100;
+    } catch (_) { return String(text).length * (bold ? 0.72 : 0.56); }
+  }
+  function stampGeometry(b, lines) {
+    const two = lines.length > 1;
+    const padX = Math.min(b.w * 0.08, 14);
+    const fitW = Math.max(10, b.w - 2 * padX);
+    const mainEm = Math.max(0.5, emWidth(lines[0] || '', true));
+    const main = Math.min(b.h / (two ? 2.35 : 1.6), fitW / mainEm);
+    let sub = main * 0.62;
+    if (two) sub = Math.min(sub, fitW / Math.max(0.5, emWidth(lines[1], false)));
+    const block = main + (two ? sub * 1.2 : 0);
+    const top = b.y + (b.h - block) / 2;
+    const baselines = [top + main * 0.85];
+    if (two) baselines.push(top + main + sub * 1.05);
+    const sizes = two ? [main, sub] : [main];
+    const widths = lines.slice(0, sizes.length).map((ln, i) => emWidth(ln, i === 0) * sizes[i]);
+    return { sizes, baselines, widths };
+  }
+  K.stampGeometry = stampGeometry;
+
+  function drawLockBadge(svg, an, z) {
+    const b = an.quads ? quadsBBox(an.quads) : (an.type === 'note' ? { x: an.pts[0].vx, y: an.pts[0].vy, w: NOTE_SIZE, h: NOTE_SIZE } : bbox(an.pts));
+    const t = ns('text');
+    t.setAttribute('x', b.x * z - 2); t.setAttribute('y', b.y * z - 6);
+    t.setAttribute('font-size', 11); t.setAttribute('fill', '#64748b');
+    t.textContent = 'Locked';
+    svg.appendChild(t);
   }
 
   function drawText(svg, an, z) {
@@ -592,6 +874,7 @@
   }
 
   function startTextEdit(an) {
+    if (an.locked) { App.toast('This markup is locked. Unlock it in the Markups list first.', 'info', 3000); return; }
     K.repositionAll();
     const svg = findSvgForPage(an.page); if (!svg) return;
     const fo = svg.querySelector(`foreignObject[data-anno-id="${an.id}"]`);
@@ -632,6 +915,14 @@
   }
 
   function drawSelection(svg, an, z) {
+    if (an.type === 'note') {
+      const box = ns('rect');
+      box.setAttribute('x', an.pts[0].vx * z - 3); box.setAttribute('y', an.pts[0].vy * z - 3);
+      box.setAttribute('width', NOTE_SIZE * z + 6); box.setAttribute('height', NOTE_SIZE * z + 6);
+      box.setAttribute('class', 'sel-box'); box.setAttribute('fill', 'none');
+      svg.appendChild(box);
+      return; // a note is an icon: it moves, it does not resize
+    }
     const b = bbox(an.type === 'callout' ? an.pts.slice(0, 2) : an.pts);
     const box = ns('rect');
     box.setAttribute('x', b.x * z - 3); box.setAttribute('y', b.y * z - 3);
@@ -687,6 +978,7 @@
     App.$('#mk-fill-on') && (App.$('#mk-fill-on').checked = !!(s.fill && s.fill !== 'none'));
     set('#mk-width', s.width);
     set('#mk-opacity', Math.round(s.opacity * 100));
+    set('#mk-dash', s.dash || 'solid');
     set('#mk-font-family', fontById(s.fontFamily).id);
     set('#mk-font-size', s.fontSize || 14);
     // Font controls are only meaningful for text boxes / callouts — show them
@@ -708,7 +1000,12 @@
   // Select; with a tool armed it's prospective, so choosing a colour part-way
   // through highlighting applies to the next highlight rather than recolouring
   // the last one.
-  function editTarget() { return K.tool ? null : annoById(App.state.annoSelectedId); }
+  // A locked markup is never the target: style changes then go to the defaults.
+  function editTarget() {
+    if (K.tool) return null;
+    const an = annoById(App.state.annoSelectedId);
+    return an && !an.locked ? an : null;
+  }
 
   // The line color the bar is showing — the selected markup's, or the default
   // the next one will get. Starring and picking a favourite both act on this,
@@ -763,6 +1060,7 @@
     wire('#mk-fill-on', 'change', (e) => applyStyle({ fill: e.target.checked ? App.$('#mk-fill').value : 'none' }));
     wire('#mk-width', 'input', (e) => applyStyle({ width: parseFloat(e.target.value) }));
     wire('#mk-opacity', 'input', (e) => applyStyle({ opacity: App.clamp(parseInt(e.target.value, 10) / 100, 0.1, 1) }));
+    wire('#mk-dash', 'change', (e) => applyStyle({ dash: e.target.value === 'solid' ? undefined : e.target.value }));
     wire('#mk-font-family', 'change', (e) => applyStyle({ fontFamily: fontById(e.target.value).id }));
     wire('#mk-font-size', 'input', (e) => applyStyle({ fontSize: App.clamp(parseInt(e.target.value, 10) || 14, 6, 120) }));
     // Snap toggle — persisted; drives snapEnabled().
@@ -784,17 +1082,27 @@
     document.body.classList.toggle('has-mkpanel', !open);
     if (!p.classList.contains('hidden')) Panel.render();
   };
+  // Sort / status-filter state for the list (session only, like the filter box).
+  const view = { sort: 'page', dir: 'asc', status: '*' };
+  // The markups the list currently shows, in its order. The CSV and the summary
+  // export exactly this, so what you filter is what you get.
+  Panel.visible = function () {
+    const q = ((App.$('#mkp-filter') && App.$('#mkp-filter').value) || '').trim();
+    const shown = App.filterMarkups(App.state.annotations, { q, status: view.status });
+    return App.sortMarkups(shown, view.sort, view.dir);
+  };
+  Panel.setView = function (patch) { Object.assign(view, patch || {}); Panel.render(); };
+
   Panel.render = function () {
     if (App.AnnotImport) App.AnnotImport.renderBanner();
     const list = App.$('#mkp-list'); if (!list) return;
     const all = App.state.annotations;
-    const q = ((App.$('#mkp-filter') && App.$('#mkp-filter').value) || '').trim().toLowerCase();
-    const arr = q
-      ? all.filter((an) => an.type.includes(q) || (an.text || '').toLowerCase().includes(q) || ('p' + an.page).includes(q))
-      : all;
+    const q = ((App.$('#mkp-filter') && App.$('#mkp-filter').value) || '').trim();
+    const arr = Panel.visible();
+    syncMetaProps();
     list.innerHTML = '';
     if (!all.length) { list.innerHTML = '<div class="mp-empty"><div class="mp-empty-ico">' + App.icon('pencil', 'ico-lg') + '</div>No markups yet.<br>Use the Markup menu to add some.</div>'; return; }
-    if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups match “' + esc(q) + '”.</div>'; return; }
+    if (!arr.length) { list.innerHTML = '<div class="mp-empty">No markups match ' + (q ? '“' + esc(q) + '”' : 'this status') + '.</div>'; return; }
     arr.forEach((an) => {
       const row = document.createElement('div');
       // A clickable <div> with no role, no tab stop and no key handler made the
@@ -804,10 +1112,14 @@
       row.setAttribute('role', 'option');
       row.tabIndex = 0;
       row.setAttribute('aria-selected', an.id === App.state.annoSelectedId ? 'true' : 'false');
+      const st = App.markupStatusOf(an);
+      const comment = App.markupCommentOf(an);
       row.innerHTML =
-        `<span class="mp-swatch" style="background:${an.style.stroke}"></span>` +
-        `<span class="mp-type">${an.type}</span>` +
-        `<span class="mp-val">${an.text ? esc(an.text) : ''}</span>` +
+        `<span class="mp-swatch" style="background:${esc((an.style && an.style.stroke) || '#999')}"></span>` +
+        `<span class="mp-type">${esc(App.markupSubjectOf(an))}</span>` +
+        `<span class="mp-val">${comment ? esc(comment) : ''}</span>` +
+        (st.id ? `<span class="mp-status mp-status-${esc(st.id)}">${esc(st.label)}</span>` : '') +
+        (an.locked ? '<span class="mp-lock" title="Locked">Locked</span>' : '') +
         (an.importedFrom ? `<span class="mp-from" title="Made in another app by ${esc(an.importedFrom)}">From: ${esc(an.importedFrom)}</span>` : '') +
         `<span class="mp-pg">p${an.page}</span>` +
         `<button class="mp-del" title="Delete" aria-label="Delete">${App.icon('trash')}</button>`;
@@ -818,7 +1130,7 @@
         row.click();
       });
       row.addEventListener('click', (e) => {
-        if (e.target.classList.contains('mp-del')) { K.remove(an.id); Panel.render(); return; }
+        if (e.target.closest('.mp-del')) { K.remove(an.id); Panel.render(); return; }
         K.select(an.id);
         const pe = App.state.pageEls[an.page - 1];
         if (pe && pe.pageDiv) pe.pageDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -826,26 +1138,147 @@
       list.appendChild(row);
     });
   };
+
+  // ---- selected markup: subject / status / comment / lock ----
+  function syncMetaProps() {
+    const box = App.$('#mkp-props'); if (!box) return;
+    const an = annoById(App.state.annoSelectedId);
+    box.classList.toggle('hidden', !an);
+    if (!an) return;
+    const active = document.activeElement;
+    const set = (id, v) => { const el = App.$(id); if (el && el !== active) el.value = v; };
+    set('#mkp-subject', an.subject || '');
+    App.$('#mkp-subject').placeholder = App.markupTypeLabel(an.type);
+    set('#mkp-status', App.markupStatusOf(an).id);
+    set('#mkp-comment', an.comment || '');
+    App.$('#mkp-locked').checked = !!an.locked;
+    App.$('#mkp-link-edit').classList.toggle('hidden', an.type !== 'link');
+    App.$('#mkp-link-go').classList.toggle('hidden', !(an.type === 'link' && an.link));
+  }
+  // One undo step per field edit: snapshot on the first keystroke, release on
+  // blur/change (same idea as the measurement property edits).
+  let _metaEditing = false, _metaTarget = null;
+  function editMeta(patch, commit) {
+    // Write to the markup the edit started on, not whatever is selected now.
+    const id = _metaEditing && _metaTarget != null ? _metaTarget : App.state.annoSelectedId;
+    const an = annoById(id);
+    if (!an) { _metaEditing = false; _metaTarget = null; return; }
+    if (an.locked && !('locked' in patch)) { App.toast('This markup is locked. Untick Locked to edit it.', 'info', 3000); syncMetaProps(); return; }
+    if (!_metaEditing) { snapshot(); _metaEditing = true; _metaTarget = an.id; }
+    Object.assign(an, patch);
+    App.$('#btn-save').disabled = false;
+    if (commit) { _metaEditing = false; _metaTarget = null; K.repositionAll(an.page); Panel.render(); }
+  }
+  K.setMeta = function (id, patch) {
+    const an = annoById(id); if (!an) return false;
+    snapshot(); Object.assign(an, patch); K.repositionAll(an.page); Panel.render();
+    return true;
+  };
+
   Panel.clearAll = async function () {
     if (!App.state.annotations.length) return;
+    const locked = App.state.annotations.filter((a) => a.locked).length;
     const ok = await App.confirm(
-      'Delete all markups? You can undo this with Ctrl+Z.',
+      'Delete all markups? You can undo this with Ctrl+Z.' + (locked ? ` ${locked} locked markup${locked === 1 ? '' : 's'} will be kept.` : ''),
       { title: 'Clear markups', okLabel: 'Clear all', danger: true });
     if (!ok) return;
     snapshot();
-    App.state.annotations = []; App.state.annoSelectedId = null;
+    App.state.annotations = App.state.annotations.filter((a) => a.locked);
+    App.state.annoSelectedId = null;
     K.repositionAll(); Panel.render();
   };
   Panel.exportCsv = async function () {
-    const arr = App.state.annotations;
+    const arr = Panel.visible();
     if (!arr.length) { App.toast('No markups to export.', 'error'); return; }
-    const rows = [['#', 'Type', 'Page', 'Color', 'Text']];
-    arr.forEach((an, i) => rows.push([i + 1, an.type, an.page, an.style.stroke, an.text || '']));
-    const csv = rows.map((r) => r.map((c) => { const s = String(c); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(',')).join('\r\n');
+    const csv = App.markupRowsToCsv(App.markupRows(arr));
     const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
     const res = await window.api.saveTextDialog(`${base}-markups.csv`, csv);
     if (res && res.ok) App.toast(`Saved: ${res.path}`, 'success', 5000);
     else if (res && res.error) App.toast('Could not save CSV: ' + res.error, 'error');
+  };
+
+  // Markup Summary as a PDF report (Revu: Batch > Summary > PDF). Landscape
+  // Letter, one row per markup with its status and comment, wrapped. Built
+  // with pdf-lib in the renderer, so it is the same on every platform.
+  Panel.buildSummaryBytes = async function (list) {
+    const { PDFDocument, StandardFonts, rgb } = window.PDFLib;
+    const arr = list || Panel.visible();
+    const doc = await PDFDocument.create();
+    const font = await doc.embedFont(StandardFonts.Helvetica);
+    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    // The standard fonts are WinAnsi only; anything outside it would throw and
+    // lose the whole report, so it is replaced.
+    const clean = (t) => String(t == null ? '' : t).replace(/[\r\n\t]+/g, ' ').replace(/[^\x20-\x7E\xA0-\xFF]/g, '?');
+    const W = 792, H = 612, M = 36;
+    const cols = [
+      { key: 0, label: '#', w: 26 }, { key: 4, label: 'Page', w: 34 }, { key: 1, label: 'Type', w: 78 },
+      { key: 2, label: 'Subject', w: 120 }, { key: 3, label: 'Status', w: 70 }, { key: 6, label: 'Comment', w: 300 },
+      { key: 8, label: 'Created', w: 92 }
+    ];
+    const rows = App.markupRows(arr).slice(1);
+    const size = 8.5, lh = 11;
+    const wrap = (text, width) => {
+      const words = clean(text).split(' ');
+      const out = []; let line = '';
+      words.forEach((w) => {
+        const tryLine = line ? line + ' ' + w : w;
+        if (font.widthOfTextAtSize(tryLine, size) <= width - 6 || !line) line = tryLine;
+        else { out.push(line); line = w; }
+      });
+      if (line) out.push(line);
+      return out.length ? out : [''];
+    };
+    let page, y;
+    const header = () => {
+      page = doc.addPage([W, H]);
+      y = H - M;
+      page.drawText(clean('Markup Summary - ' + (App.state.fileName || 'document.pdf')), { x: M, y: y - 14, size: 14, font: bold, color: rgb(0.08, 0.32, 0.18) });
+      y -= 30;
+      const totals = App.markupStatusTotals(arr);
+      const tline = `${arr.length} markup${arr.length === 1 ? '' : 's'}  |  ` + Object.keys(totals).map((k) => `${k}: ${totals[k]}`).join('  |  ') +
+        `  |  Printed ${App.fmtMarkupDate(Date.now())}`;
+      page.drawText(clean(tline), { x: M, y, size: 9, font, color: rgb(0.2, 0.25, 0.3) });
+      y -= 18;
+      let x = M;
+      page.drawRectangle({ x: M, y: y - 4, width: W - 2 * M, height: 16, color: rgb(0.08, 0.32, 0.18) });
+      cols.forEach((c) => { page.drawText(c.label, { x: x + 3, y, size: 9, font: bold, color: rgb(1, 1, 1) }); x += c.w; });
+      y -= 18;
+    };
+    header();
+    rows.forEach((r, i) => {
+      const cells = cols.map((c) => c.key === 6 ? wrap(r[c.key], c.w) : [clean(r[c.key])]);
+      const n = Math.max.apply(null, cells.map((c) => c.length));
+      if (y - n * lh < M) header();
+      if (i % 2 === 0) page.drawRectangle({ x: M, y: y - (n - 1) * lh - 3, width: W - 2 * M, height: n * lh + 2, color: rgb(0.94, 0.97, 0.95) });
+      let x = M;
+      cells.forEach((lines, ci) => {
+        lines.forEach((ln, li) => {
+          let t = ln;
+          const maxW = cols[ci].w - 6;
+          while (t.length > 1 && font.widthOfTextAtSize(t, size) > maxW) t = t.slice(0, -1);
+          page.drawText(t, { x: x + 3, y: y - li * lh, size, font, color: rgb(0.12, 0.16, 0.23) });
+        });
+        x += cols[ci].w;
+      });
+      y -= n * lh + 4;
+    });
+    if (!rows.length) page.drawText('No markups.', { x: M, y, size: 10, font });
+    const pages = doc.getPages();
+    pages.forEach((pg, i) => pg.drawText(`Page ${i + 1} of ${pages.length}`, { x: W - M - 70, y: M / 2, size: 8, font, color: rgb(0.4, 0.45, 0.5) }));
+    return doc.save();
+  };
+  Panel.exportSummary = async function () {
+    const arr = Panel.visible();
+    if (!arr.length) { App.toast('No markups to summarize.', 'error'); return; }
+    try {
+      const bytes = await Panel.buildSummaryBytes(arr);
+      const base = (App.state.fileName || 'document.pdf').replace(/\.pdf$/i, '');
+      const res = await window.api.savePdfDialog(`${base}-markup-summary.pdf`, bytes);
+      if (res && res.ok) App.toast(`Saved: ${res.path}`, 'success', 5000);
+      else if (res && res.error) App.toast('Could not save the summary: ' + res.error, 'error');
+    } catch (e) {
+      App.toast('Could not build the markup summary: ' + (e && e.message), 'error', 7000);
+    }
   };
   App.MarkupPanel = Panel;
 
@@ -856,9 +1289,34 @@
     const b = (id, fn) => { const el = App.$(id); if (el) el.addEventListener('click', fn); };
     b('#mkp-close', Panel.toggle);
     b('#mkp-export', Panel.exportCsv);
+    b('#mkp-summary', Panel.exportSummary);
     b('#mkp-clear', Panel.clearAll);
     const filt = App.$('#mkp-filter');
     if (filt) filt.addEventListener('input', Panel.render);
+    const sf = App.$('#mkp-status-filter');
+    if (sf) sf.addEventListener('change', (e) => Panel.setView({ status: e.target.value }));
+    const so = App.$('#mkp-sort');
+    if (so) so.addEventListener('change', (e) => Panel.setView({ sort: e.target.value }));
+    b('#mkp-sort-dir', (e) => {
+      const dir = view.dir === 'asc' ? 'desc' : 'asc';
+      e.currentTarget.textContent = dir === 'asc' ? '↓' : '↑';
+      e.currentTarget.setAttribute('aria-pressed', dir === 'desc' ? 'true' : 'false');
+      Panel.setView({ dir });
+    });
+    const wireMeta = (id, key, ev) => {
+      const el = App.$(id); if (!el) return;
+      el.addEventListener(ev, () => editMeta({ [key]: el.value }, false));
+      el.addEventListener('change', () => editMeta({ [key]: el.value }, true));
+      el.addEventListener('blur', () => { _metaEditing = false; _metaTarget = null; });
+    };
+    wireMeta('#mkp-subject', 'subject', 'input');
+    wireMeta('#mkp-comment', 'comment', 'input');
+    const stSel = App.$('#mkp-status');
+    if (stSel) stSel.addEventListener('change', () => editMeta({ status: stSel.value }, true));
+    const lk = App.$('#mkp-locked');
+    if (lk) lk.addEventListener('change', () => editMeta({ locked: lk.checked }, true));
+    b('#mkp-link-edit', () => { if (App.state.annoSelectedId != null) K.editLink(App.state.annoSelectedId); });
+    b('#mkp-link-go', () => K.followLink(annoById(App.state.annoSelectedId)));
     const chk = App.$('#mkp-annots');
     if (chk) {
       // Restore the persisted editable-vs-flatten choice.
@@ -876,7 +1334,7 @@
   };
 
   /* ---------------- text markup: highlight / underline / strikeout ---------------- */
-  const TEXT_MARKUP = { texthighlight: 'Highlight', underline: 'Underline', strikeout: 'Strikeout' };
+  const TEXT_MARKUP = { texthighlight: 'Highlight', underline: 'Underline', strikeout: 'Strikeout', squiggly: 'Squiggly' };
   K.isTextTool = (t) => !!TEXT_MARKUP[t];
 
   function quadsBBox(quads) {
@@ -897,6 +1355,19 @@
         r.setAttribute('fill', color); r.setAttribute('opacity', 0.4); r.setAttribute('stroke', 'none');
         r.setAttribute('class', 'hit'); r.addEventListener('pointerdown', sel);
         svg.appendChild(r);
+      } else if (an.type === 'squiggly') {
+        const path = ns('path');
+        path.setAttribute('d', squigglePath(q, z));
+        path.setAttribute('fill', 'none'); path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', Math.max(1, width * 0.7));
+        path.setAttribute('class', 'hit'); path.addEventListener('pointerdown', sel);
+        svg.appendChild(path);
+        const hitR = ns('rect');
+        hitR.setAttribute('x', q.x * z); hitR.setAttribute('y', (q.y + q.h * 0.7) * z);
+        hitR.setAttribute('width', q.w * z); hitR.setAttribute('height', Math.max(6, q.h * 0.3 * z));
+        hitR.setAttribute('fill', 'transparent'); hitR.setAttribute('class', 'hit');
+        hitR.addEventListener('pointerdown', sel);
+        svg.appendChild(hitR);
       } else {
         const yy = (an.type === 'underline' ? q.y + q.h - 1 : q.y + q.h / 2) * z;
         [false, true].forEach((transparent) => {
@@ -910,6 +1381,24 @@
         });
       }
     });
+  }
+
+  // Wavy underline along the bottom of a text quad. Same wave as save.js writes
+  // (K.squigglePoints), so screen and file agree.
+  function squigglePoints(q) {
+    const amp = Math.max(0.8, q.h * 0.08), period = Math.max(3, q.h * 0.35);
+    const base = q.y + q.h - amp - 0.5;
+    const out = [];
+    const steps = Math.max(2, Math.ceil(q.w / (period / 2)));
+    for (let i = 0; i <= steps; i++) {
+      const x = q.x + (q.w * i) / steps;
+      out.push({ x, y: base + (i % 2 ? amp : -amp) });
+    }
+    return out;
+  }
+  K.squigglePoints = squigglePoints;
+  function squigglePath(q, z) {
+    return squigglePoints(q).map((p, i) => `${i ? 'L' : 'M'}${p.x * z} ${p.y * z}`).join(' ');
   }
 
   function drawQuadsSel(svg, an, z) {
@@ -958,7 +1447,8 @@
       App.state.annoSeq = (App.state.annoSeq || 0) + 1;
       App.state.annotations.push({
         id: App.state.annoSeq, page: +page, type: subtype, quads: groups[page],
-        style: { stroke: base.stroke, fill: 'none', width: base.width, opacity: 1 }
+        style: { stroke: base.stroke, fill: 'none', width: base.width, opacity: 1 },
+        createdAt: Date.now()
       });
     });
     const sel = window.getSelection(); if (sel) sel.removeAllRanges();
