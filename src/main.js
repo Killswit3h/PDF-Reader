@@ -3362,7 +3362,22 @@ function createWindow() {
               App.Markup._eraseAt(1, { vx: 150, vy: 130 });
               out.lineErased = !A.annotations.some(a => a.id === lineId);
               out.stampKept = A.annotations.some(a => a.id === st.id);
+              // A real press-and-click over two stacked lines erases ONE of them.
+              const mkLine = () => { A.annoSeq++; A.annotations.push({ id: A.annoSeq, page: 1, type: 'line', pts: [{ vx: 60, vy: 440 }, { vx: 260, vy: 440 }], style: { stroke: '#f00', fill: 'none', width: 2, opacity: 1 } }); return A.annoSeq; };
+              const l1 = mkLine(), l2 = mkLine();
+              const lb = layer.getBoundingClientRect(), lz = A.zoom || 1;
+              const ev = { bubbles: true, clientX: lb.left + 150 * lz, clientY: lb.top + 440 * lz, pointerId: 1, button: 0 };
+              layer.dispatchEvent(new PointerEvent('pointerdown', ev));
+              window.dispatchEvent(new PointerEvent('pointerup', ev));
+              layer.dispatchEvent(new MouseEvent('click', ev));
+              out.oneClickErasesOne = A.annotations.some(a => a.id === l1) && !A.annotations.some(a => a.id === l2);
               App.setMode(null);
+              // A locked markup ignores the style bar.
+              App.Markup.select(st.id);
+              const strokeIn = document.querySelector('#mk-stroke');
+              strokeIn.value = '#0000ff'; strokeIn.dispatchEvent(new Event('input', { bubbles: true }));
+              out.lockedStyleKept = A.annotations.find(a => a.id === st.id).style.stroke === '#15803d';
+              App.Markup.deselect();
 
               // Summary PDF + CSV rows.
               const sum = await App.MarkupPanel.buildSummaryBytes();
@@ -3411,14 +3426,54 @@ function createWindow() {
               out.textBefore = (await p1.getTextContent()).items.length;
               A.annoSeq++;
               A.annotations.push({ id: A.annoSeq, page: 1, type: 'redact', pts: [{ vx: 0, vy: 0 }, { vx: vp.width, vy: vp.height }], style: { stroke: '#000', fill: 'none', width: 1, opacity: 1 } });
-              const marksBefore = A.annotations.length;
+              // A FieldMark text box wholly under the box must go with it.
+              A.annoSeq++;
+              A.annotations.push({ id: A.annoSeq, page: 1, type: 'text', text: 'SECRET NOTE', pts: [{ vx: 100, vy: 100 }, { vx: 250, vy: 140 }], style: { stroke: '#000', fill: 'none', width: 2, opacity: 1, fontSize: 14 } });
+              const secretId = A.annoSeq;
+              // A link on page 2 that points AT page 1: copying page 2 must not
+              // drag the original page 1 (and its text) into the output.
+              {
+                const L = window.PDFLib;
+                const d = await L.PDFDocument.load(A.pdfBytes);
+                const p2 = d.getPage(1), ctx = d.context;
+                const dest = ctx.obj([d.getPage(0).ref, L.PDFName.of('Fit')]);
+                const link = ctx.register(ctx.obj({ Type: 'Annot', Subtype: 'Link', Rect: [10, 10, 60, 60], Dest: dest }));
+                p2.node.set(L.PDFName.of('Annots'), ctx.obj([link]));
+                A.pdfBytes = new Uint8Array(await d.save());
+              }
+              A.annoSeq++;
+              A.annotations.push({ id: A.annoSeq, page: 2, type: 'rect', pts: [{ vx: 60, vy: 60 }, { vx: 200, vy: 120 }], style: { stroke: '#f00', fill: 'none', width: 2, opacity: 1 } });
+              const page2Id = A.annoSeq;
               out.redactOk = await App.Redact.apply({ skipConfirm: true });
               for (let i = 0; i < 40 && !A.numPages; i++) await wait(100);
               await wait(500);
               const q1 = await A.pdfDoc.getPage(1);
               out.textAfter = (await q1.getTextContent()).items.length;
               out.redactMarkGone = !A.annotations.some(a => a.type === 'redact');
-              out.otherMarksKept = A.annotations.length === marksBefore - 1;
+              out.coveredMarkGone = !A.annotations.some(a => a.id === secretId);
+              {
+                const L = window.PDFLib;
+                const d = await L.PDFDocument.load(A.pdfBytes);
+                let pageObjs = 0, leaked = false;
+                for (const [, obj] of d.context.enumerateIndirectObjects()) {
+                  const dict = obj instanceof L.PDFDict ? obj : (obj && obj.dict);
+                  if (dict && dict.get(L.PDFName.of('Type')) === L.PDFName.of('Page')) pageObjs++;
+                  if (obj instanceof L.PDFRawStream) {
+                    try {
+                      const raw = L.decodePDFRawStream(obj).decode();
+                      if (new TextDecoder('latin1').decode(raw).indexOf('Sample drawing') >= 0) leaked = true;
+                    } catch (_) { /* image or unknown filter */ }
+                  }
+                }
+                out.pageObjects = pageObjs; out.numPagesAfter = d.getPageCount(); out.textLeaked = leaked;
+                try {
+                  const annots = d.getPage(1).node.Annots();
+                  const link = annots && annots.lookup(0, L.PDFDict);
+                  const dest = link && link.lookup(L.PDFName.of('Dest'), L.PDFArray);
+                  out.linkToRedactedPage = !!dest && dest.get(0) === d.getPage(0).ref;
+                } catch (e) { out.linkToRedactedPage = 'err ' + e.message; }
+              }
+              out.otherMarksKept = A.annotations.some(a => a.id === page2Id) && !A.annotations.some(a => a.page === 1);
               return JSON.stringify(out);
             })()`, true);
             console.log('[bluebeam] ' + r);

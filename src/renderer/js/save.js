@@ -948,12 +948,9 @@
           const ap = stampAppearance(pdfDoc, an, vp);
           if (ap) {
             // Draw the same form XObject the live annotation would carry.
-            const { PDFName } = window.PDFLib;
-            const res = page.node.Resources();
-            let xo = res.get(PDFName.of('XObject'));
-            if (!xo) { xo = pdfDoc.context.obj({}); res.set(PDFName.of('XObject'), xo); }
-            const key = 'FmStamp' + an.id;
-            xo.set(PDFName.of(key), ap.ref);
+            // newXObject normalizes the page's resources first, so an indirect
+            // /XObject dict or a page with no /Resources does not throw.
+            const key = page.node.newXObject('FmStamp', ap.ref);
             page.pushOperators(window.PDFLib.pushGraphicsState(), window.PDFLib.drawObject(key), window.PDFLib.popGraphicsState());
           }
           continue;

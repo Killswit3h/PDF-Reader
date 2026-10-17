@@ -746,6 +746,12 @@ const SCENARIOS = [
       check(j.textBefore > 0, 'fixture page 1 has no text to redact');
       check(j.textAfter === 0, 'text still extractable after redaction: ' + j.textAfter + ' items');
       check(j.redactMarkGone === true && j.otherMarksKept === true, 'redaction should consume only its own marks');
+      check(j.coveredMarkGone === true, 'a FieldMark text box wholly under a redaction survived');
+      check(j.pageObjects === j.numPagesAfter, 'redaction left orphan page objects in the file: ' + j.pageObjects + ' page dicts for ' + j.numPagesAfter + ' pages');
+      check(j.linkToRedactedPage === true, 'a link into the redacted page no longer lands on it: ' + j.linkToRedactedPage);
+      check(j.textLeaked === false, 'redacted page text is still in a content stream of the output');
+      check(j.oneClickErasesOne === true, 'one eraser click erased more than one markup');
+      check(j.lockedStyleKept === true, 'the style bar recoloured a locked markup');
     }
   },
   {

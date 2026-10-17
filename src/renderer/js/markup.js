@@ -194,6 +194,7 @@
   // Sticky note: type the comment right after dropping it. Cancelling a brand
   // new note removes it rather than leaving an empty one behind.
   async function editComment(an, fresh) {
+    if (an.locked) { App.toast('This markup is locked. Unlock it in the Markups list first.', 'info', 3000); return; }
     const txt = await App.promptText('Comment', {
       title: an.type === 'note' ? 'Note' : 'Comment', value: an.comment || '', multiline: true,
       placeholder: 'Type the comment (Ctrl+Enter to save)', okLabel: 'Save'
@@ -209,6 +210,7 @@
   // Hyperlink target: a page number jumps inside the document, anything else
   // must be an http(s) or mailto address (App.parseLinkTarget refuses the rest).
   async function editLink(an, fresh) {
+    if (an.locked) { App.toast('This markup is locked. Unlock it in the Markups list first.', 'info', 3000); return; }
     const cur = an.link ? (an.link.url || String(an.link.page || '')) : '';
     const txt = await App.promptText('Page number in this document, or a web address (https://...)', {
       title: 'Hyperlink', value: cur, placeholder: 'e.g. 12  or  https://www.fdot.gov', okLabel: 'Link'
@@ -266,7 +268,9 @@
     if (!K.tool || FREEHAND[K.tool]) return;
     const p = ptFromEvent(layer, e);
 
-    if (K.tool === 'eraser') { eraseAt(page, p); return; }
+    // The eraser works on pointerdown (inkStart); the click that follows the
+    // same press must not erase the next markup underneath as well.
+    if (K.tool === 'eraser') return;
     if (K.tool === 'note') {
       finalize({ type: 'note', page, pts: [{ vx: p.vx - NOTE_SIZE / 2, vy: p.vy - NOTE_SIZE / 2 }] });
       return;
@@ -413,7 +417,12 @@
 
   /* ---------------- selection / move / resize ---------------- */
   function annoById(id) { return App.state.annotations.find((a) => a.id === id); }
-  K.select = function (id) { App.state.annoSelectedId = id; K.repositionAll(); if (App.MarkupPanel) App.MarkupPanel.render(); syncPropBar(); App.refreshChrome && App.refreshChrome(); };
+  K.select = function (id) {
+    // Finish any edit in the panel's property fields against the markup it was
+    // typed for, before the selection moves on (its change event fires on blur).
+    const ae = document.activeElement;
+    if (ae && ae.closest && ae.closest('#mkp-props') && App.state.annoSelectedId !== id) ae.blur();
+    App.state.annoSelectedId = id; K.repositionAll(); if (App.MarkupPanel) App.MarkupPanel.render(); syncPropBar(); App.refreshChrome && App.refreshChrome(); };
   K.deselect = function () { if (App.state.annoSelectedId != null) { App.state.annoSelectedId = null; K.repositionAll(); App.refreshChrome && App.refreshChrome(); } };
 
   // ---------- Copy / duplicate ----------
@@ -865,6 +874,7 @@
   }
 
   function startTextEdit(an) {
+    if (an.locked) { App.toast('This markup is locked. Unlock it in the Markups list first.', 'info', 3000); return; }
     K.repositionAll();
     const svg = findSvgForPage(an.page); if (!svg) return;
     const fo = svg.querySelector(`foreignObject[data-anno-id="${an.id}"]`);
@@ -990,7 +1000,12 @@
   // Select; with a tool armed it's prospective, so choosing a colour part-way
   // through highlighting applies to the next highlight rather than recolouring
   // the last one.
-  function editTarget() { return K.tool ? null : annoById(App.state.annoSelectedId); }
+  // A locked markup is never the target: style changes then go to the defaults.
+  function editTarget() {
+    if (K.tool) return null;
+    const an = annoById(App.state.annoSelectedId);
+    return an && !an.locked ? an : null;
+  }
 
   // The line color the bar is showing — the selected markup's, or the default
   // the next one will get. Starring and picking a favourite both act on this,
@@ -1142,15 +1157,17 @@
   }
   // One undo step per field edit: snapshot on the first keystroke, release on
   // blur/change (same idea as the measurement property edits).
-  let _metaEditing = false;
+  let _metaEditing = false, _metaTarget = null;
   function editMeta(patch, commit) {
-    const an = annoById(App.state.annoSelectedId);
-    if (!an) return;
+    // Write to the markup the edit started on, not whatever is selected now.
+    const id = _metaEditing && _metaTarget != null ? _metaTarget : App.state.annoSelectedId;
+    const an = annoById(id);
+    if (!an) { _metaEditing = false; _metaTarget = null; return; }
     if (an.locked && !('locked' in patch)) { App.toast('This markup is locked. Untick Locked to edit it.', 'info', 3000); syncMetaProps(); return; }
-    if (!_metaEditing) { snapshot(); _metaEditing = true; }
+    if (!_metaEditing) { snapshot(); _metaEditing = true; _metaTarget = an.id; }
     Object.assign(an, patch);
     App.$('#btn-save').disabled = false;
-    if (commit) { _metaEditing = false; K.repositionAll(an.page); Panel.render(); }
+    if (commit) { _metaEditing = false; _metaTarget = null; K.repositionAll(an.page); Panel.render(); }
   }
   K.setMeta = function (id, patch) {
     const an = annoById(id); if (!an) return false;
@@ -1290,7 +1307,7 @@
       const el = App.$(id); if (!el) return;
       el.addEventListener(ev, () => editMeta({ [key]: el.value }, false));
       el.addEventListener('change', () => editMeta({ [key]: el.value }, true));
-      el.addEventListener('blur', () => { _metaEditing = false; });
+      el.addEventListener('blur', () => { _metaEditing = false; _metaTarget = null; });
     };
     wireMeta('#mkp-subject', 'subject', 'input');
     wireMeta('#mkp-comment', 'comment', 'input');
