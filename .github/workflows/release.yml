@@ -99,6 +99,12 @@ jobs:
             npx electron-builder --mac --universal --publish never -c.mac.notarize=true
           else
             echo "No CSC_LINK secret — building ad-hoc signed (no self-update)."
+            # The env block below always DEFINES these, as empty strings when
+            # the secrets are missing, and electron-builder treats a defined
+            # CSC_LINK as a certificate path: "" resolves to the working
+            # directory and the build dies with "<repo> not a file". Unset them
+            # so the ad-hoc branch really runs without any signing identity.
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             npm run dist:mac
           fi
         env:
